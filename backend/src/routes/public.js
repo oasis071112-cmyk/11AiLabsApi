@@ -1,0 +1,19 @@
+const express = require('express');
+const router = express.Router();
+const { getDatabase } = require('../database/init');
+
+router.get('/info', (req, res) => {
+  const db = getDatabase();
+  const platformName = db.prepare("SELECT config_value FROM system_config WHERE config_key='platform_name'").get();
+  const announcement = db.prepare("SELECT config_value FROM system_config WHERE config_key='platform_announcement'").get();
+  const regEnabled = db.prepare("SELECT config_value FROM system_config WHERE config_key='registration_enabled'").get();
+  res.json({ platform_name: platformName?.config_value||'AI API 中转站', announcement: announcement?.config_value||'', registration_enabled: regEnabled?.config_value!=='false' });
+});
+
+router.get('/models', (req, res) => {
+  const db = getDatabase();
+  const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,description,display_multiplier_input,display_multiplier_output FROM models WHERE status='active' ORDER BY sort_order ASC").all();
+  res.json({ data: models });
+});
+
+module.exports = router;

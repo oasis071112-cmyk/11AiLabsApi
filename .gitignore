@@ -1,0 +1,32 @@
+# ========== 敏感配置 ==========
+.env
+*.env
+!*.env.example
+
+# ========== 运行时数据 ==========
+backend/data/
+backend/logs/
+backend/backups/
+
+# ========== 依赖 ==========
+node_modules/
+package-lock.json
+
+# ========== 构建产物 ==========
+frontend/dist/
+dist/
+
+# ========== IDE & OS ==========
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ========== PM2 ==========
+.pm2/
+
+# ========== 系统 ==========
+*.pid
