@@ -1,6 +1,6 @@
 <template>
 <div class="auth-page"><div class="auth-card">
-<h2 style="text-align:center;margin-bottom:24px;color:#409eff">🔑 {{ appStore.platformInfo.platform_name }}</h2>
+<div style="text-align:center;margin-bottom:20px"><img src="/logo.svg" alt="11AiLabs" style="height:40px"/></div>
 <el-form :model="form" :rules="rules" ref="frm">
 <el-form-item prop="username"><el-input v-model="form.username" placeholder="用户名" size="large" prefix-icon="User"/></el-form-item>
 <el-form-item prop="password"><el-input v-model="form.password" type="password" placeholder="密码" size="large" prefix-icon="Lock" show-password/></el-form-item>
@@ -18,4 +18,4 @@ const form=reactive({username:'',password:''})
 const rules={username:[{required:true,message:'请输入用户名',trigger:'blur'}],password:[{required:true,message:'请输入密码',trigger:'blur'}]}
 async function handleLogin(){const v=await frm.value.validate().catch(()=>false);if(!v)return;loading.value=true;try{await authStore.login(form.username,form.password);ElMessage.success('登录成功');router.push(authStore.isAdmin?'/admin':'/')}catch(e){}loading.value=false}
 </script>
-<style scoped>.auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}.auth-card{width:420px;background:#fff;border-radius:12px;padding:40px;box-shadow:0 20px 60px rgba(0,0,0,0.15)}</style>
+<style scoped>.auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc}.auth-card{width:420px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:44px 40px;box-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)}</style>

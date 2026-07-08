@@ -1,5 +1,5 @@
 <template>
-<div class="flex-between mb-16"><h2 class="card-title">🎯 我的额度</h2><el-button type="primary" size="large" @click="rechargeDialog=true">🛒 购买额度包</el-button></div>
+<div class="flex-between mb-16"><h2 class="card-title"><Wallet :size="22"/> 我的额度</h2><el-button type="primary" size="large" @click="rechargeDialog=true"><ShoppingCart :size="16" style="margin-right:4px"/> 购买额度包</el-button></div>
 <el-row :gutter="16" style="margin-bottom:24px">
 <el-col :span="6"><div class="stat-card"><div class="label">额度点数</div><div class="value">{{ wallet.quota_balance?.toFixed(4) }} 点</div></div></el-col>
 <el-col :span="6"><div class="stat-card"><div class="label">赠送点数</div><div class="value">{{ wallet.gift_quota?.toFixed(4) }} 点</div></div></el-col>
@@ -17,14 +17,14 @@
 </el-tab-pane>
 </el-tabs>
 
-<el-dialog v-model="rechargeDialog" title="🛒 购买额度包" width="480px">
+<el-dialog v-model="rechargeDialog" width="480px"><template #header><div style="display:flex;align-items:center;gap:8px"><ShoppingCart :size="20" color="#409eff"/> 购买额度包</div></template>
 <el-form :model="rf" label-width="100px"><el-form-item label="购买点数"><el-input-number v-model="rf.amount" :min="1" :max="99999" :step="10" style="width:100%"/></el-form-item><el-form-item label="支付方式"><el-radio-group v-model="rf.payment_method"><el-radio value="alipay">支付宝</el-radio><el-radio value="wechat">微信支付</el-radio><el-radio value="usdt">USDT</el-radio><el-radio value="manual_transfer">手动转账</el-radio></el-radio-group></el-form-item><el-alert title="额度包点数1:1兑换，不可转让，不可提现，不可兑换现金，不支持二次流通" type="info" show-icon :closable="false" style="margin-top:12px"/></el-form>
 <template #footer><el-button @click="rechargeDialog=false">取消</el-button><el-button type="primary" :loading="recharging" @click="submitRecharge">提交购买订单</el-button></template>
 </el-dialog>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
+import { ref, computed, onMounted } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus';import { Wallet, ShoppingCart } from '@lucide/vue'
 const wallet=ref({quota_balance:0,gift_quota:0,frozen_balance:0})
 const availableBalance=computed(()=>((wallet.value.quota_balance||0)+(wallet.value.gift_quota||0)-(wallet.value.frozen_balance||0)).toFixed(4))
 const activeTab=ref('tx'),transactions=ref([]),orders=ref([]),ltx=ref(false),lo=ref(false)

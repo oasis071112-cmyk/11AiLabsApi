@@ -5,6 +5,7 @@ const { authenticate } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 const { encrypt, decrypt, desensitize } = require('../utils/crypto');
+const { generateDocs } = require('../utils/channel-docs');
 
 router.get('/wallet', authenticate, (req, res) => {
   const db = getDatabase();
@@ -187,6 +188,31 @@ router.get('/recharge-orders', authenticate, (req, res) => {
   const data = db.prepare('SELECT id,order_no,user_id,amount,payment_method,status,payment_proof,admin_remark,created_at,paid_at,granted_at as credited_at FROM quota_orders WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(req.user.id, Number(limit), offset);
   const total = db.prepare('SELECT COUNT(*) as count FROM quota_orders WHERE user_id=?').get(req.user.id);
   res.json({ data, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
+});
+
+// ========== 渠道使用文档 ==========
+
+router.get('/docs/channel', authenticate, (req, res) => {
+  const { channel_name } = req.query;
+  if (!channel_name) return res.status(400).json({ error: '缺少 channel_name 参数' });
+  const db = getDatabase();
+  const channel = db.prepare("SELECT * FROM upstream_channels WHERE channel_name=? AND status='active'").get(channel_name);
+  if (!channel) return res.status(404).json({ error: '渠道不存在' });
+  const models = db.prepare("SELECT model_code, model_name FROM models WHERE channel_id=? AND status='active' ORDER BY sort_order ASC").all(channel.id);
+  // 获取当前用户的一个有效的 key_prefix
+  const apiKey = db.prepare("SELECT key_prefix FROM api_keys WHERE user_id=? AND status='active' ORDER BY created_at DESC LIMIT 1").get(req.user.id);
+  const keyPrefix = apiKey ? desensitize(apiKey.key_prefix).substring(0, 15) : 'sk-your-key';
+  const protocol = req.protocol;
+  const host = req.get('host');
+  const baseUrl = `${protocol}://${host}`;
+  const docs = generateDocs(baseUrl, channel_name, keyPrefix, models);
+  res.json({
+    channel_name,
+    base_url: baseUrl,
+    key_prefix_hint: keyPrefix,
+    models: models.map(m => ({ model_code: m.model_code, model_name: m.model_name })),
+    ...docs
+  });
 });
 
 router.get('/stats', authenticate, (req, res) => {

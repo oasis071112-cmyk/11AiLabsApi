@@ -19,7 +19,7 @@
 <el-dialog v-model="detailDialog" title="用户详情" width="700px">
 <template v-if="detailUser">
 <el-descriptions :column="2" border><el-descriptions-item label="ID">{{ detailUser.id }}</el-descriptions-item><el-descriptions-item label="用户名">{{ detailUser.username }}</el-descriptions-item><el-descriptions-item label="邮箱">{{ detailUser.email||'-' }}</el-descriptions-item><el-descriptions-item label="角色">{{ rl(detailUser.role) }}</el-descriptions-item><el-descriptions-item label="状态">{{ detailUser.status }}</el-descriptions-item><el-descriptions-item label="注册时间">{{ detailUser.register_time }}</el-descriptions-item><el-descriptions-item label="额度点数">{{ detailUser.quota_balance?.toFixed(0)||0 }} 点</el-descriptions-item><el-descriptions-item label="赠送点数">{{ detailUser.gift_quota?.toFixed(0)||0 }} 点</el-descriptions-item><el-descriptions-item label="累计消费">{{ detailUser.total_spent?.toFixed(0)||0 }} 点</el-descriptions-item></el-descriptions>
-<div style="margin-top:16px"><el-button type="success" @click="adjustDialog=true">💰 手工调账</el-button></div>
+<div style="margin-top:16px"><el-button type="success" @click="adjustDialog=true"><DollarSign :size="14" style="margin-right:2px"/> 手工调账</el-button></div>
 </template>
 </el-dialog>
 
@@ -29,7 +29,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
+import { ref, onMounted } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus';import { DollarSign } from '@lucide/vue'
 const users=ref([]),loading=ref(false),search=ref(''),page=ref(1),limit=ref(20),total=ref(0)
 const detailDialog=ref(false),detailUser=ref(null),adjustDialog=ref(false),adjusting=ref(false)
 const adj=ref({type:'manual_add',balance_type:'recharge',amount:0,remark:''})

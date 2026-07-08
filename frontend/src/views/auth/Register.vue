@@ -1,6 +1,6 @@
 <template>
 <div class="auth-page"><div class="auth-card">
-<h2 style="text-align:center;margin-bottom:24px;color:#409eff">📝 注册账号</h2>
+<h2 style="text-align:center;margin-bottom:24px;color:#409eff"><UserPlus :size="24" style="margin-right:6px;vertical-align:middle"/> 注册账号</h2>
 <el-form :model="form" :rules="rules" ref="frm">
 <el-form-item prop="username"><el-input v-model="form.username" placeholder="用户名（3-32字符）" size="large"/></el-form-item>
 <el-form-item prop="email"><el-input v-model="form.email" placeholder="邮箱（选填）" size="large"/></el-form-item>
@@ -16,10 +16,10 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';import { useRouter } from 'vue-router';import { useAuthStore } from '@/stores/auth';import { ElMessage } from 'element-plus'
+import { ref, reactive } from 'vue';import { useRouter } from 'vue-router';import { useAuthStore } from '@/stores/auth';import { ElMessage } from 'element-plus';import { UserPlus, AlertTriangle } from '@lucide/vue'
 const router=useRouter(),authStore=useAuthStore(),frm=ref(null),loading=ref(false),result=ref(''),apiKey=ref('')
 const form=reactive({username:'',email:'',password:'',cp:''})
 const rules={username:[{required:true,message:'请输入用户名',trigger:'blur'},{min:3,max:32,message:'3-32字符',trigger:'blur'}],password:[{required:true,message:'请输入密码',trigger:'blur'},{min:6,message:'至少6位',trigger:'blur'}],cp:[{required:true,message:'请确认密码',trigger:'blur'},{validator:(r,v,cb)=>v===form.password?cb():cb(new Error('两次密码不一致')),trigger:'blur'}]}
 async function handleRegister(){const v=await frm.value.validate().catch(()=>false);if(!v)return;loading.value=true;try{const r=await authStore.register({username:form.username,password:form.password,email:form.email});result.value=`注册成功！${r.gift_amount>0?`已赠送 ${r.gift_amount} 额度点数。`:''}`;apiKey.value=r.api_key;ElMessage.success('注册成功！');setTimeout(()=>router.push('/'),3000)}catch(e){}loading.value=false}
 </script>
-<style scoped>.auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}.auth-card{width:450px;background:#fff;border-radius:12px;padding:40px;box-shadow:0 20px 60px rgba(0,0,0,0.15)}</style>
+<style scoped>.auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc}.auth-card{width:450px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:44px 40px;box-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)}</style>

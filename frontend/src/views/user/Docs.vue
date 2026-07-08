@@ -1,5 +1,5 @@
 <template>
-<div class="page-container" style="max-width:900px"><h2 class="card-title mb-16">📖 API 接入文档</h2>
+<div class="page-container" style="max-width:900px"><h2 class="card-title mb-16"><BookOpen :size="22"/> API 接入文档</h2>
 <el-card>
 <h3>1. 获取 API Key</h3><p>在 <el-link type="primary" @click="$router.push('/keys')">API Key 管理</el-link> 页面创建密钥。</p>
 <h3 style="margin-top:24px">2. 调用方式</h3><p>兼容 OpenAI API 格式，修改 base_url 和 api_key：</p>
@@ -26,3 +26,7 @@ console.log(r.choices[0].message.content);</pre></div>
 </el-card>
 </div>
 </template>
+
+<script setup>
+import { BookOpen } from '@lucide/vue'
+</script>

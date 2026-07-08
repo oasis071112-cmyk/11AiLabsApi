@@ -96,8 +96,8 @@ app.use((err, req, res, next) => {
 async function start() {
   await initDatabase();
   app.listen(PORT, () => {
-    logger.info(`AI API 中转站已启动 — 端口: ${PORT}, 环境: ${isProduction ? 'production' : 'development'}`);
-    console.log(`\n🚀 AI API 中转站已启动: http://localhost:${PORT}`);
+    logger.info(`11AiLabs 已启动 — 端口: ${PORT}, 环境: ${isProduction ? 'production' : 'development'}`);
+    console.log(`\n🚀 11AiLabs 已启动: http://localhost:${PORT}`);
     console.log(`📡 代理端点: http://localhost:${PORT}/v1/chat/completions`);
     console.log(`🌍 运行环境: ${isProduction ? 'production' : 'development'}`);
     console.log(`📋 日志目录: ./logs/\n`);

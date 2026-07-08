@@ -7,7 +7,7 @@ router.get('/info', (req, res) => {
   const platformName = db.prepare("SELECT config_value FROM system_config WHERE config_key='platform_name'").get();
   const announcement = db.prepare("SELECT config_value FROM system_config WHERE config_key='platform_announcement'").get();
   const regEnabled = db.prepare("SELECT config_value FROM system_config WHERE config_key='registration_enabled'").get();
-  res.json({ platform_name: platformName?.config_value||'AI API 中转站', announcement: announcement?.config_value||'', registration_enabled: regEnabled?.config_value!=='false' });
+  res.json({ platform_name: platformName?.config_value||'11AiLabs', announcement: announcement?.config_value||'', registration_enabled: regEnabled?.config_value!=='false' });
 });
 
 router.get('/models', (req, res) => {
