@@ -95,6 +95,8 @@ app.use((err, req, res, next) => {
 
 async function start() {
   await initDatabase();
+  // 启动上游渠道健康检查
+  try { const { startHealthCheck } = require('./utils/channel-selector'); startHealthCheck(getDatabase()); } catch(e) { console.error('[健康检查启动失败]', e.message); }
   app.listen(PORT, () => {
     logger.info(`11AiLabs 已启动 — 端口: ${PORT}, 环境: ${isProduction ? 'production' : 'development'}`);
     console.log(`\n🚀 11AiLabs 已启动: http://localhost:${PORT}`);

@@ -3,7 +3,9 @@
 <el-table :data="channels" stripe v-loading="loading">
 <el-table-column prop="channel_name" label="名称" width="150"/><el-table-column prop="base_url" label="上游地址" min-width="250"/>
 <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'danger'" size="small">{{ row.status }}</el-tag></template></el-table-column>
-<el-table-column prop="priority" label="优先级" width="80"/><el-table-column prop="weight" label="权重" width="80"/>
+<el-table-column prop="priority" label="优先级" width="80"/><el-table-column label="健康状态" width="130"><template #default="{row}"><el-tag :type="healthType(row)" size="small" effect="dark" style="width:100%;text-align:center">{{ healthLabel(row) }}</el-tag></template></el-table-column>
+<el-table-column label="健康分" width="70"><template #default="{row}">{{ row.health_score?.toFixed(0)||100 }}</template></el-table-column>
+<el-table-column prop="weight" label="权重" width="70"/>
 <el-table-column label="操作" width="280"><template #default="{row}"><el-button size="small" @click="openDialog(row)">编辑</el-button><el-button size="small" type="info" @click="openModelDialog(row)">管理模型</el-button><el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggle(row)">{{ row.status==='active'?'停用':'启用' }}</el-button></template></el-table-column>
 </el-table>
 
@@ -57,4 +59,6 @@ async function openModelDialog(row){modelChannel.value=row;modelDialogVisible.va
 async function saveModels(){modelSaving.value=true
   try{await api.put(`/api/admin/channels/${modelChannel.value.id}/models`,{model_codes:selectedModels.value});ElMessage.success('模型分配已保存');modelDialogVisible.value=false;fetch()}catch(e){}
   modelSaving.value=false}
+function healthType(r){if(r.status!=="active")return "info";if(r.circuit_breaker_until&&new Date(r.circuit_breaker_until)>new Date())return "danger";return(r.health_score||100)>=60?"success":(r.health_score||100)>=30?"warning":"danger"}
+function healthLabel(r){if(r.status!=="active")return "未启用";if(r.circuit_breaker_until&&new Date(r.circuit_breaker_until)>new Date())return "熔断中";return(r.health_score||100)>=60?"在线":(r.health_score||100)>=30?"降级":"离线"}
 </script>

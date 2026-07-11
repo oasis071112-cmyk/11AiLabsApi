@@ -4,6 +4,7 @@ const { getDatabase } = require('../database/init');
 const { authenticateApiKey } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
+const { selectChannel, reportResult } = require('../utils/channel-selector');
 
 function getEffectiveMultiplier(db, modelCode, userId, apiKeyId) {
   const now = new Date().toISOString();
@@ -96,6 +97,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     res.json(upstreamResponse.data);
   } catch (err) {
     const latencyMs = Date.now() - startTime;
+    reportResult(db, channel.id, false);
     db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,?,'failed',?,'upstream_error',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel?.id||null, err.response?.data?.error?.message||err.message, req.ip, latencyMs);
     res.status(err.response?.status||500).json({ error: { message: `上游请求失败: ${err.response?.data?.error?.message||err.message}`, type: 'upstream_error' } });
   }

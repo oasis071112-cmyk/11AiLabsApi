@@ -193,6 +193,12 @@ function createTables() {
     health_score REAL DEFAULT 100, last_check_time DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  // 健康检查 & 熔断字段（兼容已有数据库）
+  try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN failure_count INTEGER DEFAULT 0"); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN circuit_breaker_until DATETIME"); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN consecutive_failures INTEGER DEFAULT 0"); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_requests INTEGER DEFAULT 0"); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_successes INTEGER DEFAULT 0"); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS system_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT, config_key TEXT UNIQUE NOT NULL,
