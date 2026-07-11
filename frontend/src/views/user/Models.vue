@@ -36,7 +36,7 @@ function fc(n){return n>=1000?`${(n/1000).toFixed(0)}K`:n}
 </script>
 
 <style scoped>
-.dashboard{padding:28px 32px;max-width:1440px;margin:0 auto;width:100%}
+.dashboard{padding:28px 32px}
 .kpi-row{margin-bottom:16px}
 .kpi-card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px 24px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);transition:box-shadow .2s}
 .kpi-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.05)}

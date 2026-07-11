@@ -1,53 +1,52 @@
 <template>
-<el-container style="min-height:100vh">
-<el-aside width="200px" style="background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto">
+<div style="height:100vh;display:flex;background:var(--bg-page);padding:12px;gap:12px;overflow:hidden">
+<!-- 侧栏 — 独立圆角卡片 -->
+<aside style="width:220px;background:#fff;border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;box-shadow:var(--shadow-sm)">
+
   <!-- Logo -->
-  <div style="padding:20px 20px 12px">
+  <div style="padding:22px 20px 14px">
     <router-link to="/" style="display:flex;align-items:center;gap:8px;text-decoration:none">
-      <img src="/logo.svg" alt="11AiLabs" style="height:28px"/>
+      <img src="/logo-icon.svg" alt="11AiLabs" style="height:30px"/>
+      <span style="font-size:18px;font-weight:700;color:var(--text-primary);letter-spacing:-0.5px">11AiLabs</span>
     </router-link>
   </div>
 
-  <!-- 用户信息卡片 — 固定在 logo 下方 -->
-  <div style="padding:0 16px 12px;border-bottom:1px solid var(--border);margin-bottom:4px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-      <el-avatar :size="36" icon="UserFilled" style="background:#409eff;flex-shrink:0"/>
-      <div style="min-width:0">
-        <div style="font-weight:600;font-size:13px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ authStore.user?.username }}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:1px"><DollarSign :size="12" style="vertical-align:middle;margin-right:2px"/>{{ walletBalance }}</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:6px">
-      <el-button v-if="authStore.isAdmin" size="small" style="flex:1;font-size:12px" @click="$router.push('/admin')"><Shield :size="13" style="margin-right:2px"/>管理后台</el-button>
-      <el-button size="small" style="flex:1;font-size:12px" @click="$router.push('/change-password')"><Lock :size="13" style="margin-right:2px"/>修改密码</el-button>
-      <el-button size="small" type="danger" plain style="flex:1;font-size:12px" @click="authStore.logout();$router.push('/login')"><LogOut :size="13" style="margin-right:2px"/>退出</el-button>
-    </div>
-  </div>
-
   <!-- 导航菜单 -->
-  <nav style="flex:1;padding:4px 12px 0">
+  <nav style="flex:1;padding:0 12px 8px">
     <router-link v-for="item in navItems" :key="item.path" :to="item.path" class="sidebar-link" :class="{active: route.path===item.path}">
       <component :is="item.icon" :size="18"/>
       <span>{{ item.label }}</span>
     </router-link>
   </nav>
-</el-aside>
 
-<el-container>
-  <el-main style="background:var(--bg-page)"><router-view/></el-main>
-</el-container>
-</el-container>
+  <!-- 用户信息 — 底部独立圆角卡片 -->
+  <div style="padding:0 12px 12px">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow-sm)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <el-avatar :size="30" icon="UserFilled" style="background:var(--primary);flex-shrink:0"/>
+        <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary)">{{ authStore.user?.username }}</div>
+      </div>
+      <div style="display:flex;gap:4px">
+        <el-button v-if="authStore.isAdmin" size="small" style="flex:1;font-size:11px" @click="$router.push('/admin')"><Shield :size="12" style="margin-right:2px"/>管理</el-button>
+        <el-button size="small" style="flex:1;font-size:11px" @click="$router.push('/change-password')"><Lock :size="12" style="margin-right:2px"/>密码</el-button>
+        <el-button size="small" type="danger" plain style="flex:1;font-size:11px" @click="authStore.logout();$router.push('/login')"><LogOut :size="12" style="margin-right:2px"/>退出</el-button>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- 右侧内容区 -->
+<main style="flex:1;min-width:0;overflow:auto"><router-view/></main>
+</div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
-import api from '@/api'
-import { LayoutDashboard, Wallet, Key, Cpu, ScrollText, DollarSign, Shield, LogOut, Lock, ShoppingCart } from '@lucide/vue'
+import { LayoutDashboard, Wallet, Key, Cpu, ScrollText, Shield, LogOut, Lock, ShoppingCart } from '@lucide/vue'
 const route=useRoute(),router=useRouter(),authStore=useAuthStore(),appStore=useAppStore()
-const walletBalance=ref('0.00')
 const navItems=[
   {path:'/',label:'控制台',icon:LayoutDashboard},
   {path:'/wallet',label:'钱包',icon:Wallet},
@@ -56,7 +55,7 @@ const navItems=[
   {path:'/models',label:'模型列表',icon:Cpu},
   {path:'/logs',label:'调用记录',icon:ScrollText},
 ]
-onMounted(async()=>{appStore.fetchPlatformInfo();try{const r=await api.get('/api/user/wallet');const w=r.data;walletBalance.value=(w.recharge_balance+w.gift_balance).toFixed(2)}catch(e){}})
+onMounted(()=>{appStore.fetchPlatformInfo()})
 </script>
 
 <style scoped>
@@ -67,6 +66,6 @@ onMounted(async()=>{appStore.fetchPlatformInfo();try{const r=await api.get('/api
   color:var(--text-secondary);text-decoration:none;
   transition:all .15s;
 }
-.sidebar-link:hover { background:#f1f5f9;color:var(--text-primary) }
-.sidebar-link.active { background:#eff6ff;color:#409eff;font-weight:600 }
+.sidebar-link:hover { background:#F2F5EF;color:var(--text-primary) }
+.sidebar-link.active { background:#EDF4EA;color:var(--primary);font-weight:600 }
 </style>

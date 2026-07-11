@@ -1,6 +1,6 @@
 <template>
 <div class="auth-page"><div class="auth-card">
-<div style="text-align:center;margin-bottom:20px"><img src="/logo.svg" alt="11AiLabs" style="height:40px"/></div>
+<div style="text-align:center;margin-bottom:20px"><img src="/logo-icon.svg" alt="11AiLabs" style="height:40px"/></div>
 <el-form :model="form" :rules="rules" ref="frm">
 <el-form-item prop="username"><el-input v-model="form.username" placeholder="用户名" size="large"/></el-form-item>
 <el-form-item prop="password"><el-input v-model="form.password" type="password" placeholder="密码" size="large" show-password/></el-form-item>
