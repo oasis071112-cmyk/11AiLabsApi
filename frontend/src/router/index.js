@@ -27,9 +27,11 @@ const routes=[
 const router=createRouter({history:createWebHistory(),routes})
 router.beforeEach((to,from,next)=>{
   const token=localStorage.getItem('token'),role=localStorage.getItem('userRole')
+  const isAdmin=role&&role!=='user'
   if(to.meta.requiresAuth&&!token)return next('/login')
-  if(to.meta.guest&&token)return next('/')
-  if(to.meta.requiresAdmin&&role==='user')return next('/')
+  if(to.meta.guest&&token)return next(isAdmin?'/admin':'/')
+  if(to.meta.requiresAdmin&&!isAdmin)return next('/')
+  if(isAdmin&&!to.meta.requiresAdmin&&!to.meta.guest)return next('/admin')
   next()
 })
 export default router
