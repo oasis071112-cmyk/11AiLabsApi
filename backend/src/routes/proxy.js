@@ -93,10 +93,14 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
 
       let inputTokens = 0, outputTokens = 0;
       let fullContent = '';
+      let buffer = '';
 
       upstreamResp.data.on('data', (chunk) => {
-        const lines = chunk.toString().split('\n').filter(l => l.startsWith('data: '));
+        buffer += chunk.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
         for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
           const data = line.slice(6);
           if (data === '[DONE]') { res.write('data: [DONE]\n\n'); continue; }
           try {
@@ -106,8 +110,8 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
               outputTokens = parsed.usage.completion_tokens || 0;
             }
             if (parsed.choices?.[0]?.delta?.content) fullContent += parsed.choices[0].delta.content;
-          } catch(e) {}
-          res.write(`data: ${data}\n\n`);
+            res.write(`data: ${data}\n\n`);
+          } catch(e) { /* skip malformed chunk — JSON parse failed */ }
         }
       });
 

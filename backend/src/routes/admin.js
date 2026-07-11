@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDatabase } = require('../database/init');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+const { desensitize } = require('../utils/crypto');
 
 router.get('/dashboard', authenticate, requireAdmin('admin','operator','finance'), (req, res) => {
   const db = getDatabase();
@@ -292,7 +293,7 @@ router.put('/channels/:id/models', authenticate, requireAdmin('admin'), (req, re
 
 router.get('/channels', authenticate, requireAdmin('admin'), (req, res) => {
   const channels = getDatabase().prepare('SELECT * FROM upstream_channels ORDER BY priority ASC').all();
-  res.json({ data: channels.map(c=>({...c, api_key: c.api_key.substring(0,8)+'***'})) });
+  res.json({ data: channels.map(c=>({...c, api_key: desensitize(c.api_key)})) });
 });
 
 router.post('/channels', authenticate, requireAdmin('admin'), (req, res) => {
@@ -309,8 +310,14 @@ router.patch('/channels/:id/status', authenticate, requireAdmin('admin'), (req, 
 // 更新渠道信息（名称/地址/Key/权重）
 router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const { channel_name, base_url, api_key, priority, weight } = req.body;
-  getDatabase().prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, api_key=COALESCE(?,api_key), priority=?, weight=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
-    .run(channel_name, base_url, api_key||null, priority||0, weight||100, req.params.id);
+  const db = getDatabase();
+  if (api_key && api_key.trim()) {
+    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, api_key=?, priority=?, weight=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(channel_name, base_url, api_key, priority||0, weight||100, req.params.id);
+  } else {
+    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, priority=?, weight=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(channel_name, base_url, priority||0, weight||100, req.params.id);
+  }
   res.json({ message: '渠道已更新' });
 });
 

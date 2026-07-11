@@ -12,7 +12,7 @@
 <el-dialog v-model="dialogVisible" :title="isEdit?'编辑渠道':'新增渠道'" width="480px"><el-form :model="form" label-width="100px">
 <el-form-item label="渠道名称"><el-input v-model="form.channel_name"/></el-form-item>
 <el-form-item label="上游地址"><el-input v-model="form.base_url"/></el-form-item>
-<el-form-item label="API Key"><el-input v-model="form.api_key" type="password" show-password/></el-form-item>
+<el-form-item label="API Key"><el-input v-model="form.api_key" type="password" show-password :placeholder="isEdit ? '已配置（留空不修改）' : '请输入 API Key'"/></el-form-item>
 <el-form-item label="优先级"><el-input-number v-model="form.priority" :min="0"/></el-form-item>
 <el-form-item label="权重"><el-input-number v-model="form.weight" :min="0" :max="1000"/></el-form-item>
 </el-form><template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存</el-button></template></el-dialog>
@@ -46,12 +46,13 @@
 import { ref, onMounted } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
 const channels=ref([]),loading=ref(false),dialogVisible=ref(false),isEdit=ref(false),saving=ref(false)
 const form=ref({channel_name:'',base_url:'',api_key:'',priority:0,weight:100})
+const originalApiKey=ref('')
 // 模型管理
 const modelDialogVisible=ref(false),modelChannel=ref(null),allModels=ref([]),selectedModels=ref([]),modelLoading=ref(false),modelSaving=ref(false)
 onMounted(()=>fetch())
 async function fetch(){loading.value=true;try{channels.value=(await api.get('/api/admin/channels')).data.data}catch(e){}loading.value=false}
-function openDialog(row){isEdit.value=!!row;form.value=row?{...row,api_key:''}:{channel_name:'',base_url:'',api_key:'',priority:0,weight:100};dialogVisible.value=true}
-async function save(){saving.value=true;try{if(isEdit.value){await api.put(`/api/admin/channels/${form.value.id}`,form.value)}else{await api.post('/api/admin/channels',form.value)}ElMessage.success('保存成功');dialogVisible.value=false;fetch()}catch(e){}saving.value=false}
+function openDialog(row){isEdit.value=!!row;if(row){form.value={...row};originalApiKey.value=row.api_key||''}else{form.value={channel_name:'',base_url:'',api_key:'',priority:0,weight:100};originalApiKey.value=''}dialogVisible.value=true}
+async function save(){saving.value=true;try{const data={...form.value};if(isEdit.value&&data.api_key===originalApiKey.value)data.api_key='';if(isEdit.value){await api.put(`/api/admin/channels/${data.id}`,data)}else{await api.post('/api/admin/channels',data)}ElMessage.success('保存成功');dialogVisible.value=false;fetch()}catch(e){}saving.value=false}
 async function toggle(row){const s=row.status==='active'?'inactive':'active';await api.patch(`/api/admin/channels/${row.id}/status`,{status:s});ElMessage.success('操作成功');fetch()}
 async function openModelDialog(row){modelChannel.value=row;modelDialogVisible.value=true;modelLoading.value=true
   try{const res=await api.get(`/api/admin/channels/${row.id}/models`);allModels.value=res.data.data;selectedModels.value=[...res.data.channel_model_codes]}catch(e){}
