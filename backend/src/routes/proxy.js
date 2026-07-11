@@ -71,35 +71,92 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     return res.status(402).json({ error: { message: '额度不足，请购买额度包后重试', type: 'insufficient_balance', current_balance: availableBalance } });
   }
 
-  const channels = db.prepare("SELECT * FROM upstream_channels WHERE status='active' ORDER BY priority ASC, weight DESC").all();
-  if (channels.length === 0) return res.status(503).json({ error: { message: '暂无可用上游渠道', type: 'no_channel' } });
-  const channel = channels[0];
+  const channel = selectChannel(db, modelCode);
+  if (!channel) return res.status(503).json({ error: { message: '暂无可用上游渠道', type: 'no_channel' } });
+
+  const upstreamBody = { ...req.body, model: model.upstream_model_name || modelCode };
+  const isStream = req.body.stream === true;
 
   try {
-    const upstreamBody = { ...req.body, model: model.upstream_model_name || modelCode };
-    const upstreamResponse = await axios.post(`${channel.base_url}/chat/completions`, upstreamBody, {
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${channel.api_key}` },
-      timeout: 120000
-    });
+    if (isStream) {
+      // ========== 流式响应 ==========
+      const upstreamResp = await axios.post(`${channel.base_url}/chat/completions`, upstreamBody, {
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${channel.api_key}` },
+        responseType: 'stream',
+        timeout: 300000,
+      });
 
-    const usage = upstreamResponse.data?.usage || {};
-    const inputTokens = usage.prompt_tokens || 0;
-    const outputTokens = usage.completion_tokens || 0;
-    const inputCost = (inputTokens/1000) * model.base_input_price * bmi;
-    const outputCost = (outputTokens/1000) * model.base_output_price * bmo;
-    const totalCost = inputCost + outputCost;
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
 
-    try { deductBalance(db, req.userId, totalCost); } catch(e) { console.error('[扣费失败]', e); }
+      let inputTokens = 0, outputTokens = 0;
+      let fullContent = '';
 
-    db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,output_tokens,total_cost,status,request_ip,latency_ms) VALUES (?,?,?,?,?,?,?,?,'success',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel.id, inputTokens, outputTokens, totalCost, req.ip, Date.now()-startTime);
-    db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
+      upstreamResp.data.on('data', (chunk) => {
+        const lines = chunk.toString().split('\n').filter(l => l.startsWith('data: '));
+        for (const line of lines) {
+          const data = line.slice(6);
+          if (data === '[DONE]') { res.write('data: [DONE]\n\n'); continue; }
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.usage) {
+              inputTokens = parsed.usage.prompt_tokens || 0;
+              outputTokens = parsed.usage.completion_tokens || 0;
+            }
+            if (parsed.choices?.[0]?.delta?.content) fullContent += parsed.choices[0].delta.content;
+          } catch(e) {}
+          res.write(`data: ${data}\n\n`);
+        }
+      });
 
-    res.json(upstreamResponse.data);
+      upstreamResp.data.on('end', () => {
+        res.end();
+        // 扣费 + 记录日志
+        if (outputTokens > 0) {
+          const totalCost = (inputTokens/1000) * model.base_input_price * bmi + (outputTokens/1000) * model.base_output_price * bmo;
+          try { deductBalance(db, req.userId, totalCost); } catch(e) { console.error('[流式扣费失败]', e); }
+          db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,output_tokens,total_cost,status,request_ip,latency_ms) VALUES (?,?,?,?,?,?,?,?,'success',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel.id, inputTokens, outputTokens, totalCost, req.ip, Date.now()-startTime);
+          db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
+          reportResult(db, channel.id, true);
+        }
+      });
+
+      upstreamResp.data.on('error', (err) => {
+        res.end();
+        reportResult(db, channel.id, false);
+      });
+
+    } else {
+      // ========== 非流式响应 ==========
+      const upstreamResponse = await axios.post(`${channel.base_url}/chat/completions`, upstreamBody, {
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${channel.api_key}` },
+        timeout: 120000
+      });
+
+      const usage = upstreamResponse.data?.usage || {};
+      const inputTokens = upstreamResponse.data?.usage?.input_tokens || upstreamResponse.data?.usage?.prompt_tokens || 0;
+      const outputTokens = upstreamResponse.data?.usage?.output_tokens || upstreamResponse.data?.usage?.completion_tokens || 0;
+      const inputCost = (inputTokens/1000) * model.base_input_price * bmi;
+      const outputCost = (outputTokens/1000) * model.base_output_price * bmo;
+      const totalCost = inputCost + outputCost;
+
+      try { deductBalance(db, req.userId, totalCost); } catch(e) { console.error('[扣费失败]', e); }
+
+      db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,output_tokens,total_cost,status,request_ip,latency_ms) VALUES (?,?,?,?,?,?,?,?,'success',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel.id, inputTokens, outputTokens, totalCost, req.ip, Date.now()-startTime);
+      db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
+      reportResult(db, channel.id, true);
+
+      res.json(upstreamResponse.data);
+    }
   } catch (err) {
     const latencyMs = Date.now() - startTime;
     reportResult(db, channel.id, false);
     db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,?,'failed',?,'upstream_error',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel?.id||null, err.response?.data?.error?.message||err.message, req.ip, latencyMs);
-    res.status(err.response?.status||500).json({ error: { message: `上游请求失败: ${err.response?.data?.error?.message||err.message}`, type: 'upstream_error' } });
+    if (!isStream) {
+      res.status(err.response?.status||500).json({ error: { message: `上游请求失败: ${err.response?.data?.error?.message||err.message}`, type: 'upstream_error' } });
+    }
   }
 });
 
@@ -115,13 +172,12 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
 
-  const channels = db.prepare("SELECT * FROM upstream_channels WHERE status='active' ORDER BY priority ASC LIMIT 1").all();
-  if (channels.length===0) return res.status(503).json({ error: { message: '暂无可用上游渠道', type: 'no_channel' } });
-  const channel = channels[0];
+  const channel = selectChannel(db, modelCode);
+  if (!channel) return res.status(503).json({ error: { message: '暂无可用上游渠道', type: 'no_channel' } });
 
   try {
     const upstreamResponse = await axios.post(`${channel.base_url}/embeddings`, { ...req.body, model: model.upstream_model_name||modelCode }, { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${channel.api_key}` }, timeout: 60000 });
-    const inputTokens = upstreamResponse.data?.usage?.prompt_tokens || 0;
+    const inputTokens = upstreamResponse.data?.usage?.input_tokens || upstreamResponse.data?.usage?.prompt_tokens || 0;
     const totalCost = (inputTokens/1000) * model.base_input_price * model.billing_multiplier_input;
     try { deductBalance(db, req.userId, totalCost); } catch(e) {}
     db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,output_tokens,total_cost,status,request_ip,latency_ms) VALUES (?,?,?,?,?,?,0,?,'success',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel.id, inputTokens, totalCost, req.ip, Date.now()-startTime);

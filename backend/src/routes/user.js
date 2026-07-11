@@ -63,7 +63,7 @@ router.get('/channels', authenticate, (req, res) => {
 
 router.get('/keys', authenticate, (req, res) => {
   const db = getDatabase();
-  const keys = db.prepare('SELECT id,key_name,key_prefix,status,rate_limit_per_min,max_spend_limit,created_at,expired_at,last_used_at FROM api_keys WHERE user_id=? ORDER BY created_at DESC').all(req.user.id);
+  const keys = db.prepare("SELECT id,key_name,key_prefix,status,rate_limit_per_min,max_spend_limit,created_at,expired_at,last_used_at FROM api_keys WHERE user_id=? AND status!='revoked' ORDER BY created_at DESC").all(req.user.id);
   const keysWithModels = keys.map(k => {
     // 脱敏 key_prefix: sk-XXXX... → sk-XXX****XXXX
     k.key_prefix = desensitize(k.key_prefix);

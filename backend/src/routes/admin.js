@@ -306,6 +306,14 @@ router.patch('/channels/:id/status', authenticate, requireAdmin('admin'), (req, 
   res.json({ message: '状态已更新' });
 });
 
+// 更新渠道信息（名称/地址/Key/权重）
+router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
+  const { channel_name, base_url, api_key, priority, weight } = req.body;
+  getDatabase().prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, api_key=COALESCE(?,api_key), priority=?, weight=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+    .run(channel_name, base_url, api_key||null, priority||0, weight||100, req.params.id);
+  res.json({ message: '渠道已更新' });
+});
+
 router.get('/config', authenticate, requireAdmin('admin'), (req, res) => {
   res.json({ data: getDatabase().prepare('SELECT * FROM system_config').all() });
 });

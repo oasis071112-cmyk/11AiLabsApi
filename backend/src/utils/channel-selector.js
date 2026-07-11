@@ -27,12 +27,13 @@ function weightedRoundRobin(channels, modelCode) {
   });
   if (available.length === 0) return null;
 
-  // 加权轮询
-  const totalWeight = available.reduce((s, c) => s + (c.weight || 100), 0);
-  let rand = Math.random() * totalWeight;
-  for (const c of available) {
-    rand -= c.weight || 100;
-    if (rand <= 0) return c;
+  // 按 health_score 自动分配（健康分高的分到更多流量）
+  const scores = available.map(c => Math.max(1, (c.health_score || 100)));
+  const totalScore = scores.reduce((s, v) => s + v, 0);
+  let rand = Math.random() * totalScore;
+  for (let i = 0; i < available.length; i++) {
+    rand -= scores[i];
+    if (rand <= 0) return available[i];
   }
   return available[available.length - 1];
 }
@@ -93,8 +94,12 @@ async function healthCheck(db) {
  * @returns {Object|null} 选中的渠道
  */
 function selectChannel(db, modelCode) {
-  // 读取所有状态为 active 的渠道
-  const channels = db.prepare("SELECT * FROM upstream_channels WHERE status='active' ORDER BY priority ASC, weight DESC").all();
+  // 先查模型对应的 channel_id
+  const model = db.prepare("SELECT channel_id FROM models WHERE model_code=? AND status='active'").get(modelCode);
+  if (!model || !model.channel_id) return null;
+
+  // 只查询该渠道下的活跃上游
+  const channels = db.prepare("SELECT * FROM upstream_channels WHERE id=? AND status='active'").all(model.channel_id);
   if (!channels || channels.length === 0) return null;
 
   return weightedRoundRobin(channels, modelCode);

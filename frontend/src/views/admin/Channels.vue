@@ -51,7 +51,7 @@ const modelDialogVisible=ref(false),modelChannel=ref(null),allModels=ref([]),sel
 onMounted(()=>fetch())
 async function fetch(){loading.value=true;try{channels.value=(await api.get('/api/admin/channels')).data.data}catch(e){}loading.value=false}
 function openDialog(row){isEdit.value=!!row;form.value=row?{...row,api_key:''}:{channel_name:'',base_url:'',api_key:'',priority:0,weight:100};dialogVisible.value=true}
-async function save(){saving.value=true;try{if(isEdit.value){await api.patch(`/api/admin/channels/${form.value.id}/status`,{status:form.value.status})}else{await api.post('/api/admin/channels',form.value)}ElMessage.success('保存成功');dialogVisible.value=false;fetch()}catch(e){}saving.value=false}
+async function save(){saving.value=true;try{if(isEdit.value){await api.put(`/api/admin/channels/${form.value.id}`,form.value)}else{await api.post('/api/admin/channels',form.value)}ElMessage.success('保存成功');dialogVisible.value=false;fetch()}catch(e){}saving.value=false}
 async function toggle(row){const s=row.status==='active'?'inactive':'active';await api.patch(`/api/admin/channels/${row.id}/status`,{status:s});ElMessage.success('操作成功');fetch()}
 async function openModelDialog(row){modelChannel.value=row;modelDialogVisible.value=true;modelLoading.value=true
   try{const res=await api.get(`/api/admin/channels/${row.id}/models`);allModels.value=res.data.data;selectedModels.value=[...res.data.channel_model_codes]}catch(e){}
