@@ -7,7 +7,6 @@
 <el-form-item><el-button type="primary" size="large" style="width:100%" :loading="loading" @click="handleLogin">登 录</el-button></el-form-item>
 </el-form>
 <div style="text-align:center;color:#909399">没有账号？<el-link type="primary" @click="$router.push('/register')">立即注册</el-link></div>
-<div style="text-align:center;margin-top:12px;color:#c0c4cc;font-size:12px">测试账号: admin/admin123 | testuser/user123</div>
 </div></div>
 </template>
 

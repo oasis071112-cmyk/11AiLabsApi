@@ -7,7 +7,7 @@ process.env.JWT_SECRET = 'test-secret';
 process.env.DB_PATH = './data/test-proxy.db';
 
 const { generateToken } = await import('../src/middleware/auth.js');
-const { authenticate } = await import('../src/middleware/auth.js');
+const { authenticate, findApiKey } = await import('../src/middleware/auth.js');
 
 describe('认证模块', () => {
   beforeAll(async () => {
@@ -40,5 +40,18 @@ describe('认证模块', () => {
 
   it('空 token 应失败', () => {
     expect(() => jwt.verify('', process.env.JWT_SECRET)).toThrow();
+  });
+
+  it('API Key 必须校验完整密钥，不能只依赖前缀', () => {
+    const db = getDatabase();
+    const user = db.prepare("SELECT * FROM users WHERE username='testuser'").get();
+    const rawKey = 'sk-123456789-full-valid-key';
+    const prefix = rawKey.substring(0, 12);
+    db.prepare('DELETE FROM api_keys WHERE key_prefix=?').run(prefix);
+    db.prepare("INSERT INTO api_keys (user_id,key_name,key_hash,key_prefix,status) VALUES (?,'测试密钥',?,?,'active')")
+      .run(user.id, bcrypt.hashSync(rawKey, 10), prefix);
+
+    expect(findApiKey(db, rawKey)).toBeTruthy();
+    expect(findApiKey(db, `${prefix}-forged-key`)).toBeUndefined();
   });
 });
