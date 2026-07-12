@@ -63,7 +63,8 @@ app.get('/api/health', (req, res) => {
     logger.error('健康检查 — 数据库异常', { error: e.message });
   }
   const overallStatus = dbStatus === 'ok' ? 'ok' : 'degraded';
-  res.json({
+  const httpCode = overallStatus === 'ok' ? 200 : 503;
+  res.status(httpCode).json({
     status: overallStatus,
     timestamp: new Date().toISOString(),
     uptime: Math.floor(uptime),
@@ -102,10 +103,22 @@ async function start() {
     const db = getDatabase();
     const users = db.prepare("SELECT username, password_hash FROM users WHERE username IN ('admin','testuser')").all();
     const defaults = { admin: 'admin123', testuser: 'user123' };
+    const warnings = [];
     for (const u of users) {
       if (defaults[u.username] && bcrypt.compareSync(defaults[u.username], u.password_hash)) {
-        console.warn(`⚠️  安全警告：${u.username} 仍在使用默认密码 ${defaults[u.username]}，请立即修改！`);
-        logger.warn(`默认密码未修改: ${u.username}`);
+        const msg = `${u.username} 仍在使用默认密码 ${defaults[u.username]}`;
+        warnings.push(msg);
+        logger.warn(`默认密码未修改: ${msg}`);
+      }
+    }
+    if (warnings.length > 0) {
+      console.error('\n' + '='.repeat(60));
+      console.error('🔴 安全警告 — 以下账号使用默认密码：');
+      warnings.forEach(w => console.error(`   • ${w}`));
+      console.error('   请在管理后台或通过 API 立即修改密码！');
+      console.error('='.repeat(60) + '\n');
+      if (isProduction) {
+        logger.error(`生产环境检测到 ${warnings.length} 个默认密码未修改`);
       }
     }
   } catch(e) { /* 非致命 */ }
