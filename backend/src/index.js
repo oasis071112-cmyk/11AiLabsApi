@@ -62,8 +62,9 @@ app.get('/api/health', (req, res) => {
     dbStatus = 'error';
     logger.error('健康检查 — 数据库异常', { error: e.message });
   }
+  const overallStatus = dbStatus === 'ok' ? 'ok' : 'degraded';
   res.json({
-    status: 'ok',
+    status: overallStatus,
     timestamp: new Date().toISOString(),
     uptime: Math.floor(uptime),
     uptimeFormatted: `${Math.floor(uptime/86400)}d ${Math.floor(uptime%86400/3600)}h ${Math.floor(uptime%3600/60)}m ${Math.floor(uptime%60)}s`,
@@ -95,6 +96,19 @@ app.use((err, req, res, next) => {
 
 async function start() {
   await initDatabase();
+  // 默认密码安全检查
+  try {
+    const bcrypt = require('bcryptjs');
+    const db = getDatabase();
+    const users = db.prepare("SELECT username, password_hash FROM users WHERE username IN ('admin','testuser')").all();
+    const defaults = { admin: 'admin123', testuser: 'user123' };
+    for (const u of users) {
+      if (defaults[u.username] && bcrypt.compareSync(defaults[u.username], u.password_hash)) {
+        console.warn(`⚠️  安全警告：${u.username} 仍在使用默认密码 ${defaults[u.username]}，请立即修改！`);
+        logger.warn(`默认密码未修改: ${u.username}`);
+      }
+    }
+  } catch(e) { /* 非致命 */ }
   // 启动上游渠道健康检查
   try { const { startHealthCheck } = require('./utils/channel-selector'); startHealthCheck(getDatabase()); } catch(e) { console.error('[健康检查启动失败]', e.message); }
   app.listen(PORT, () => {
