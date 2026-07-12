@@ -6,7 +6,7 @@
 <el-table-column label="点数" width="100"><template #default="{row}">{{ row.amount }} 点</template></el-table-column>
 <el-table-column prop="payment_method" label="支付方式" width="120"/>
 <el-table-column label="状态" width="100"><template #default="{row}"><el-tag :type="st(row.status)" size="small">{{ sl(row.status) }}</el-tag></template></el-table-column>
-<el-table-column prop="created_at" label="创建时间" width="160"/>
+<el-table-column prop="created_at" label="创建时间" min-width="160"/>
 <el-table-column label="操作" width="200"><template #default="{row}">
 <el-button v-if="row.status==='pending'||row.status==='paid'" size="small" type="success" @click="confirmOrder(row)">确认发放</el-button>
 <el-button v-if="row.status==='pending'" size="small" type="danger" @click="rejectOrder(row)">驳回</el-button>

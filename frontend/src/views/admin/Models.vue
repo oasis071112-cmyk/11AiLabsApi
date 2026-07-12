@@ -2,7 +2,7 @@
 <div><div class="flex-between mb-16"><h3>模型管理</h3><el-button type="primary" @click="openDialog()">+ 新增模型</el-button></div>
 <el-table :data="models" stripe v-loading="loading">
 <el-table-column prop="model_code" label="编码" width="150"/><el-table-column prop="model_name" label="显示名称" width="150"/>
-<el-table-column prop="upstream_model_name" label="上游名称" width="160"/><el-table-column prop="model_type" label="类型" width="80"/>
+<el-table-column prop="upstream_model_name" label="上游名称" min-width="160"/><el-table-column prop="model_type" label="类型" width="80"/>
 <el-table-column prop="channel_name" label="归属渠道" width="120">
   <template #default="{row}"><el-tag v-if="row.channel_name" size="small" type="info">{{ row.channel_name }}</el-tag><span v-else style="color:#909399">未分配</span></template>
 </el-table-column>

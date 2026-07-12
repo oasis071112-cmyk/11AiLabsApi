@@ -21,7 +21,7 @@
   <!-- 毛玻璃表格 -->
   <div class="glass-table kpi-appear-4">
     <el-table :data="keys" v-loading="loading" size="medium" style="background:transparent" :header-cell-style="{background:'transparent',borderColor:'rgba(0,0,0,0.06)',color:'#525252',fontWeight:600,fontSize:'11px',textTransform:'uppercase',letterSpacing:'.5px',textAlign:'center'}" :cell-style="{borderColor:'rgba(0,0,0,0.04)'}">
-      <el-table-column label="Key名称" width="170" align="center">
+      <el-table-column label="Key名称" min-width="200" align="center">
         <template #default="{row}">
           <div style="display:inline-flex;align-items:center;gap:8px;text-align:left">
             <span class="status-dot" :class="row.status==='active'?'dot-on':'dot-off'"></span>
@@ -32,7 +32,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="分组" width="90" align="center">
+      <el-table-column label="分组" width="100" align="center">
         <template #default="{row}">
           <el-tag v-if="row.channel_name" size="small" type="info" effect="light">{{ row.channel_name }}</el-tag>
           <span v-else style="color:#d4d4d4">—</span>
@@ -73,7 +73,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="使用文档" width="90" align="center">
+      <el-table-column label="使用文档" min-width="90" align="center">
         <template #default="{row}">
           <el-button v-if="row.channel_name" size="small" type="success" @click="openDocs(row)" :loading="docsLoading && docsTarget===row"><BookOpen :size="13"/></el-button>
           <span v-else style="color:#d4d4d4;font-size:12px">—</span>

@@ -1,7 +1,7 @@
 <template>
 <div><div class="flex-between mb-16"><h3>倍率规则管理</h3><el-button type="primary" @click="openDialog()">+ 新增规则</el-button></div>
 <el-table :data="rules" stripe v-loading="loading">
-<el-table-column prop="rule_name" label="规则名称" width="150"/><el-table-column prop="model_code" label="适用模型" width="150"/>
+<el-table-column prop="rule_name" label="规则名称" min-width="150"/><el-table-column prop="model_code" label="适用模型" width="150"/>
 <el-table-column label="作用范围" width="150"><template #default="{row}"><el-tag size="small">{{ scl(row.scope_type) }}</el-tag><span v-if="row.scope_id"> ID:{{ row.scope_id }}</span></template></el-table-column>
 <el-table-column label="展示倍率(入/出)" width="140"><template #default="{row}">×{{ row.display_multiplier_input }} / ×{{ row.display_multiplier_output }}</template></el-table-column>
 <el-table-column label="扣费倍率(入/出)" width="140"><template #default="{row}">×{{ row.billing_multiplier_input }} / ×{{ row.billing_multiplier_output }}</template></el-table-column>

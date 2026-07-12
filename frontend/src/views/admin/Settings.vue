@@ -1,7 +1,7 @@
 <template>
 <div><h3 style="margin-bottom:16px">系统设置</h3>
 <el-card><el-form label-width="200px">
-<el-form-item v-for="c in configs" :key="c.config_key" :label="c.config_key + (c.description ? ' ('+c.description+')' : '')">
+<el-form-item v-for="c in configs" :key="c.config_key" :label="c.description || c.config_key">
 <el-input v-if="!['registration_enabled','new_user_gift_enabled'].includes(c.config_key)" v-model="c.config_value"/>
 <el-switch v-else v-model="c.config_value" active-value="true" inactive-value="false"/>
 </el-form-item>

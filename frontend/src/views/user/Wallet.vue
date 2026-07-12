@@ -19,24 +19,24 @@
     <el-tabs v-model="activeTab" class="wallet-tabs">
       <el-tab-pane label="流水记录" name="tx">
         <el-table :data="transactions" v-loading="ltx">
-          <el-table-column prop="created_at" label="时间" width="180"/>
-          <el-table-column label="类型" width="100"><template #default="{row}"><el-tag :type="typeColor(row.transaction_type)" size="small">{{ typeLabel(row.transaction_type) }}</el-tag></template></el-table-column>
-          <el-table-column label="来源" width="80"><template #default="{row}">{{ row.balance_type==='quota'||row.balance_type==='recharge'?'额度':'赠送' }}</template></el-table-column>
-          <el-table-column label="点数" width="130" align="right"><template #default="{row}"><span :class="row.amount>0?'text-success':'text-danger'" style="font-weight:600;font-size:14px">{{ row.amount>0?'+':'' }}{{ row.amount?.toFixed(2) }}</span></template></el-table-column>
-          <el-table-column prop="before_balance" label="变动前" width="130" align="right"/>
-          <el-table-column prop="after_balance" label="变动后" width="130" align="right"/>
-          <el-table-column prop="remark" label="备注" show-overflow-tooltip/>
+          <el-table-column prop="created_at" label="时间" width="180" align="center"/>
+          <el-table-column label="类型" width="100" align="center"><template #default="{row}"><el-tag :type="typeColor(row.transaction_type)" size="small">{{ typeLabel(row.transaction_type) }}</el-tag></template></el-table-column>
+          <el-table-column label="来源" width="80" align="center"><template #default="{row}">{{ row.balance_type==='quota'||row.balance_type==='recharge'?'额度':'赠送' }}</template></el-table-column>
+          <el-table-column label="点数" width="130" align="center"><template #default="{row}"><span :class="row.amount>0?'text-success':'text-danger'" style="font-weight:600;font-size:14px">{{ row.amount>0?'+':'' }}{{ row.amount?.toFixed(2) }}</span></template></el-table-column>
+          <el-table-column label="变动前" width="140" align="center"><template #default="{row}">{{ row.before_balance?.toFixed(5) }}</template></el-table-column>
+          <el-table-column label="变动后" width="140" align="center"><template #default="{row}">{{ row.after_balance?.toFixed(5) }}</template></el-table-column>
+          <el-table-column prop="remark" label="备注" align="center" show-overflow-tooltip/>
         </el-table>
         <el-pagination v-model:current-page="txPage" :page-size="20" :total="txTotal" layout="prev,pager,next" @current-change="fetchTx" style="justify-content:center;padding:16px 0 0" small/>
       </el-tab-pane>
       <el-tab-pane label="购买记录" name="orders">
         <el-table :data="orders" v-loading="lo">
-          <el-table-column prop="order_no" label="订单号" width="200"/>
-          <el-table-column label="点数" width="100" align="right"><template #default="{row}">{{ row.amount?.toFixed(0) }} 点</template></el-table-column>
-          <el-table-column prop="payment_method" label="支付方式" width="100"><template #default="{row}">{{ payLabel(row.payment_method) }}</template></el-table-column>
-          <el-table-column label="状态" width="90"><template #default="{row}"><el-tag :type="osType(row.status)" size="small">{{ osLabel(row.status) }}</el-tag></template></el-table-column>
-          <el-table-column prop="created_at" label="创建时间"/>
-          <el-table-column prop="granted_at" label="发放时间" width="170"/>
+          <el-table-column prop="order_no" label="订单号" width="220" align="center"/>
+          <el-table-column label="点数" width="100" align="center"><template #default="{row}">{{ row.amount?.toFixed(0) }} 点</template></el-table-column>
+          <el-table-column prop="payment_method" label="支付方式" width="110" align="center"><template #default="{row}">{{ payLabel(row.payment_method) }}</template></el-table-column>
+          <el-table-column label="状态" width="100" align="center"><template #default="{row}"><el-tag :type="osType(row.status)" size="small">{{ osLabel(row.status) }}</el-tag></template></el-table-column>
+          <el-table-column prop="created_at" label="创建时间" width="180" align="center"/>
+          <el-table-column prop="granted_at" label="发放时间" min-width="180" align="center"/>
         </el-table>
         <el-pagination v-model:current-page="oPage" :page-size="20" :total="oTotal" layout="prev,pager,next" @current-change="fetchOrders" style="justify-content:center;padding:16px 0 0" small/>
       </el-tab-pane>

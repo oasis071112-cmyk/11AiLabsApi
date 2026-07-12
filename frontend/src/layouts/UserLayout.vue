@@ -6,8 +6,8 @@
   <!-- Logo -->
   <div style="padding:22px 20px 14px">
     <router-link to="/" style="display:flex;align-items:center;gap:8px;text-decoration:none">
-      <img src="/logo-icon.svg" alt="11AiLabs" style="height:30px"/>
-      <span style="font-size:18px;font-weight:700;color:var(--text-primary);letter-spacing:-0.5px">11AiLabs</span>
+      <img src="/logo-icon.svg" alt="11AiLabs" style="height:34px"/>
+      <span style="font-size:20px;font-weight:700;color:var(--text-primary);letter-spacing:-0.5px">11AiLabs</span>
     </router-link>
   </div>
 

@@ -5,7 +5,7 @@
 
   <!-- Logo -->
   <div style="padding:20px 20px 16px;text-align:center;border-bottom:1px solid #1f2937">
-    <img src="/logo-white.svg" alt="11AiLabs" style="height:26px;margin-bottom:6px"/>
+    <img src="/logo-white.svg" alt="11AiLabs" style="height:32px;margin-bottom:6px"/>
     <div style="font-size:14px;font-weight:700;color:#fff;letter-spacing:-0.3px">11AiLabs</div>
   </div>
 
