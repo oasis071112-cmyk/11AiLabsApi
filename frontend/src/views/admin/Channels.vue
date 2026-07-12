@@ -6,7 +6,7 @@
 <el-table-column prop="priority" label="优先级" width="80"/><el-table-column label="健康状态" width="130"><template #default="{row}"><el-tag :type="healthType(row)" size="small" effect="dark" style="width:100%;text-align:center">{{ healthLabel(row) }}</el-tag></template></el-table-column>
 <el-table-column label="健康分" width="70"><template #default="{row}">{{ row.health_score?.toFixed(0)||100 }}</template></el-table-column>
 <el-table-column prop="weight" label="权重" width="70"/>
-<el-table-column label="操作" width="280"><template #default="{row}"><el-button size="small" @click="openDialog(row)">编辑</el-button><el-button size="small" type="info" @click="openModelDialog(row)">管理模型</el-button><el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggle(row)">{{ row.status==='active'?'停用':'启用' }}</el-button></template></el-table-column>
+<el-table-column label="操作" width="370"><template #default="{row}"><el-button size="small" @click="openDialog(row)">编辑</el-button><el-button size="small" type="primary" plain :loading="syncingId===row.id" @click="syncModels(row)">同步模型</el-button><el-button size="small" type="info" @click="openModelDialog(row)">管理模型</el-button><el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggle(row)">{{ row.status==='active'?'停用':'启用' }}</el-button></template></el-table-column>
 </el-table>
 
 <el-dialog v-model="dialogVisible" :title="isEdit?'编辑渠道':'新增渠道'" width="480px"><el-form :model="form" label-width="100px">
@@ -45,6 +45,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
 const channels=ref([]),loading=ref(false),dialogVisible=ref(false),isEdit=ref(false),saving=ref(false)
+const syncingId=ref(null)
 const form=ref({channel_name:'',base_url:'',api_key:'',priority:0,weight:100})
 const originalApiKey=ref('')
 // 模型管理
@@ -54,6 +55,9 @@ async function fetch(){loading.value=true;try{channels.value=(await api.get('/ap
 function openDialog(row){isEdit.value=!!row;if(row){form.value={...row};originalApiKey.value=row.api_key||''}else{form.value={channel_name:'',base_url:'',api_key:'',priority:0,weight:100};originalApiKey.value=''}dialogVisible.value=true}
 async function save(){saving.value=true;try{const data={...form.value};if(isEdit.value&&data.api_key===originalApiKey.value)data.api_key='';if(isEdit.value){await api.put(`/api/admin/channels/${data.id}`,data)}else{await api.post('/api/admin/channels',data)}ElMessage.success('保存成功');dialogVisible.value=false;fetch()}catch(e){}saving.value=false}
 async function toggle(row){const s=row.status==='active'?'inactive':'active';await api.patch(`/api/admin/channels/${row.id}/status`,{status:s});ElMessage.success('操作成功');fetch()}
+async function syncModels(row){syncingId.value=row.id
+  try{const res=await api.post(`/api/admin/channels/${row.id}/sync-models`);ElMessage.success(res.data.message);fetch()}catch(e){}
+  syncingId.value=null}
 async function openModelDialog(row){modelChannel.value=row;modelDialogVisible.value=true;modelLoading.value=true
   try{const res=await api.get(`/api/admin/channels/${row.id}/models`);allModels.value=res.data.data;selectedModels.value=[...res.data.channel_model_codes]}catch(e){}
   modelLoading.value=false}

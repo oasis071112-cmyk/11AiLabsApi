@@ -1,8 +1,10 @@
 const express = require('express');
+const axios = require('axios');
 const router = express.Router();
 const { getDatabase } = require('../database/init');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { desensitize } = require('../utils/crypto');
+const { normalizeUpstreamModels, inferModelType } = require('../utils/model-sync');
 
 router.get('/dashboard', authenticate, requireAdmin('admin','operator','finance'), (req, res) => {
   const db = getDatabase();
@@ -289,6 +291,42 @@ router.put('/channels/:id/models', authenticate, requireAdmin('admin'), (req, re
     for (const mc of model_codes) stmt.run(req.params.id, mc);
   }
   res.json({ message: '渠道模型已更新' });
+});
+
+router.post('/channels/:id/sync-models', authenticate, requireAdmin('admin'), async (req, res) => {
+  const db = getDatabase();
+  const channel = db.prepare('SELECT * FROM upstream_channels WHERE id=?').get(req.params.id);
+  if (!channel) return res.status(404).json({ error: '渠道不存在' });
+
+  try {
+    const baseUrl = channel.base_url.replace(/\/+$/, '');
+    const upstream = await axios.get(`${baseUrl}/models`, {
+      headers: { Authorization: `Bearer ${channel.api_key}` },
+      timeout: 20000
+    });
+    const modelCodes = normalizeUpstreamModels(upstream.data);
+    if (modelCodes.length === 0) return res.status(502).json({ error: '上游未返回任何模型' });
+
+    let created = 0;
+    let updated = 0;
+    for (const modelCode of modelCodes) {
+      const existing = db.prepare('SELECT id FROM models WHERE model_code=?').get(modelCode);
+      if (existing) {
+        db.prepare('UPDATE models SET upstream_model_name=?, channel_id=?, status=\'active\', updated_at=CURRENT_TIMESTAMP WHERE id=?')
+          .run(modelCode, channel.id, existing.id);
+        updated++;
+      } else {
+        db.prepare('INSERT INTO models (model_code,model_name,upstream_model_name,model_type,context_length,description,base_input_price,base_output_price,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,channel_id,status,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,\'active\',?)')
+          .run(modelCode, modelCode, modelCode, inferModelType(modelCode), 128000, `从 ${channel.channel_name} 上游同步`, 0, 0, 1, 1, 1, 1, channel.id, 1000 + created);
+        created++;
+      }
+    }
+
+    res.json({ message: `同步完成：新增 ${created}，更新 ${updated}`, created, updated, models: modelCodes });
+  } catch (error) {
+    const status = error.response?.status;
+    res.status(502).json({ error: `上游模型同步失败${status ? `（HTTP ${status}）` : ''}` });
+  }
 });
 
 router.get('/channels', authenticate, requireAdmin('admin'), (req, res) => {
