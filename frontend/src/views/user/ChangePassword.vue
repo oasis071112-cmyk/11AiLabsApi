@@ -13,5 +13,5 @@
 import { ref } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
 const form=ref({oldPassword:'',newPassword:'',confirmPassword:''}),formRef=ref(null),loading=ref(false)
 const rules={oldPassword:[{required:true,message:'请输入旧密码',trigger:'blur'}],newPassword:[{required:true,min:6,message:'新密码至少6位',trigger:'blur'}],confirmPassword:[{required:true,validator:(_r,v,cb)=>v===form.value.newPassword?cb():cb(new Error('两次密码不一致')),trigger:'blur'}]}
-async function submit(){const ok=await formRef.value.validate().catch(()=>false);if(!ok)return;loading.value=true;try{await api.put('/api/user/password',{oldPassword:form.value.oldPassword,newPassword:form.value.newPassword});ElMessage.success('密码修改成功');formRef.value.resetFields()}catch(e){ElMessage.error(e.response?.data?.error||'修改失败')}loading.value=false}
+async function submit(){const ok=await formRef.value.validate().catch(()=>false);if(!ok)return;loading.value=true;try{await api.put('/api/user/password',{old_password:form.value.oldPassword,new_password:form.value.newPassword});ElMessage.success('密码修改成功');formRef.value.resetFields()}catch(e){ElMessage.error(e.response?.data?.error||'修改失败')}loading.value=false}
 </script>

@@ -20,6 +20,7 @@
     <el-menu-item index="/admin/logs"><el-icon><ScrollText :size="16"/></el-icon>调用日志</el-menu-item>
     <el-menu-item index="/admin/channels"><el-icon><Share2 :size="16"/></el-icon>渠道管理</el-menu-item>
     <el-menu-item index="/admin/settings"><el-icon><Settings :size="16"/></el-icon>系统设置</el-menu-item>
+    <el-menu-item index="/admin/change-password"><el-icon><Lock :size="16"/></el-icon>修改密码</el-menu-item>
   </el-menu>
 </aside>
 
@@ -42,8 +43,8 @@
 
 <script setup>
 import { computed } from 'vue';import { useRoute } from 'vue-router';import { useAuthStore } from '@/stores/auth'
-import { LayoutDashboard, Users, ShoppingCart, Cpu, Percent, Key, ScrollText, Share2, Settings } from '@lucide/vue'
+import { LayoutDashboard, Users, ShoppingCart, Cpu, Percent, Key, ScrollText, Share2, Settings, Lock } from '@lucide/vue'
 const route=useRoute(),authStore=useAuthStore()
-const pageTitle=computed(()=>{const m={'/admin':'仪表盘','/admin/users':'用户管理','/admin/orders':'额度购买订单','/admin/models':'模型管理','/admin/pricing':'倍率规则','/admin/keys':'API Key 管理','/admin/logs':'调用日志','/admin/channels':'渠道管理','/admin/settings':'系统设置'};return m[route.path]||'管理后台'})
+const pageTitle=computed(()=>{const m={'/admin':'仪表盘','/admin/users':'用户管理','/admin/orders':'额度购买订单','/admin/models':'模型管理','/admin/pricing':'倍率规则','/admin/keys':'API Key 管理','/admin/logs':'调用日志','/admin/channels':'渠道管理','/admin/settings':'系统设置','/admin/change-password':'修改密码'};return m[route.path]||'管理后台'})
 const roleLabel=computed(()=>{const m={admin:'超级管理员',operator:'运营',finance:'财务'};return m[authStore.user?.role]||''})
 </script>

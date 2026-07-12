@@ -20,7 +20,8 @@ const routes=[
     {path:'keys',name:'AdminKeys',component:()=>import('@/views/admin/Keys.vue')},
     {path:'logs',name:'AdminLogs',component:()=>import('@/views/admin/Logs.vue')},
     {path:'channels',name:'AdminChannels',component:()=>import('@/views/admin/Channels.vue')},
-    {path:'settings',name:'AdminSettings',component:()=>import('@/views/admin/Settings.vue')}
+    {path:'settings',name:'AdminSettings',component:()=>import('@/views/admin/Settings.vue')},
+    {path:'change-password',name:'AdminChangePassword',component:()=>import('@/views/user/ChangePassword.vue')}
   ]},
   {path:'/:pathMatch(.*)*',redirect:'/'}
 ]
