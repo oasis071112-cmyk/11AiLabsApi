@@ -117,14 +117,18 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
 
       upstreamResp.data.on('end', () => {
         res.end();
-        // 扣费 + 记录日志
-        if (outputTokens > 0) {
-          const totalCost = (inputTokens/1000) * model.base_input_price * bmi + (outputTokens/1000) * model.base_output_price * bmo;
-          try { deductBalance(db, req.userId, totalCost); } catch(e) { console.error('[流式扣费失败]', e); }
-          db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,output_tokens,total_cost,status,request_ip,latency_ms) VALUES (?,?,?,?,?,?,?,?,'success',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel.id, inputTokens, outputTokens, totalCost, req.ip, Date.now()-startTime);
-          db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
-          reportResult(db, channel.id, true);
+        // 兜底：如果上游没返回 usage，用内容长度估算 token
+        if (outputTokens === 0 && fullContent) {
+          outputTokens = Math.max(1, Math.ceil(fullContent.length / 4));
         }
+        if (inputTokens === 0) {
+          try { inputTokens = Math.max(1, Math.ceil(JSON.stringify(upstreamBody.messages).length / 4)); } catch(e) {}
+        }
+        const totalCost = (inputTokens/1000) * model.base_input_price * bmi + (outputTokens/1000) * model.base_output_price * bmo;
+        try { deductBalance(db, req.userId, totalCost); } catch(e) { console.error('[流式扣费失败]', e); }
+        db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,output_tokens,total_cost,status,request_ip,latency_ms) VALUES (?,?,?,?,?,?,?,?,'success',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel.id, inputTokens, outputTokens, totalCost, req.ip, Date.now()-startTime);
+        db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
+        reportResult(db, channel.id, true);
       });
 
       upstreamResp.data.on('error', (err) => {

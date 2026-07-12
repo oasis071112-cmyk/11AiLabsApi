@@ -1,6 +1,7 @@
 const initSqlJs = require('sql.js');
 const path = require('path');
 const fs = require('fs');
+const logger = require('../utils/logger');
 
 const DB_PATH = process.env.DB_PATH || './data/proxy.db';
 let sqlDb = null;    // 原始 sql.js 实例
@@ -27,7 +28,7 @@ function makeStmt(sql) {
         if (st.step()) result = st.getAsObject();
         st.free();
         return result;
-      } catch(e) { console.error('[SQL get]', sql, e.message); return null; }
+      } catch(e) { logger.error(`[SQL get] ${e.message}`, { sql }); return null; }
     },
     all: (...params) => {
       try {
