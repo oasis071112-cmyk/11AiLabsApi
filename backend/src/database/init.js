@@ -3,9 +3,75 @@ const path = require('path');
 const fs = require('fs');
 const logger = require('../utils/logger');
 
+const SUPPORTED_PROVIDERS = ['openai', 'deepseek', 'anthropic'];
+
+function providerFromChannelName(channelName) {
+  const name = String(channelName || '').toLowerCase();
+  return SUPPORTED_PROVIDERS.find(provider => name.includes(provider)) || null;
+}
+
+function providerFromModelCode(modelCode) {
+  const code = String(modelCode || '').toLowerCase();
+  if (/^(gpt-|o[1-9]|text-embedding|dall-e|tts-|whisper-)/.test(code)) return 'openai';
+  if (code.includes('deepseek')) return 'deepseek';
+  if (code.includes('claude')) return 'anthropic';
+  return null;
+}
+
+function keepOnlySupportedCatalog() {
+  const migrated = sqlDb.exec("SELECT config_value FROM system_config WHERE config_key='supported_catalog_cleanup_v2'");
+  if (migrated[0]?.values?.[0]?.[0] === 'done') return;
+
+  sqlDb.run('BEGIN IMMEDIATE');
+  try {
+    const channels = [];
+    const channelStmt = sqlDb.prepare('SELECT id,channel_name FROM upstream_channels ORDER BY id ASC');
+    while (channelStmt.step()) channels.push(channelStmt.getAsObject());
+    channelStmt.free();
+    const canonicalChannelIds = {};
+    for (const channel of channels) {
+      const provider = providerFromChannelName(channel.channel_name);
+      if (provider && !canonicalChannelIds[provider]) canonicalChannelIds[provider] = channel.id;
+    }
+
+    const models = [];
+    const modelStmt = sqlDb.prepare('SELECT id,model_code,official_provider FROM models');
+    while (modelStmt.step()) models.push(modelStmt.getAsObject());
+    modelStmt.free();
+    for (const model of models) {
+      const provider = SUPPORTED_PROVIDERS.includes(String(model.official_provider || '').toLowerCase())
+        ? String(model.official_provider).toLowerCase()
+        : providerFromModelCode(model.model_code);
+      const channelId = provider ? canonicalChannelIds[provider] : null;
+      if (!channelId) {
+        const deletePermissions = sqlDb.prepare('DELETE FROM api_key_permissions WHERE model_code=?');
+        deletePermissions.bind([model.model_code]); deletePermissions.step(); deletePermissions.free();
+        const deleteModel = sqlDb.prepare('DELETE FROM models WHERE id=?');
+        deleteModel.bind([model.id]); deleteModel.step(); deleteModel.free();
+        continue;
+      }
+      const updateModel = sqlDb.prepare('UPDATE models SET official_provider=?, official_model_id=COALESCE(official_model_id,?), channel_id=? WHERE id=?');
+      updateModel.bind([provider, model.model_code, channelId, model.id]); updateModel.step(); updateModel.free();
+    }
+    for (const channel of channels) {
+      if (!Object.values(canonicalChannelIds).includes(channel.id)) {
+        const deleteChannel = sqlDb.prepare('DELETE FROM upstream_channels WHERE id=?');
+        deleteChannel.bind([channel.id]); deleteChannel.step(); deleteChannel.free();
+      }
+    }
+    sqlDb.run('DROP TABLE IF EXISTS channel_model_costs');
+    sqlDb.run("INSERT OR REPLACE INTO system_config (config_key,config_value,description,updated_at) VALUES ('supported_catalog_cleanup_v2','done','仅保留 OpenAI、DeepSeek、Anthropic 渠道及模型',CURRENT_TIMESTAMP)");
+    sqlDb.run('COMMIT');
+  } catch (error) {
+    try { sqlDb.run('ROLLBACK'); } catch (rollbackError) { logger.error('目录清理回滚失败', { error: rollbackError.message }); }
+    throw error;
+  }
+}
+
 const DB_PATH = process.env.DB_PATH || './data/proxy.db';
 let sqlDb = null;    // 原始 sql.js 实例
 let db = null;       // 包装后的实例
+let transactionDepth = 0;
 
 // ========== 持久化保存 ==========
 function saveDatabase() {
@@ -28,7 +94,11 @@ function makeStmt(sql) {
         if (st.step()) result = st.getAsObject();
         st.free();
         return result;
-      } catch(e) { logger.error(`[SQL get] ${e.message}`, { sql }); return null; }
+      } catch(e) {
+        if (transactionDepth > 0) throw e;
+        logger.error(`[SQL get] ${e.message}`, { sql });
+        return null;
+      }
     },
     all: (...params) => {
       try {
@@ -38,7 +108,11 @@ function makeStmt(sql) {
         while (st.step()) results.push(st.getAsObject());
         st.free();
         return results;
-      } catch(e) { console.error('[SQL all]', sql, e.message); return []; }
+      } catch(e) {
+        if (transactionDepth > 0) throw e;
+        console.error('[SQL all]', sql, e.message);
+        return [];
+      }
     },
     run: (...params) => {
       try {
@@ -53,9 +127,14 @@ function makeStmt(sql) {
           if (idSt.step()) lastId = idSt.getAsObject().id || 0;
           idSt.free();
         } catch(e) {}
-        saveDatabase();
+        if (transactionDepth === 0) saveDatabase();
         return { changes, lastInsertRowid: lastId };
-      } catch(e) { console.error('[SQL run]', sql, e.message); saveDatabase(); return { changes: 0, lastInsertRowid: 0 }; }
+      } catch(e) {
+        if (transactionDepth > 0) throw e;
+        console.error('[SQL run]', sql, e.message);
+        saveDatabase();
+        return { changes: 0, lastInsertRowid: 0 };
+      }
     }
   };
 }
@@ -65,7 +144,24 @@ function wrapDb() {
   return {
     exec: (sql) => { sqlDb.run(sql); saveDatabase(); return null; },
     pragma: (sql) => { sqlDb.run('PRAGMA ' + sql); saveDatabase(); },
-    prepare: (sql) => makeStmt(sql)
+    prepare: (sql) => makeStmt(sql),
+    transaction: (work) => {
+      if (transactionDepth > 0) return work();
+      transactionDepth = 1;
+      sqlDb.run('BEGIN IMMEDIATE');
+      try {
+        const result = work();
+        if (result && typeof result.then === 'function') throw new Error('数据库事务不支持异步回调');
+        sqlDb.run('COMMIT');
+        saveDatabase();
+        return result;
+      } catch (error) {
+        try { sqlDb.run('ROLLBACK'); } catch (rollbackError) { logger.error('数据库事务回滚失败', { error: rollbackError.message }); }
+        throw error;
+      } finally {
+        transactionDepth = 0;
+      }
+    }
   };
 }
 
@@ -101,9 +197,6 @@ function createTables() {
   // 旧数据库迁移：添加 quota_balance 与 gift_quota 列
   try { sqlDb.run('ALTER TABLE wallets ADD COLUMN quota_balance REAL DEFAULT 0'); } catch(e) { /* 列已存在 */ }
   try { sqlDb.run('ALTER TABLE wallets ADD COLUMN gift_quota REAL DEFAULT 0'); } catch(e) { /* 列已存在 */ }
-  // 将旧 recharge_balance/gift_balance 同步到新字段
-  try { sqlDb.run('UPDATE wallets SET quota_balance = recharge_balance WHERE quota_balance = 0 AND recharge_balance > 0'); } catch(e) { /* 忽略 */ }
-  try { sqlDb.run('UPDATE wallets SET gift_quota = gift_balance WHERE gift_quota = 0 AND gift_balance > 0'); } catch(e) { /* 忽略 */ }
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS wallet_transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
@@ -225,20 +318,27 @@ function createTables() {
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_requests INTEGER DEFAULT 0"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_successes INTEGER DEFAULT 0"); } catch(e) {}
 
-  sqlDb.run(`CREATE TABLE IF NOT EXISTS channel_model_costs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, model_code TEXT NOT NULL,
-    currency TEXT DEFAULT 'CNY', input_price REAL DEFAULT 0, output_price REAL DEFAULT 0,
-    cached_input_price REAL DEFAULT 0, unit_tokens INTEGER DEFAULT 1000000,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(channel_id, model_code),
-    FOREIGN KEY (channel_id) REFERENCES upstream_channels(id) ON DELETE CASCADE
-  )`);
-  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_channel_model_costs_channel ON channel_model_costs(channel_id)');
+  // 渠道成本不参与产品计费，也不在管理端展示；旧表会在首次迁移时删除。
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS system_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT, config_key TEXT UNIQUE NOT NULL,
     config_value TEXT, description TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+
+  // 旧字段只做一次性废弃迁移。早期版本已经把余额复制到 quota/gift 字段；
+  // 绝不能在每次重启时按“新余额为 0”回填，否则会把已扣完的点数恢复出来。
+  const walletMigration = sqlDb.exec("SELECT config_value FROM system_config WHERE config_key='wallet_balance_columns_retired_v1'");
+  if (walletMigration[0]?.values?.[0]?.[0] !== 'done') {
+    sqlDb.run('BEGIN IMMEDIATE');
+    try {
+      sqlDb.run('UPDATE wallets SET recharge_balance=0, gift_balance=0 WHERE recharge_balance<>0 OR gift_balance<>0');
+      sqlDb.run("INSERT OR REPLACE INTO system_config (config_key,config_value,description,updated_at) VALUES ('wallet_balance_columns_retired_v1','done','旧钱包余额字段已停用，防止重启回填已扣余额',CURRENT_TIMESTAMP)");
+      sqlDb.run('COMMIT');
+    } catch (error) {
+      try { sqlDb.run('ROLLBACK'); } catch (rollbackError) { logger.error('旧钱包字段迁移回滚失败', { error: rollbackError.message }); }
+      throw error;
+    }
+  }
 
   // 默认配置
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('registration_enabled', 'true', '是否开放注册')");
@@ -253,6 +353,13 @@ function createTables() {
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('official_pricing_last_sync_status', 'never', '官方价格最近同步状态')");
   // 确保公告始终为最新
   sqlDb.run("UPDATE system_config SET config_value='欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数' WHERE config_key='platform_announcement' AND config_value!='欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数'");
+  // 历史上的“展示倍率”现在就是唯一的用户扣费倍率，确保规则保存后立即生效。
+  sqlDb.run('UPDATE models SET billing_multiplier_input=display_multiplier_input, billing_multiplier_output=display_multiplier_output');
+  sqlDb.run('UPDATE pricing_rules SET billing_multiplier_input=display_multiplier_input, billing_multiplier_output=display_multiplier_output');
+  // API Key/用户组规则无法在通用用户模型页准确展示，停用后保证“看到的倍率=实际倍率”。
+  sqlDb.run("UPDATE pricing_rules SET status='inactive' WHERE scope_type IN ('api_key','user_group') AND status='active'");
+  sqlDb.run("UPDATE pricing_rules SET model_code=NULL WHERE model_code IS NOT NULL AND trim(model_code)='' ");
+  keepOnlySupportedCatalog();
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT NOT NULL,

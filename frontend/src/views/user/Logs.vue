@@ -231,7 +231,7 @@ const modelRankGaugeOption = computed(() => {
 })
 
 function statusLabel(s) { const m = { success: '成功', failed: '失败', blocked: '拦截' }; return m[s] || s }
-function billingDetail(row) { const unit=(row.official_unit_tokens||1000000).toLocaleString();const c=row.official_currency==='USD'?'$':'¥';const fx=row.official_currency==='USD'?`，汇率 ${row.usd_cny_rate}`:'';const cached=row.cached_input_tokens?`，缓存输入 ${c}${row.official_cached_input_price} × ${row.billing_multiplier_input}`:'';return `每 ${unit} Token：输入 ${c}${row.official_input_price} × ${row.billing_multiplier_input}${cached}，输出 ${c}${row.official_output_price} × ${row.billing_multiplier_output}${fx}；1点=¥1` }
+function billingDetail(row) { const unit=row.official_unit_tokens||1000000;const c=row.official_currency==='USD'?'$':'¥';const cached=Math.min(row.cached_input_tokens||0,row.input_tokens||0);const uncached=Math.max(0,(row.input_tokens||0)-cached);const fx=row.official_currency==='USD'?` × 汇率 ${row.usd_cny_rate}`:'';const cachePart=cached?` + ${cached}÷${unit}×${c}${row.official_cached_input_price}`:'';return `本次扣 ${Number(row.total_cost||0).toFixed(6)} 点 = [(${uncached}÷${unit}×${c}${row.official_input_price}${cachePart})×${row.billing_multiplier_input} + (${row.output_tokens||0}÷${unit}×${c}${row.official_output_price})×${row.billing_multiplier_output}]${fx}；1点=¥1` }
 function getPresetRange(preset) { const end = dayjs().format('YYYY-MM-DD'); const start = dayjs().subtract(preset === '30d' ? 29 : preset === '90d' ? 89 : 6, 'day').format('YYYY-MM-DD'); return [start, end] }
 
 async function fetchAll() {

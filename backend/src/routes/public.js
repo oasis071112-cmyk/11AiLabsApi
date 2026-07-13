@@ -12,7 +12,7 @@ router.get('/info', (req, res) => {
 
 router.get('/models', (req, res) => {
   const db = getDatabase();
-  const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,description,display_multiplier_input,display_multiplier_output FROM models WHERE status='active' ORDER BY sort_order ASC").all();
+  const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,billing_multiplier_input,billing_multiplier_output FROM models WHERE status='active' ORDER BY sort_order ASC").all();
   res.json({ data: models });
 });
 

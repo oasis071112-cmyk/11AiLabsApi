@@ -10,7 +10,7 @@
 
   <!-- 表格 -->
   <div class="chart-card">
-    <div class="chart-header"><Cpu :size="14" color="var(--primary)"/><span>模型列表、官方定价与倍率</span><span class="price-note">1 点 = ¥1；美元价格按调用时汇率自动折算</span></div>
+    <div class="chart-header"><Cpu :size="14" color="var(--primary)"/><span>模型列表、官方定价与倍率</span><span class="price-note">最终扣点以调用记录中的实际用量、倍率和汇率为准</span></div>
     <div class="chart-body">
       <el-table :data="models">
         <el-table-column prop="model_name" label="模型名称"/>
@@ -22,7 +22,6 @@
         <el-table-column label="官方输出价" width="150" align="right"><template #default="{row}">{{ price(row.official_output_price,row.official_currency) }} / 1M</template></el-table-column>
         <el-table-column label="输入扣费倍率" width="120" align="right"><template #default="{row}"><span style="font-weight:600;font-size:14px">×{{ row.billing_multiplier_input }}</span></template></el-table-column>
         <el-table-column label="输出扣费倍率" width="120" align="right"><template #default="{row}"><span style="font-weight:600;font-size:14px">×{{ row.billing_multiplier_output }}</span></template></el-table-column>
-        <el-table-column prop="description" label="描述" show-overflow-tooltip/>
       </el-table>
     </div>
   </div>

@@ -31,7 +31,7 @@
 </el-row>
 
 <el-card style="margin-top:20px"><template #header><div style="display:flex;align-items:center;gap:8px"><Cpu :size="18" color="#409eff"/> 可用模型</div></template>
-<el-table :data="models" stripe size="small"><el-table-column prop="model_name" label="模型名称"/><el-table-column prop="model_type" label="类型" width="100"><template #default="{row}"><el-tag size="small" effect="plain">{{ row.model_type }}</el-tag></template></el-table-column><el-table-column label="输入倍率" width="120"><template #default="{row}"><span style="font-weight:600">×{{ row.display_multiplier_input }}</span></template></el-table-column><el-table-column label="输出倍率" width="120"><template #default="{row}"><span style="font-weight:600">×{{ row.display_multiplier_output }}</span></template></el-table-column><el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip/></el-table>
+<el-table :data="models" stripe size="small"><el-table-column prop="model_name" label="模型名称"/><el-table-column prop="model_type" label="类型" width="100"><template #default="{row}"><el-tag size="small" effect="plain">{{ row.model_type }}</el-tag></template></el-table-column><el-table-column label="输入扣费倍率" width="140"><template #default="{row}"><span style="font-weight:600">×{{ row.billing_multiplier_input }}</span></template></el-table-column><el-table-column label="输出扣费倍率" width="140"><template #default="{row}"><span style="font-weight:600">×{{ row.billing_multiplier_output }}</span></template></el-table-column></el-table>
 </el-card>
 </div>
 </template>

@@ -10,8 +10,8 @@ const { generateDocs } = require('../utils/channel-docs');
 router.get('/wallet', authenticate, (req, res) => {
   const db = getDatabase();
   const w = db.prepare('SELECT * FROM wallets WHERE user_id=?').get(req.user.id) || {};
-  const qb = w.quota_balance || w.recharge_balance || 0;
-  const gq = w.gift_quota || w.gift_balance || 0;
+  const qb = w.quota_balance ?? w.recharge_balance ?? 0;
+  const gq = w.gift_quota ?? w.gift_balance ?? 0;
   res.json({ quota_balance: qb, gift_quota: gq, frozen_balance: w.frozen_balance||0, total_balance: qb+gq-(w.frozen_balance||0), total_spent: w.total_spent||0 });
 });
 
@@ -49,7 +49,7 @@ router.get('/quota-orders', authenticate, (req, res) => {
 
 router.get('/models', authenticate, (req, res) => {
   const db = getDatabase();
-  const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,description,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,official_price_updated_at,status FROM models WHERE status='active' ORDER BY sort_order ASC").all();
+  const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,billing_multiplier_input,billing_multiplier_output,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,official_price_updated_at,status FROM models WHERE status='active' ORDER BY sort_order ASC").all();
   const now = new Date().toISOString();
   const ruleForModel = db.prepare("SELECT * FROM pricing_rules WHERE (model_code=? OR model_code IS NULL) AND status='active' AND (start_time IS NULL OR start_time<=?) AND (end_time IS NULL OR end_time>=?) AND ((scope_type='user' AND scope_id=?) OR scope_type='platform') ORDER BY CASE scope_type WHEN 'user' THEN 2 WHEN 'platform' THEN 1 END DESC, priority DESC LIMIT 1");
   const data = models.map(model => {
@@ -229,8 +229,8 @@ router.get('/stats', authenticate, (req, res) => {
   const totalConsumption = db.prepare("SELECT COALESCE(SUM(total_cost),0) as total FROM api_request_logs WHERE user_id=? AND status='success'").get(req.user.id);
     const totalCalls = db.prepare('SELECT COUNT(*) as count FROM api_request_logs WHERE user_id=?').get(req.user.id);
     const wallet = db.prepare('SELECT * FROM wallets WHERE user_id=?').get(req.user.id) || {};
-    const quotaBalance = wallet.quota_balance || wallet.recharge_balance || 0;
-    const giftQuota = wallet.gift_quota || wallet.gift_balance || 0;
+    const quotaBalance = wallet.quota_balance ?? wallet.recharge_balance ?? 0;
+    const giftQuota = wallet.gift_quota ?? wallet.gift_balance ?? 0;
     const modelUsage = db.prepare("SELECT model_code,COUNT(*) as calls,COALESCE(SUM(total_cost),0) as cost FROM api_request_logs WHERE user_id=? AND status='success' GROUP BY model_code ORDER BY cost DESC").all(req.user.id);
   // 今日调用次数
   const todayCalls = db.prepare("SELECT COUNT(*) as count FROM api_request_logs WHERE user_id=? AND date(created_at)=?").get(req.user.id, today);

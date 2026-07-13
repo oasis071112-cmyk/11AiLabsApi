@@ -15,11 +15,11 @@ const routes=[
     {path:'',name:'AdminDashboard',component:()=>import('@/views/admin/Dashboard.vue')},
     {path:'users',name:'AdminUsers',component:()=>import('@/views/admin/Users.vue')},
     {path:'orders',name:'AdminOrders',component:()=>import('@/views/admin/Orders.vue')},
+    {path:'channels',name:'AdminChannels',component:()=>import('@/views/admin/Channels.vue')},
     {path:'models',name:'AdminModels',component:()=>import('@/views/admin/Models.vue')},
     {path:'pricing',name:'AdminPricing',component:()=>import('@/views/admin/Pricing.vue')},
     {path:'keys',name:'AdminKeys',component:()=>import('@/views/admin/Keys.vue')},
     {path:'logs',name:'AdminLogs',component:()=>import('@/views/admin/Logs.vue')},
-    {path:'channels',name:'AdminChannels',component:()=>import('@/views/admin/Channels.vue')},
     {path:'settings',name:'AdminSettings',component:()=>import('@/views/admin/Settings.vue')},
     {path:'change-password',name:'AdminChangePassword',component:()=>import('@/views/user/ChangePassword.vue')}
   ]},

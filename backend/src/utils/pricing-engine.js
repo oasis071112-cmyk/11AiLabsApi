@@ -40,7 +40,7 @@ function calculateDimensions({ inputTokens = 0, cachedInputTokens = 0, outputTok
   };
 }
 
-function calculatePricing({ inputTokens = 0, cachedInputTokens = 0, outputTokens = 0, official = {}, channel = {}, multipliers = { input: 1, output: 1 }, usdCnyRate = 7 }) {
+function calculatePricing({ inputTokens = 0, cachedInputTokens = 0, outputTokens = 0, official = {}, multipliers = { input: 1, output: 1 }, usdCnyRate = 7 }) {
   const officialDimensions = calculateDimensions({
     inputTokens,
     cachedInputTokens,
@@ -51,24 +51,10 @@ function calculatePricing({ inputTokens = 0, cachedInputTokens = 0, outputTokens
     usdCnyRate,
     multipliers,
   });
-  const channelDimensions = calculateDimensions({
-    inputTokens,
-    cachedInputTokens,
-    outputTokens,
-    prices: channel,
-    currency: channel.currency,
-    unitTokens: channel.unitTokens,
-    usdCnyRate,
-    multipliers: { input: 1, output: 1 },
-  });
-
   return {
     userCostPoints: officialDimensions.totalCost,
     officialCostCny: officialDimensions.totalCost,
-    channelCostCny: channelDimensions.totalCost,
-    profitCny: officialDimensions.totalCost - channelDimensions.totalCost,
     official: officialDimensions,
-    channel: channelDimensions,
   };
 }
 

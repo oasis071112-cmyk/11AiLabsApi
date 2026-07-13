@@ -14,11 +14,11 @@
     <el-menu-item index="/admin"><el-icon><LayoutDashboard :size="16"/></el-icon>仪表盘</el-menu-item>
     <el-menu-item index="/admin/users"><el-icon><Users :size="16"/></el-icon>用户管理</el-menu-item>
     <el-menu-item index="/admin/orders"><el-icon><ShoppingCart :size="16"/></el-icon>额度订单</el-menu-item>
+    <el-menu-item index="/admin/channels"><el-icon><Share2 :size="16"/></el-icon>渠道管理</el-menu-item>
     <el-menu-item index="/admin/models"><el-icon><Cpu :size="16"/></el-icon>模型管理</el-menu-item>
     <el-menu-item index="/admin/pricing"><el-icon><Percent :size="16"/></el-icon>倍率规则</el-menu-item>
     <el-menu-item index="/admin/keys"><el-icon><Key :size="16"/></el-icon>API Key</el-menu-item>
     <el-menu-item index="/admin/logs"><el-icon><ScrollText :size="16"/></el-icon>调用日志</el-menu-item>
-    <el-menu-item index="/admin/channels"><el-icon><Share2 :size="16"/></el-icon>渠道管理</el-menu-item>
     <el-menu-item index="/admin/settings"><el-icon><Settings :size="16"/></el-icon>系统设置</el-menu-item>
     <el-menu-item index="/admin/change-password"><el-icon><Lock :size="16"/></el-icon>修改密码</el-menu-item>
   </el-menu>
