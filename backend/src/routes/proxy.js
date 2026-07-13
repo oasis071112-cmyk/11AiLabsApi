@@ -5,6 +5,7 @@ const { authenticateApiKey } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const { selectChannel, reportResult } = require('../utils/channel-selector');
+const { calculatePricing, extractUsage } = require('../utils/pricing-engine');
 
 function getEffectiveMultiplier(db, modelCode, userId, apiKeyId) {
   const now = new Date().toISOString();
@@ -37,6 +38,66 @@ function deductBalance(db, userId, amount) {
   }
 }
 
+function getUsdCnyRate(db) {
+  const value = Number(db.prepare("SELECT config_value FROM system_config WHERE config_key='usd_cny_exchange_rate'").get()?.config_value);
+  return Number.isFinite(value) && value > 0 ? value : 7;
+}
+
+function getChannelCost(db, channelId, modelCode) {
+  return db.prepare('SELECT * FROM channel_model_costs WHERE channel_id=? AND model_code=?').get(channelId, modelCode) || {
+    currency: 'CNY', input_price: 0, output_price: 0, cached_input_price: 0, unit_tokens: 1000000,
+  };
+}
+
+function buildPricing(db, model, channelId, modelCode, usage, multipliers) {
+  const usdCnyRate = getUsdCnyRate(db);
+  const channelCost = getChannelCost(db, channelId, modelCode);
+  const prices = calculatePricing({
+    ...usage,
+    official: {
+      currency: model.official_currency,
+      input: model.official_input_price,
+      output: model.official_output_price,
+      cachedInput: model.official_cached_input_price,
+      unitTokens: model.official_unit_tokens,
+    },
+    channel: {
+      currency: channelCost.currency,
+      input: channelCost.input_price,
+      output: channelCost.output_price,
+      cachedInput: channelCost.cached_input_price,
+      unitTokens: channelCost.unit_tokens,
+    },
+    multipliers,
+    usdCnyRate,
+  });
+  return { ...prices, usdCnyRate };
+}
+
+function insertSuccessLog(db, { requestId, userId, apiKeyId, modelCode, channelId, usage, pricing, model, multipliers, requestIp, latencyMs }) {
+  db.prepare(`INSERT INTO api_request_logs (
+    request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,cached_input_tokens,output_tokens,total_cost,
+    official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,
+    usd_cny_rate,billing_multiplier_input,billing_multiplier_output,official_cost_cny,channel_cost_cny,profit_cny,status,request_ip,latency_ms
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'success',?,?)`).run(
+    requestId, userId, apiKeyId, modelCode, channelId, usage.inputTokens, usage.cachedInputTokens, usage.outputTokens, pricing.userCostPoints,
+    model.official_provider, model.official_currency, model.official_input_price, model.official_output_price, model.official_cached_input_price, model.official_unit_tokens,
+    pricing.usdCnyRate, multipliers.input, multipliers.output, pricing.officialCostCny, pricing.channelCostCny, pricing.profitCny, requestIp, latencyMs,
+  );
+}
+
+function insertSettlementFailureLog(db, { requestId, userId, apiKeyId, modelCode, channelId, usage, pricing, model, multipliers, requestIp, latencyMs, error }) {
+  db.prepare(`INSERT INTO api_request_logs (
+    request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,cached_input_tokens,output_tokens,total_cost,
+    official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,
+    usd_cny_rate,billing_multiplier_input,billing_multiplier_output,official_cost_cny,channel_cost_cny,profit_cny,status,error_message,error_type,request_ip,latency_ms
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'failed',?,'settlement_failed',?,?)`).run(
+    requestId, userId, apiKeyId, modelCode, channelId, usage.inputTokens, usage.cachedInputTokens, usage.outputTokens, pricing.userCostPoints,
+    model.official_provider, model.official_currency, model.official_input_price, model.official_output_price, model.official_cached_input_price, model.official_unit_tokens,
+    pricing.usdCnyRate, multipliers.input, multipliers.output, pricing.officialCostCny, pricing.channelCostCny, pricing.profitCny, error, requestIp, latencyMs,
+  );
+}
+
 function listModels(req, res) {
   const db = getDatabase();
   const models = db.prepare("SELECT DISTINCT m.model_code,m.model_name FROM models m JOIN api_key_permissions akp ON m.model_code=akp.model_code AND akp.status='active' WHERE m.status='active' AND akp.api_key_id=?").all(req.apiKey.id);
@@ -61,10 +122,13 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
 
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
-
   const pricingRule = getEffectiveMultiplier(db, modelCode, req.userId, req.apiKey.id);
-  const bmi = pricingRule ? pricingRule.billing_multiplier_input : model.billing_multiplier_input;
-  const bmo = pricingRule ? pricingRule.billing_multiplier_output : model.billing_multiplier_output;
+  const bmi = Number(pricingRule ? pricingRule.billing_multiplier_input : model.billing_multiplier_input) || 1;
+  const bmo = Number(pricingRule ? pricingRule.billing_multiplier_output : model.billing_multiplier_output) || 1;
+
+  if (Number(model.official_input_price) <= 0 && Number(model.official_output_price) <= 0) {
+    return res.status(503).json({ error: { message: '该模型的官方价格尚未同步完成，暂不能计费调用', type: 'official_price_unavailable' } });
+  }
 
   const wallet = db.prepare('SELECT * FROM wallets WHERE user_id=?').get(req.userId);
   if (!wallet) {
@@ -75,7 +139,9 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
   const qb = wallet.quota_balance || wallet.recharge_balance || 0;
   const gq = wallet.gift_quota || wallet.gift_balance || 0;
   const availableBalance = qb + gq - (wallet.frozen_balance || 0);
-  if (availableBalance < model.base_input_price * bmi * 10) {
+  // 用 1K 输入 Token 的官方人民币参考成本做预检；最终按上游返回的真实用量结算。
+  const minimumEstimate = buildPricing(db, model, 0, modelCode, { inputTokens: 1000, cachedInputTokens: 0, outputTokens: 0 }, { input: bmi, output: bmo }).userCostPoints;
+  if (availableBalance < Math.max(minimumEstimate, 0.000001)) {
     db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,'blocked',?,'insufficient_balance',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, '额度不足，请购买额度包', req.ip, Date.now()-startTime);
     return res.status(402).json({ error: { message: '额度不足，请购买额度包后重试', type: 'insufficient_balance', current_balance: availableBalance } });
   }
@@ -100,7 +166,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
 
-      let inputTokens = 0, outputTokens = 0;
+      let inputTokens = 0, outputTokens = 0, cachedInputTokens = 0;
       let fullContent = '';
       let buffer = '';
 
@@ -115,8 +181,10 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
           try {
             const parsed = JSON.parse(data);
             if (parsed.usage) {
-              inputTokens = parsed.usage.prompt_tokens || 0;
-              outputTokens = parsed.usage.completion_tokens || 0;
+              const usage = extractUsage(parsed.usage);
+              inputTokens = usage.inputTokens;
+              outputTokens = usage.outputTokens;
+              cachedInputTokens = usage.cachedInputTokens;
             }
             if (parsed.choices?.[0]?.delta?.content) fullContent += parsed.choices[0].delta.content;
             res.write(`data: ${data}\n\n`);
@@ -133,9 +201,15 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
         if (inputTokens === 0) {
           try { inputTokens = Math.max(1, Math.ceil(JSON.stringify(upstreamBody.messages).length / 4)); } catch(e) {}
         }
-        const totalCost = (inputTokens/1000) * model.base_input_price * bmi + (outputTokens/1000) * model.base_output_price * bmo;
-        try { deductBalance(db, req.userId, totalCost); } catch(e) { console.error('[流式扣费失败]', e); }
-        db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,output_tokens,total_cost,status,request_ip,latency_ms) VALUES (?,?,?,?,?,?,?,?,'success',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel.id, inputTokens, outputTokens, totalCost, req.ip, Date.now()-startTime);
+        const usage = { inputTokens, outputTokens, cachedInputTokens };
+        const pricing = buildPricing(db, model, channel.id, modelCode, usage, { input: bmi, output: bmo });
+        try {
+          deductBalance(db, req.userId, pricing.userCostPoints);
+          insertSuccessLog(db, { requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id, usage, pricing, model, multipliers: { input: bmi, output: bmo }, requestIp: req.ip, latencyMs: Date.now()-startTime });
+        } catch (error) {
+          console.error('[流式结算失败]', error);
+          insertSettlementFailureLog(db, { requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id, usage, pricing, model, multipliers: { input: bmi, output: bmo }, requestIp: req.ip, latencyMs: Date.now()-startTime, error: error.message });
+        }
         db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
         reportResult(db, channel.id, true);
       });
@@ -152,16 +226,19 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
         timeout: 120000
       });
 
-      const usage = upstreamResponse.data?.usage || {};
-      const inputTokens = upstreamResponse.data?.usage?.input_tokens || upstreamResponse.data?.usage?.prompt_tokens || 0;
-      const outputTokens = upstreamResponse.data?.usage?.output_tokens || upstreamResponse.data?.usage?.completion_tokens || 0;
-      const inputCost = (inputTokens/1000) * model.base_input_price * bmi;
-      const outputCost = (outputTokens/1000) * model.base_output_price * bmo;
-      const totalCost = inputCost + outputCost;
+      const usage = extractUsage(upstreamResponse.data?.usage || {});
+      const pricing = buildPricing(db, model, channel.id, modelCode, usage, { input: bmi, output: bmo });
 
-      try { deductBalance(db, req.userId, totalCost); } catch(e) { console.error('[扣费失败]', e); }
+      try {
+        deductBalance(db, req.userId, pricing.userCostPoints);
+      } catch (error) {
+        console.error('[结算失败]', error);
+        insertSettlementFailureLog(db, { requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id, usage, pricing, model, multipliers: { input: bmi, output: bmo }, requestIp: req.ip, latencyMs: Date.now()-startTime, error: error.message });
+        reportResult(db, channel.id, true);
+        return res.status(402).json({ error: { message: '响应已生成，但账户余额不足以完成结算；本次调用已记录，请充值后联系管理员处理', type: 'settlement_failed' } });
+      }
 
-      db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,output_tokens,total_cost,status,request_ip,latency_ms) VALUES (?,?,?,?,?,?,?,?,'success',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel.id, inputTokens, outputTokens, totalCost, req.ip, Date.now()-startTime);
+      insertSuccessLog(db, { requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id, usage, pricing, model, multipliers: { input: bmi, output: bmo }, requestIp: req.ip, latencyMs: Date.now()-startTime });
       db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
       reportResult(db, channel.id, true);
 
@@ -188,16 +265,23 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
 
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
+  if (Number(model.official_input_price) <= 0) return res.status(503).json({ error: { message: '该模型的官方价格尚未同步完成，暂不能计费调用', type: 'official_price_unavailable' } });
 
   const channel = selectChannel(db, modelCode);
   if (!channel) return res.status(503).json({ error: { message: '暂无可用上游渠道', type: 'no_channel' } });
 
   try {
     const upstreamResponse = await axios.post(`${channel.base_url}/embeddings`, { ...req.body, model: model.upstream_model_name||modelCode }, { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${channel.api_key}` }, timeout: 60000 });
-    const inputTokens = upstreamResponse.data?.usage?.input_tokens || upstreamResponse.data?.usage?.prompt_tokens || 0;
-    const totalCost = (inputTokens/1000) * model.base_input_price * model.billing_multiplier_input;
-    try { deductBalance(db, req.userId, totalCost); } catch(e) {}
-    db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,output_tokens,total_cost,status,request_ip,latency_ms) VALUES (?,?,?,?,?,?,0,?,'success',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel.id, inputTokens, totalCost, req.ip, Date.now()-startTime);
+    const usage = extractUsage(upstreamResponse.data?.usage || {});
+    const multipliers = { input: Number(model.billing_multiplier_input) || 1, output: Number(model.billing_multiplier_output) || 1 };
+    const pricing = buildPricing(db, model, channel.id, modelCode, usage, multipliers);
+    try {
+      deductBalance(db, req.userId, pricing.userCostPoints);
+    } catch (error) {
+      insertSettlementFailureLog(db, { requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id, usage, pricing, model, multipliers, requestIp: req.ip, latencyMs: Date.now()-startTime, error: error.message });
+      return res.status(402).json({ error: { message: '响应已生成，但账户余额不足以完成结算；本次调用已记录，请充值后联系管理员处理', type: 'settlement_failed' } });
+    }
+    insertSuccessLog(db, { requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id, usage, pricing, model, multipliers, requestIp: req.ip, latencyMs: Date.now()-startTime });
     res.json(upstreamResponse.data);
   } catch (err) {
     db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,?,'failed',?,'upstream_error',?,?)").run(requestId, req.userId, req.apiKey.id, modelCode, channel.id, err.message, req.ip, Date.now()-startTime);

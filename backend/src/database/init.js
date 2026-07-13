@@ -142,6 +142,16 @@ function createTables() {
     sort_order INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
   sqlDb.run('CREATE INDEX IF NOT EXISTS idx_models_channel ON models(channel_id)');
+  // 官方价格快照：仅用于用户侧公开定价与点数扣费，和渠道实际成本分离。
+  try { sqlDb.run("ALTER TABLE models ADD COLUMN official_provider TEXT DEFAULT 'manual'"); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE models ADD COLUMN official_model_id TEXT'); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE models ADD COLUMN official_currency TEXT DEFAULT 'CNY'"); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE models ADD COLUMN official_input_price REAL DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE models ADD COLUMN official_output_price REAL DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE models ADD COLUMN official_cached_input_price REAL DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE models ADD COLUMN official_unit_tokens INTEGER DEFAULT 1000000'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE models ADD COLUMN official_price_source TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE models ADD COLUMN official_price_updated_at DATETIME'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS pricing_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT, rule_name TEXT NOT NULL, model_code TEXT,
@@ -185,6 +195,20 @@ function createTables() {
   )`);
   sqlDb.run('CREATE INDEX IF NOT EXISTS idx_arl_user ON api_request_logs(user_id)');
   sqlDb.run('CREATE INDEX IF NOT EXISTS idx_arl_created ON api_request_logs(created_at)');
+  // 每次调用固化当时的定价与汇率，后续官方调价不会改写历史账单。
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN cached_input_tokens INTEGER DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_provider TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_currency TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_input_price REAL DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_output_price REAL DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_cached_input_price REAL DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_unit_tokens INTEGER DEFAULT 1000000'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN usd_cny_rate REAL DEFAULT 1'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_multiplier_input REAL DEFAULT 1'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_multiplier_output REAL DEFAULT 1'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_cost_cny REAL DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN channel_cost_cny REAL DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN profit_cny REAL DEFAULT 0'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS upstream_channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT, channel_name TEXT NOT NULL,
@@ -201,6 +225,16 @@ function createTables() {
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_requests INTEGER DEFAULT 0"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_successes INTEGER DEFAULT 0"); } catch(e) {}
 
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS channel_model_costs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, model_code TEXT NOT NULL,
+    currency TEXT DEFAULT 'CNY', input_price REAL DEFAULT 0, output_price REAL DEFAULT 0,
+    cached_input_price REAL DEFAULT 0, unit_tokens INTEGER DEFAULT 1000000,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(channel_id, model_code),
+    FOREIGN KEY (channel_id) REFERENCES upstream_channels(id) ON DELETE CASCADE
+  )`);
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_channel_model_costs_channel ON channel_model_costs(channel_id)');
+
   sqlDb.run(`CREATE TABLE IF NOT EXISTS system_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT, config_key TEXT UNIQUE NOT NULL,
     config_value TEXT, description TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -213,6 +247,10 @@ function createTables() {
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('default_rate_limit', '60', '默认每分钟限速')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('platform_name', '11AiLabs', '平台名称')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('platform_announcement', '欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数', '平台公告')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('usd_cny_exchange_rate', '7', '美元兑人民币汇率；1点=1人民币')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('usd_cny_rate_updated_at', '', '美元兑人民币汇率最近更新时间')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('official_pricing_last_sync_at', '', '官方价格最近同步时间')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('official_pricing_last_sync_status', 'never', '官方价格最近同步状态')");
   // 确保公告始终为最新
   sqlDb.run("UPDATE system_config SET config_value='欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数' WHERE config_key='platform_announcement' AND config_value!='欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数'");
 

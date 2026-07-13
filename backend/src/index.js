@@ -124,6 +124,8 @@ async function start() {
   } catch(e) { /* 非致命 */ }
   // 启动上游渠道健康检查
   try { const { startHealthCheck } = require('./utils/channel-selector'); startHealthCheck(getDatabase()); } catch(e) { console.error('[健康检查启动失败]', e.message); }
+  // 官方价格每周同步；美元汇率每日同步。失败时保留最近一次成功数据。
+  try { const { startPricingSchedules } = require('./utils/pricing-sync'); startPricingSchedules(getDatabase()); } catch(e) { console.error('[计费同步启动失败]', e.message); }
   app.listen(PORT, () => {
     logger.info(`11AiLabs 已启动 — 端口: ${PORT}, 环境: ${isProduction ? 'production' : 'development'}`);
     console.log(`\n🚀 11AiLabs 已启动: http://localhost:${PORT}`);

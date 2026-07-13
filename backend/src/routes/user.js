@@ -49,8 +49,14 @@ router.get('/quota-orders', authenticate, (req, res) => {
 
 router.get('/models', authenticate, (req, res) => {
   const db = getDatabase();
-  const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,description,display_multiplier_input,display_multiplier_output,status FROM models WHERE status='active' ORDER BY sort_order ASC").all();
-  res.json({ data: models });
+  const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,description,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,official_price_updated_at,status FROM models WHERE status='active' ORDER BY sort_order ASC").all();
+  const now = new Date().toISOString();
+  const ruleForModel = db.prepare("SELECT * FROM pricing_rules WHERE (model_code=? OR model_code IS NULL) AND status='active' AND (start_time IS NULL OR start_time<=?) AND (end_time IS NULL OR end_time>=?) AND ((scope_type='user' AND scope_id=?) OR scope_type='platform') ORDER BY CASE scope_type WHEN 'user' THEN 2 WHEN 'platform' THEN 1 END DESC, priority DESC LIMIT 1");
+  const data = models.map(model => {
+    const rule = ruleForModel.get(model.model_code, now, now, req.user.id);
+    return rule ? { ...model, billing_multiplier_input: rule.billing_multiplier_input, billing_multiplier_output: rule.billing_multiplier_output } : model;
+  });
+  res.json({ data });
 });
 
 router.get('/channels', authenticate, (req, res) => {
@@ -140,7 +146,7 @@ router.get('/logs', authenticate, (req, res) => {
   if (key_id) { where += ' AND api_key_id=?'; p.push(key_id); }
   if (start_date) { where += ' AND created_at>=?'; p.push(start_date); }
   if (end_date) { where += ' AND created_at<=?'; p.push(end_date+' 23:59:59'); }
-  const data = db.prepare(`SELECT * FROM api_request_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
+  const data = db.prepare(`SELECT request_id,api_key_id,model_code,input_tokens,cached_input_tokens,output_tokens,total_cost,status,error_message,error_type,latency_ms,created_at,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,usd_cny_rate,billing_multiplier_input,billing_multiplier_output,official_cost_cny FROM api_request_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
   const total = db.prepare(`SELECT COUNT(*) as count FROM api_request_logs ${where}`).get(...p);
   res.json({ data, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
 });

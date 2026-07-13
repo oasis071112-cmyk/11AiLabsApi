@@ -5,6 +5,7 @@ const { getDatabase } = require('../database/init');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { desensitize } = require('../utils/crypto');
 const { normalizeUpstreamModels, inferModelType } = require('../utils/model-sync');
+const { syncOfficialPricing, syncUsdCnyRate } = require('../utils/pricing-sync');
 
 router.get('/dashboard', authenticate, requireAdmin('admin','operator','finance'), (req, res) => {
   const db = getDatabase();
@@ -194,16 +195,16 @@ router.get('/models', authenticate, requireAdmin('admin','operator'), (req, res)
 
 router.post('/models', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
-  const { model_code, model_name, upstream_model_name, model_type, context_length, is_multimodal, description, base_input_price, base_output_price, display_multiplier_input, display_multiplier_output, billing_multiplier_input, billing_multiplier_output, sort_order } = req.body;
+  const { model_code, model_name, upstream_model_name, model_type, context_length, is_multimodal, description, base_input_price, base_output_price, display_multiplier_input, display_multiplier_output, billing_multiplier_input, billing_multiplier_output, official_provider, official_model_id, sort_order } = req.body;
   if (!model_code || !model_name) return res.status(400).json({ error: '模型编码和名称不能为空' });
-  db.prepare('INSERT INTO models (model_code,model_name,upstream_model_name,model_type,context_length,is_multimodal,description,base_input_price,base_output_price,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(model_code, model_name, upstream_model_name||model_code, model_type||'llm', context_length||4096, is_multimodal?1:0, description||'', base_input_price||0, base_output_price||0, display_multiplier_input||1, display_multiplier_output||1, billing_multiplier_input||1, billing_multiplier_output||1, sort_order||0);
+  db.prepare('INSERT INTO models (model_code,model_name,upstream_model_name,model_type,context_length,is_multimodal,description,base_input_price,base_output_price,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,official_provider,official_model_id,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(model_code, model_name, upstream_model_name||model_code, model_type||'llm', context_length||4096, is_multimodal?1:0, description||'', base_input_price||0, base_output_price||0, display_multiplier_input||1, display_multiplier_output||1, billing_multiplier_input||1, billing_multiplier_output||1, official_provider||'manual', official_model_id||model_code, sort_order||0);
   res.status(201).json({ message: '模型创建成功' });
 });
 
 router.put('/models/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
-  const { model_name, upstream_model_name, model_type, context_length, is_multimodal, description, base_input_price, base_output_price, display_multiplier_input, display_multiplier_output, billing_multiplier_input, billing_multiplier_output, status, sort_order } = req.body;
-  db.prepare('UPDATE models SET model_name=?,upstream_model_name=?,model_type=?,context_length=?,is_multimodal=?,description=?,base_input_price=?,base_output_price=?,display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,status=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(model_name, upstream_model_name, model_type, context_length, is_multimodal?1:0, description, base_input_price, base_output_price, display_multiplier_input, display_multiplier_output, billing_multiplier_input, billing_multiplier_output, status, sort_order, req.params.id);
+  const { model_name, upstream_model_name, model_type, context_length, is_multimodal, description, base_input_price, base_output_price, display_multiplier_input, display_multiplier_output, billing_multiplier_input, billing_multiplier_output, official_provider, official_model_id, status, sort_order } = req.body;
+  db.prepare('UPDATE models SET model_name=?,upstream_model_name=?,model_type=?,context_length=?,is_multimodal=?,description=?,base_input_price=?,base_output_price=?,display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,official_provider=?,official_model_id=?,status=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(model_name, upstream_model_name, model_type, context_length, is_multimodal?1:0, description, base_input_price, base_output_price, display_multiplier_input, display_multiplier_output, billing_multiplier_input, billing_multiplier_output, official_provider||'manual', official_model_id||null, status, sort_order, req.params.id);
   res.json({ message: '模型更新成功' });
 });
 
@@ -211,6 +212,33 @@ router.patch('/models/:id/status', authenticate, requireAdmin('admin','operator'
   const db = getDatabase();
   db.prepare('UPDATE models SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.body.status, req.params.id);
   res.json({ message: '状态已更新' });
+});
+
+router.get('/pricing-sync/status', authenticate, requireAdmin('admin','operator'), (req, res) => {
+  const db = getDatabase();
+  const config = db.prepare("SELECT config_key,config_value FROM system_config WHERE config_key IN ('usd_cny_exchange_rate','usd_cny_rate_updated_at','official_pricing_last_sync_at','official_pricing_last_sync_status')").all();
+  res.json({ data: Object.fromEntries(config.map(item => [item.config_key, item.config_value])) });
+});
+
+router.post('/pricing-sync', authenticate, requireAdmin('admin'), async (req, res) => {
+  const db = getDatabase();
+  const [exchangeRate, officialPricing] = await Promise.all([syncUsdCnyRate(db), syncOfficialPricing(db)]);
+  res.json({ message: '官方价格与汇率同步完成', exchange_rate: exchangeRate, official_pricing: officialPricing });
+});
+
+router.get('/channels/:id/costs', authenticate, requireAdmin('admin','operator','finance'), (req, res) => {
+  const data = getDatabase().prepare('SELECT * FROM channel_model_costs WHERE channel_id=? ORDER BY model_code ASC').all(req.params.id);
+  res.json({ data });
+});
+
+router.put('/channels/:id/costs/:modelCode', authenticate, requireAdmin('admin','operator'), (req, res) => {
+  const db = getDatabase();
+  const { currency='CNY', input_price=0, output_price=0, cached_input_price=0, unit_tokens=1000000 } = req.body;
+  const channel = db.prepare('SELECT id FROM upstream_channels WHERE id=?').get(req.params.id);
+  if (!channel) return res.status(404).json({ error: '渠道不存在' });
+  db.prepare('INSERT INTO channel_model_costs (channel_id,model_code,currency,input_price,output_price,cached_input_price,unit_tokens,updated_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(channel_id,model_code) DO UPDATE SET currency=excluded.currency,input_price=excluded.input_price,output_price=excluded.output_price,cached_input_price=excluded.cached_input_price,unit_tokens=excluded.unit_tokens,updated_at=CURRENT_TIMESTAMP')
+    .run(req.params.id, req.params.modelCode, String(currency).toUpperCase(), Number(input_price)||0, Number(output_price)||0, Number(cached_input_price)||0, Number(unit_tokens)||1000000);
+  res.json({ message: '渠道成本已保存' });
 });
 
 router.get('/pricing-rules', authenticate, requireAdmin('admin','operator'), (req, res) => {

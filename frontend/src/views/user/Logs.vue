@@ -82,6 +82,7 @@
         <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
         <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
         <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ row.total_cost?.toFixed(6)||'0' }} 点</template></el-table-column>
+        <el-table-column label="计费明细" width="130"><template #default="{row}"><el-tooltip v-if="row.official_currency" :content="billingDetail(row)"><span class="detail-link">官方价 × 倍率</span></el-tooltip><span v-else>-</span></template></el-table-column>
         <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
         <el-table-column prop="error_message" label="备注" min-width="140" show-overflow-tooltip/>
       </el-table>
@@ -102,6 +103,7 @@
       <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
       <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
       <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ row.total_cost?.toFixed(6)||'0' }} 点</template></el-table-column>
+      <el-table-column label="计费明细" width="130"><template #default="{row}"><el-tooltip v-if="row.official_currency" :content="billingDetail(row)"><span class="detail-link">官方价 × 倍率</span></el-tooltip><span v-else>-</span></template></el-table-column>
       <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
       <el-table-column prop="error_message" label="错误信息" min-width="160" show-overflow-tooltip/>
     </el-table>
@@ -229,6 +231,7 @@ const modelRankGaugeOption = computed(() => {
 })
 
 function statusLabel(s) { const m = { success: '成功', failed: '失败', blocked: '拦截' }; return m[s] || s }
+function billingDetail(row) { const unit=(row.official_unit_tokens||1000000).toLocaleString();const c=row.official_currency==='USD'?'$':'¥';const fx=row.official_currency==='USD'?`，汇率 ${row.usd_cny_rate}`:'';const cached=row.cached_input_tokens?`，缓存输入 ${c}${row.official_cached_input_price} × ${row.billing_multiplier_input}`:'';return `每 ${unit} Token：输入 ${c}${row.official_input_price} × ${row.billing_multiplier_input}${cached}，输出 ${c}${row.official_output_price} × ${row.billing_multiplier_output}${fx}；1点=¥1` }
 function getPresetRange(preset) { const end = dayjs().format('YYYY-MM-DD'); const start = dayjs().subtract(preset === '30d' ? 29 : preset === '90d' ? 89 : 6, 'day').format('YYYY-MM-DD'); return [start, end] }
 
 async function fetchAll() {
@@ -263,5 +266,6 @@ onUnmounted(()=>{clearInterval(refreshTimer)})
 .chart-header { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 600; color: #0f172a }
 .chart-sub { font-size: 12px; color: #64748b; margin-left: auto }
 .chart-body { padding: 8px 12px 8px 12px }
+.detail-link { color: #409eff; cursor: help; font-size: 12px; }
 .chart-sphere { display: flex; align-items: center; justify-content: center; min-height: 240px }
 </style>
