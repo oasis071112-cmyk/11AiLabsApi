@@ -146,7 +146,10 @@ router.get('/logs', authenticate, (req, res) => {
   if (key_id) { where += ' AND api_key_id=?'; p.push(key_id); }
   if (start_date) { where += ' AND created_at>=?'; p.push(start_date); }
   if (end_date) { where += ' AND created_at<=?'; p.push(end_date+' 23:59:59'); }
-  const data = db.prepare(`SELECT request_id,api_key_id,model_code,input_tokens,cached_input_tokens,output_tokens,total_cost,status,error_message,error_type,latency_ms,created_at,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,usd_cny_rate,billing_multiplier_input,billing_multiplier_output,official_cost_cny FROM api_request_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
+  const data = db.prepare(`SELECT request_id,api_key_id,model_code,input_tokens,cached_input_tokens,output_tokens,total_cost,status,error_message,error_type,latency_ms,created_at,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,usd_cny_rate,billing_multiplier_input,billing_multiplier_output,official_cost_cny,
+    (SELECT base_input_price FROM models WHERE models.model_code=api_request_logs.model_code) as legacy_input_price,
+    (SELECT base_output_price FROM models WHERE models.model_code=api_request_logs.model_code) as legacy_output_price
+    FROM api_request_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
   const total = db.prepare(`SELECT COUNT(*) as count FROM api_request_logs ${where}`).get(...p);
   res.json({ data, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
 });

@@ -1,53 +1,41 @@
 <template>
-<div class="dashboard">
-  <!-- KPI -->
-  <el-row :gutter="16" class="kpi-row">
-    <el-col :span="6"><div class="kpi-card"><div class="kpi-icon" style="background:#0EA5E9"><Cpu :size="20" color="#fff"/></div><div class="kpi-body"><div class="kpi-label">可用模型</div><div class="kpi-value">{{ models.length }}</div></div></div></el-col>
-    <el-col :span="6"><div class="kpi-card"><div class="kpi-icon" style="background:#22c55e"><MessageSquare :size="20" color="#fff"/></div><div class="kpi-body"><div class="kpi-label">对话模型</div><div class="kpi-value">{{ models.filter(m=>m.model_type==='llm').length }}</div></div></div></el-col>
-    <el-col :span="6"><div class="kpi-card"><div class="kpi-icon" style="background:#f59e0b"><Image :size="20" color="#fff"/></div><div class="kpi-body"><div class="kpi-label">多模态</div><div class="kpi-value">{{ models.filter(m=>m.is_multimodal).length }}</div></div></div></el-col>
-    <el-col :span="6"><div class="kpi-card"><div class="kpi-icon" style="background:#8b5cf6"><Hash :size="20" color="#fff"/></div><div class="kpi-body"><div class="kpi-label">其他类型</div><div class="kpi-value">{{ models.filter(m=>m.model_type!=='llm').length }}</div></div></div></el-col>
-  </el-row>
-
-  <!-- 表格 -->
-  <div class="chart-card">
-    <div class="chart-header"><Cpu :size="14" color="var(--primary)"/><span>模型列表、官方定价与倍率</span><span class="price-note">最终扣点以调用记录中的实际用量、倍率和汇率为准</span></div>
-    <div class="chart-body">
-      <el-table :data="models">
-        <el-table-column prop="model_name" label="模型名称"/>
-        <el-table-column prop="model_code" label="编码" width="160"/>
-        <el-table-column label="类型" width="90"><template #default="{row}"><el-tag size="small" effect="plain">{{ tl(row.model_type) }}</el-tag></template></el-table-column>
-        <el-table-column label="上下文" width="100" align="right"><template #default="{row}">{{ fc(row.context_length) }}</template></el-table-column>
-        <el-table-column label="多模态" width="80" align="center"><template #default="{row}"><span :style="{color:row.is_multimodal?'#22c55e':'#a3a3a3',fontWeight:600,fontSize:'15px'}">{{ row.is_multimodal?'✓':'—' }}</span></template></el-table-column>
-        <el-table-column label="官方输入价" width="150" align="right"><template #default="{row}">{{ price(row.official_input_price,row.official_currency) }} / 1M</template></el-table-column>
-        <el-table-column label="官方输出价" width="150" align="right"><template #default="{row}">{{ price(row.official_output_price,row.official_currency) }} / 1M</template></el-table-column>
-        <el-table-column label="输入扣费倍率" width="120" align="right"><template #default="{row}"><span style="font-weight:600;font-size:14px">×{{ row.billing_multiplier_input }}</span></template></el-table-column>
-        <el-table-column label="输出扣费倍率" width="120" align="right"><template #default="{row}"><span style="font-weight:600;font-size:14px">×{{ row.billing_multiplier_output }}</span></template></el-table-column>
-      </el-table>
-    </div>
+<div class="models-page">
+  <div class="page-title"><div><h2>模型与价格</h2><p>查看官方价格和当前用户扣费倍率，实际费用以调用记录为准</p></div><div class="model-total">共 {{ models.length }} 个模型</div></div>
+  <div class="provider-switch">
+    <button v-for="provider in providerTabs" :key="provider.value" :class="['provider-button',{active:activeProvider===provider.value}]" @click="selectProvider(provider.value)"><span>{{ provider.label }}</span><b>{{ provider.count }}</b></button>
   </div>
+  <div class="type-switch"><button v-for="type in typeTabs" :key="type.value" :class="{active:activeType===type.value}" @click="activeType=type.value">{{ type.label }} <span>{{ type.count }}</span></button></div>
+
+  <div class="model-grid" v-loading="loading">
+    <article v-for="model in filteredModels" :key="model.model_code" class="model-card">
+      <div class="model-head"><div><h3>{{ model.model_name }}</h3><code>{{ model.model_code }}</code></div><el-tag size="small" effect="plain">{{ typeLabel(model.model_type) }}</el-tag></div>
+      <div class="model-facts"><span><small>上下文</small>{{ contextLabel(model.context_length) }}</span><span><small>多模态</small>{{ model.is_multimodal?'支持':'不支持' }}</span></div>
+      <div class="price-box"><div class="price-title">官方价格 <span>/ 每 1M Token</span></div><div class="price-row"><span>输入</span><strong>{{ price(model.official_input_price,model.official_currency) }}</strong><em>×{{ model.billing_multiplier_input }}</em></div><div class="price-row"><span>输出</span><strong>{{ price(model.official_output_price,model.official_currency) }}</strong><em>×{{ model.billing_multiplier_output }}</em></div></div>
+      <div class="cost-note">用户扣费 = 官方价格 × 当前倍率{{ model.official_currency==='USD'?' × 调用时汇率':'' }}</div>
+    </article>
+  </div>
+  <el-empty v-if="!loading&&!filteredModels.length" description="该分类暂无模型"/>
 </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';import api from '@/api';import { Cpu, MessageSquare, Image, Hash } from '@lucide/vue'
-const models=ref([])
-onMounted(async()=>{try{models.value=(await api.get('/api/user/models')).data.data}catch(e){}})
-function tl(t){const m={llm:'对话',embedding:'嵌入',image:'图像',audio:'音频',video:'视频'};return m[t]||t}
-function fc(n){return n>=1000?`${(n/1000).toFixed(0)}K`:n}
-function price(value,currency){if(!value)return '待同步';return `${currency==='USD'?'$':'¥'}${Number(value).toFixed(4)}`}
+import { ref, computed, onMounted } from 'vue'
+import api from '@/api'
+
+const models=ref([]),loading=ref(false),activeProvider=ref('openai'),activeType=ref('all')
+const providers=[{value:'openai',label:'OpenAI'},{value:'deepseek',label:'DeepSeek'},{value:'anthropic',label:'Anthropic'}]
+const types=[{value:'all',label:'全部'},{value:'llm',label:'对话'},{value:'embedding',label:'嵌入'},{value:'image',label:'图像'},{value:'audio',label:'音频'},{value:'video',label:'视频'}]
+const providerTabs=computed(()=>providers.map(item=>({...item,count:models.value.filter(model=>model.official_provider===item.value).length})))
+const providerModels=computed(()=>models.value.filter(model=>model.official_provider===activeProvider.value))
+const typeTabs=computed(()=>types.map(item=>({...item,count:item.value==='all'?providerModels.value.length:providerModels.value.filter(model=>model.model_type===item.value).length})).filter(item=>item.value==='all'||item.count))
+const filteredModels=computed(()=>activeType.value==='all'?providerModels.value:providerModels.value.filter(model=>model.model_type===activeType.value))
+onMounted(async()=>{loading.value=true;try{models.value=(await api.get('/api/user/models')).data.data||[]}catch(e){}loading.value=false})
+function selectProvider(value){activeProvider.value=value;activeType.value='all'}
+function typeLabel(value){return types.find(item=>item.value===value)?.label||value}
+function contextLabel(value){if(!value)return '-';return value>=1e6?`${(value/1e6).toFixed(1)}M`:value>=1000?`${Math.round(value/1000)}K`:value}
+function price(value,currency){if(!Number(value))return '待同步';return `${currency==='USD'?'$':'¥'}${Number(value).toFixed(4)}`}
 </script>
 
 <style scoped>
-.dashboard{padding:28px 32px}
-.kpi-row{margin-bottom:16px}
-.kpi-card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px 24px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);transition:box-shadow .2s}
-.kpi-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.05)}
-.kpi-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.kpi-body{flex:1;min-width:0}
-.kpi-label{font-size:12px;color:#525252;margin-bottom:4px;font-weight:500;text-transform:uppercase}
-.kpi-value{font-size:24px;font-weight:700;color:#000;white-space:nowrap}
-.chart-card{background:rgba(255,255,255,0.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(232,235,229,0.7);border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.04);margin-bottom:20px}
-.chart-header{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid rgba(0,0,0,0.06);font-size:14px;font-weight:600;color:var(--text-primary)}
-.price-note{margin-left:auto;font-size:12px;font-weight:400;color:#737373}
-.chart-body{padding:8px 12px 8px 12px}
+.models-page{padding:28px 32px;max-width:1400px;margin:0 auto}.page-title{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px}.page-title h2{margin:0;color:#0f172a;font-size:24px}.page-title p{margin:7px 0 0;color:#64748b;font-size:13px}.model-total{font-size:13px;color:#64748b}.provider-switch{display:flex;gap:10px;margin-bottom:14px}.provider-button{border:1px solid #e2e8f0;background:#fff;border-radius:10px;padding:11px 16px;display:flex;align-items:center;gap:18px;color:#475569;cursor:pointer}.provider-button b{background:#f1f5f9;border-radius:999px;padding:2px 8px;font-size:12px}.provider-button.active{border-color:#409eff;color:#1d4ed8;background:#eff6ff}.provider-button.active b{background:#dbeafe}.type-switch{display:flex;gap:7px;margin-bottom:18px}.type-switch button{border:0;background:#f1f5f9;color:#64748b;border-radius:999px;padding:7px 13px;cursor:pointer}.type-switch button.active{background:#0f172a;color:#fff}.type-switch span{opacity:.75;margin-left:3px}.model-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(315px,1fr));gap:16px;min-height:120px}.model-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;box-shadow:0 1px 3px rgba(15,23,42,.04);transition:.2s}.model-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(15,23,42,.07)}.model-head{display:flex;justify-content:space-between;gap:12px}.model-head h3{margin:0 0 5px;font-size:16px;color:#0f172a}.model-head code{font-size:12px;color:#64748b}.model-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0}.model-facts span{background:#f8fafc;border-radius:8px;padding:9px 11px;font-weight:600;color:#334155}.model-facts small{display:block;font-weight:400;color:#94a3b8;margin-bottom:3px}.price-box{border-top:1px solid #f1f5f9;padding-top:13px}.price-title{font-size:12px;color:#64748b;margin-bottom:8px}.price-title span{color:#94a3b8}.price-row{display:grid;grid-template-columns:45px 1fr auto;align-items:center;padding:5px 0}.price-row span{color:#64748b;font-size:13px}.price-row strong{color:#0f172a;font-size:14px}.price-row em{font-style:normal;color:#2563eb;background:#eff6ff;border-radius:6px;padding:2px 7px;font-size:12px}.cost-note{font-size:11px;color:#94a3b8;margin-top:12px}
 </style>

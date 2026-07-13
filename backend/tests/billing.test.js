@@ -64,6 +64,7 @@ describe('扣费模块', () => {
     const db = getDatabase();
     db.prepare('UPDATE wallets SET quota_balance=100, gift_quota=20, frozen_balance=0, total_spent=0 WHERE user_id=?').run(userId);
     const requestId = 'req_wallet_charge_test';
+    db.prepare('DELETE FROM wallet_transactions WHERE user_id=? AND related_request_id=?').run(userId, requestId);
     const result = deductWalletBalance(db, userId, 35, requestId);
     const wallet = db.prepare('SELECT quota_balance,gift_quota,total_spent FROM wallets WHERE user_id=?').get(userId);
     const transactions = db.prepare("SELECT amount,related_request_id FROM wallet_transactions WHERE user_id=? AND related_request_id=? ORDER BY id DESC").all(userId, requestId);

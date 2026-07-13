@@ -74,7 +74,7 @@
 
   <!-- 调用明细表 -->
   <div class="chart-card" style="margin-top:0">
-    <div class="chart-header"><ClipboardList :size="14" color="#6366f1"/><span>最近调用记录</span><span class="chart-sub" style="cursor:pointer;color:#409eff" @click="showAllLogs=true">查看全部 →</span></div>
+    <div class="chart-header"><ClipboardList :size="14" color="#6366f1"/><span>最近调用记录</span><span class="chart-sub" style="cursor:pointer;color:#409eff" @click="openAllLogs">查看全部 →</span></div>
     <div class="chart-body" style="padding-top:0">
       <el-table :data="recentLogs" stripe size="small" v-loading="loading">
         <el-table-column prop="created_at" label="时间" width="170"/>
@@ -82,7 +82,7 @@
         <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
         <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
         <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ row.total_cost?.toFixed(6)||'0' }} 点</template></el-table-column>
-        <el-table-column label="计费明细" width="130"><template #default="{row}"><el-tooltip v-if="row.official_currency" :content="billingDetail(row)"><span class="detail-link">官方价 × 倍率</span></el-tooltip><span v-else>-</span></template></el-table-column>
+        <el-table-column label="计费明细" width="130"><template #default="{row}"><el-button v-if="hasBillingDetail(row)" link type="primary" size="small" @click="openBilling(row)">查看计算过程</el-button><span v-else class="no-detail">历史记录无快照</span></template></el-table-column>
         <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
         <el-table-column prop="error_message" label="备注" min-width="140" show-overflow-tooltip/>
       </el-table>
@@ -103,11 +103,43 @@
       <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
       <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
       <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ row.total_cost?.toFixed(6)||'0' }} 点</template></el-table-column>
-      <el-table-column label="计费明细" width="130"><template #default="{row}"><el-tooltip v-if="row.official_currency" :content="billingDetail(row)"><span class="detail-link">官方价 × 倍率</span></el-tooltip><span v-else>-</span></template></el-table-column>
+      <el-table-column label="计费明细" width="130"><template #default="{row}"><el-button v-if="hasBillingDetail(row)" link type="primary" size="small" @click="openBilling(row)">查看计算过程</el-button><span v-else class="no-detail">历史记录无快照</span></template></el-table-column>
       <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
       <el-table-column prop="error_message" label="错误信息" min-width="160" show-overflow-tooltip/>
     </el-table>
     <el-pagination v-model:current-page="logPage" :page-size="20" :total="logTotal" layout="prev,pager,next" @current-change="fetchLogs" style="margin-top:16px;justify-content:center" small/>
+  </el-dialog>
+
+  <el-dialog v-model="billingDialog" title="计费明细" width="680px" top="8vh">
+    <div v-if="selectedBilling" class="billing-dialog">
+      <div class="billing-summary">
+        <div><span>模型</span><strong>{{ selectedBilling.model_code }}</strong></div>
+        <div><span>请求时间</span><strong>{{ selectedBilling.created_at }}</strong></div>
+        <div class="billing-total"><span>本次实际扣费</span><strong>{{ point(selectedBilling.total_cost) }} 点</strong></div>
+      </div>
+      <el-alert v-if="!hasBillingDetail(selectedBilling)" title="这条历史记录没有保存定价快照，无法还原计算过程" type="warning" :closable="false"/>
+      <template v-else>
+        <div class="snapshot-title">{{ selectedBilling.official_currency?'本次调用采用的价格快照':'旧版计费计算参考' }}</div>
+        <div class="snapshot-grid">
+          <div><span>计费版本</span><strong>{{ selectedBilling.official_currency?'官方价格':'旧版价格' }}</strong></div>
+          <div><span>计费币种</span><strong>{{ selectedBilling.official_currency||'点数' }}</strong></div>
+          <div><span>计费单位</span><strong>{{ number(selectedBilling.official_currency?(selectedBilling.official_unit_tokens||1000000):1000) }} Token</strong></div>
+          <div><span>输入倍率</span><strong>×{{ selectedBilling.billing_multiplier_input }}</strong></div>
+          <div><span>输出倍率</span><strong>×{{ selectedBilling.billing_multiplier_output }}</strong></div>
+          <div v-if="selectedBilling.official_currency==='USD'"><span>美元兑人民币</span><strong>×{{ selectedBilling.usd_cny_rate }}</strong></div>
+        </div>
+        <div class="breakdown-title">逐项计算</div>
+        <div class="breakdown-list">
+          <div v-for="item in billingBreakdown" :key="item.label" class="breakdown-item">
+            <div class="breakdown-head"><span>{{ item.label }}</span><strong>{{ point(item.amount) }} 点</strong></div>
+            <code>{{ item.formula }}</code>
+          </div>
+        </div>
+        <div class="billing-result"><span>各项费用相加</span><strong>{{ billingSum }} 点</strong><span class="equals">调用记录实际扣除 {{ point(selectedBilling.total_cost) }} 点</span></div>
+        <div class="billing-note">{{ selectedBilling.official_currency?'1 点 = ¥1；价格、倍率和汇率均使用本次请求发生时保存的快照。':'旧版记录未保存价格快照，以下按当前保存的旧版基础价格估算；1 点 = ¥1。' }}</div>
+      </template>
+    </div>
+    <template #footer><el-button type="primary" @click="billingDialog=false">知道了</el-button></template>
   </el-dialog>
 </div>
 </template>
@@ -141,6 +173,8 @@ const logLoading = ref(false)
 const logPage = ref(1)
 const logTotal = ref(0)
 const logFilter = ref({ model: '', dateRange: [] })
+const billingDialog = ref(false)
+const selectedBilling = ref(null)
 const autoRefresh = ref(false)
 let refreshTimer = null
 
@@ -151,6 +185,39 @@ const successRate = computed(() => {
 })
 
 const totalTokens = computed(() => (stats.value.input_tokens || 0) + (stats.value.output_tokens || 0))
+
+const billingBreakdown = computed(() => {
+  const row = selectedBilling.value
+  if (!hasBillingDetail(row)) return []
+  const legacy = !row.official_currency
+  const unit = legacy ? 1000 : (Number(row.official_unit_tokens) || 1000000)
+  const rate = !legacy && row.official_currency === 'USD' ? (Number(row.usd_cny_rate) || 0) : 1
+  const symbol = legacy ? '' : (row.official_currency === 'USD' ? '$' : '¥')
+  const inputMultiplier = Number(row.billing_multiplier_input) || 1
+  const outputMultiplier = Number(row.billing_multiplier_output) || 1
+  const input = Number(row.input_tokens) || 0
+  const cached = Math.min(Number(row.cached_input_tokens) || 0, input)
+  const uncached = Math.max(0, input - cached)
+  const output = Number(row.output_tokens) || 0
+  const fx = !legacy && row.official_currency === 'USD' ? ` × 汇率 ${rate}` : ''
+  const items = []
+  if (uncached > 0) {
+    const priceValue = Number(legacy ? row.legacy_input_price : row.official_input_price) || 0
+    items.push({ label: '普通输入 Token', amount: uncached / unit * priceValue * inputMultiplier * rate, formula: `${number(uncached)} ÷ ${number(unit)} × ${symbol}${priceValue} × 输入倍率 ${inputMultiplier}${fx}` })
+  }
+  if (cached > 0) {
+    const cachedPrice = row.official_cached_input_price ?? row.official_input_price
+    const priceValue = Number(legacy ? row.legacy_input_price : cachedPrice) || 0
+    items.push({ label: '缓存输入 Token', amount: cached / unit * priceValue * inputMultiplier * rate, formula: `${number(cached)} ÷ ${number(unit)} × ${symbol}${priceValue} × 输入倍率 ${inputMultiplier}${fx}` })
+  }
+  if (output > 0) {
+    const priceValue = Number(legacy ? row.legacy_output_price : row.official_output_price) || 0
+    items.push({ label: '输出 Token', amount: output / unit * priceValue * outputMultiplier * rate, formula: `${number(output)} ÷ ${number(unit)} × ${symbol}${priceValue} × 输出倍率 ${outputMultiplier}${fx}` })
+  }
+  if (!items.length) items.push({ label: '本次记录没有可计费用量', amount: 0, formula: '输入 Token 0 + 输出 Token 0' })
+  return items
+})
+const billingSum = computed(() => point(billingBreakdown.value.reduce((sum,item)=>sum+item.amount,0)))
 
 // ============ 球型 1: 消费仪表盘 ============
 const costGaugeOption = computed(() => {
@@ -231,7 +298,11 @@ const modelRankGaugeOption = computed(() => {
 })
 
 function statusLabel(s) { const m = { success: '成功', failed: '失败', blocked: '拦截' }; return m[s] || s }
-function billingDetail(row) { const unit=row.official_unit_tokens||1000000;const c=row.official_currency==='USD'?'$':'¥';const cached=Math.min(row.cached_input_tokens||0,row.input_tokens||0);const uncached=Math.max(0,(row.input_tokens||0)-cached);const fx=row.official_currency==='USD'?` × 汇率 ${row.usd_cny_rate}`:'';const cachePart=cached?` + ${cached}÷${unit}×${c}${row.official_cached_input_price}`:'';return `本次扣 ${Number(row.total_cost||0).toFixed(6)} 点 = [(${uncached}÷${unit}×${c}${row.official_input_price}${cachePart})×${row.billing_multiplier_input} + (${row.output_tokens||0}÷${unit}×${c}${row.official_output_price})×${row.billing_multiplier_output}]${fx}；1点=¥1` }
+function openBilling(row){selectedBilling.value=row;billingDialog.value=true}
+function openAllLogs(){showAllLogs.value=true;fetchLogs()}
+function hasBillingDetail(row){return Boolean(row&&(row.official_currency||row.legacy_input_price||row.legacy_output_price))}
+function number(value){return Number(value||0).toLocaleString()}
+function point(value){return Number(value||0).toFixed(6)}
 function getPresetRange(preset) { const end = dayjs().format('YYYY-MM-DD'); const start = dayjs().subtract(preset === '30d' ? 29 : preset === '90d' ? 89 : 6, 'day').format('YYYY-MM-DD'); return [start, end] }
 
 async function fetchAll() {
@@ -266,6 +337,7 @@ onUnmounted(()=>{clearInterval(refreshTimer)})
 .chart-header { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 600; color: #0f172a }
 .chart-sub { font-size: 12px; color: #64748b; margin-left: auto }
 .chart-body { padding: 8px 12px 8px 12px }
-.detail-link { color: #409eff; cursor: help; font-size: 12px; }
+.no-detail { color: #94a3b8; font-size: 11px; }
 .chart-sphere { display: flex; align-items: center; justify-content: center; min-height: 240px }
+.billing-summary{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:10px;margin-bottom:18px}.billing-summary>div,.snapshot-grid>div{background:#f8fafc;border-radius:9px;padding:11px 12px}.billing-summary span,.snapshot-grid span{display:block;font-size:11px;color:#94a3b8;margin-bottom:4px}.billing-summary strong,.snapshot-grid strong{color:#0f172a;font-size:13px}.billing-total{background:#eff6ff!important}.billing-total strong{color:#2563eb!important;font-size:16px!important}.snapshot-title,.breakdown-title{font-size:13px;font-weight:650;color:#334155;margin:16px 0 9px}.snapshot-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.breakdown-list{display:grid;gap:9px}.breakdown-item{border:1px solid #e2e8f0;border-radius:9px;padding:11px 13px}.breakdown-head{display:flex;justify-content:space-between;margin-bottom:7px;color:#334155}.breakdown-head strong{color:#2563eb}.breakdown-item code{display:block;background:#f8fafc;color:#475569;padding:8px;border-radius:6px;font-size:12px;white-space:normal;line-height:1.6}.billing-result{display:flex;align-items:center;gap:12px;background:#0f172a;color:#fff;border-radius:9px;padding:13px 15px;margin-top:12px}.billing-result strong{font-size:17px;color:#93c5fd}.billing-result .equals{margin-left:auto;color:#cbd5e1;font-size:12px}.billing-note{font-size:11px;color:#94a3b8;margin-top:9px}
 </style>

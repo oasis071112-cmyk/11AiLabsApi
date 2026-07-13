@@ -286,18 +286,55 @@ router.delete('/pricing-rules/:id', authenticate, requireAdmin('admin'), (req, r
 
 router.get('/keys', authenticate, requireAdmin('admin','operator'), (req, res) => {
   const db = getDatabase();
-  const { page=1, limit=20, user_id } = req.query;
+  const { page=1, limit=20, user_id, group_by } = req.query;
   const offset = (page-1)*limit;
+  if (group_by === 'user') {
+    const users = db.prepare(`SELECT u.id as user_id,u.username,u.role,u.status as user_status,
+      COUNT(ak.id) as key_count,
+      SUM(CASE WHEN ak.status='active' THEN 1 ELSE 0 END) as active_key_count
+      FROM users u JOIN api_keys ak ON ak.user_id=u.id
+      GROUP BY u.id,u.username,u.role,u.status
+      ORDER BY u.id DESC LIMIT ? OFFSET ?`).all(Number(limit), offset);
+    const total = db.prepare("SELECT COUNT(DISTINCT user_id) as count FROM api_keys").get();
+    const userIds = users.map(user => user.user_id);
+    const placeholders = userIds.map(() => '?').join(',');
+    const keys = userIds.length ? db.prepare(`SELECT id,user_id,key_name,key_prefix,status,rate_limit_per_min,max_spend_limit,
+      created_at,expired_at,last_used_at FROM api_keys
+      WHERE user_id IN (${placeholders}) ORDER BY created_at DESC`).all(...userIds) : [];
+    const keyIds = keys.map(key => key.id);
+    const keyPlaceholders = keyIds.map(() => '?').join(',');
+    const permissions = keyIds.length ? db.prepare(`SELECT api_key_id,model_code FROM api_key_permissions
+      WHERE api_key_id IN (${keyPlaceholders}) AND status='active' ORDER BY model_code`).all(...keyIds) : [];
+    const permissionsByKey = new Map();
+    for (const permission of permissions) {
+      if (!permissionsByKey.has(permission.api_key_id)) permissionsByKey.set(permission.api_key_id, []);
+      permissionsByKey.get(permission.api_key_id).push(permission.model_code);
+    }
+    const keysByUser = new Map();
+    for (const key of keys) {
+      if (!keysByUser.has(key.user_id)) keysByUser.set(key.user_id, []);
+      keysByUser.get(key.user_id).push({ ...key, permissions: permissionsByKey.get(key.id) || [] });
+    }
+    const groups = users.map(user => ({ ...user, keys: keysByUser.get(user.user_id) || [] }));
+    return res.json({ data: groups, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
+  }
   let where = 'WHERE 1=1'; const p = [];
   if (user_id) { where += ' AND ak.user_id=?'; p.push(user_id); }
-  const keys = db.prepare(`SELECT ak.*,u.username FROM api_keys ak JOIN users u ON ak.user_id=u.id ${where} ORDER BY ak.created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
+  const keys = db.prepare(`SELECT ak.id,ak.user_id,ak.key_name,ak.key_prefix,ak.status,ak.rate_limit_per_min,
+    ak.max_spend_limit,ak.created_at,ak.expired_at,ak.last_used_at,u.username
+    FROM api_keys ak JOIN users u ON ak.user_id=u.id ${where} ORDER BY ak.created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
   const total = db.prepare(`SELECT COUNT(*) as count FROM api_keys ak ${where}`).get(...p);
   const keysWithPerms = keys.map(k => ({ ...k, permissions: db.prepare('SELECT model_code FROM api_key_permissions WHERE api_key_id=?').all(k.id).map(x=>x.model_code) }));
   res.json({ data: keysWithPerms, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
 });
 
 router.patch('/keys/:id/status', authenticate, requireAdmin('admin'), (req, res) => {
-  getDatabase().prepare('UPDATE api_keys SET status=? WHERE id=?').run(req.body.status, req.params.id);
+  const db = getDatabase();
+  if (!['active', 'disabled'].includes(req.body.status)) return res.status(400).json({ error: '无效的 Key 状态' });
+  const key = db.prepare('SELECT status FROM api_keys WHERE id=?').get(req.params.id);
+  if (!key) return res.status(404).json({ error: 'Key 不存在' });
+  if (key.status === 'revoked') return res.status(409).json({ error: '已撤销的 Key 不能重新启用' });
+  db.prepare('UPDATE api_keys SET status=? WHERE id=?').run(req.body.status, req.params.id);
   res.json({ message: '状态已更新' });
 });
 

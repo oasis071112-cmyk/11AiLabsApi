@@ -1,25 +1,52 @@
 <template>
-<div><div class="flex-between mb-16"><h3>API Key 管理</h3></div>
-<el-table :data="keys" stripe v-loading="loading">
-<el-table-column prop="id" label="ID" width="60"/><el-table-column prop="username" label="用户" width="120"/>
-<el-table-column prop="key_name" label="名称" width="150"/><el-table-column label="Key" width="200"><template #default="{row}">{{ row.key_prefix }}***</template></el-table-column>
-<el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'danger'" size="small">{{ row.status }}</el-tag></template></el-table-column>
-<el-table-column label="支持模型" min-width="300"><template #default="{row}"><el-tag v-for="m in (row.permissions||[])" :key="m" size="small" style="margin:2px">{{ m }}</el-tag></template></el-table-column>
-<el-table-column prop="last_used_at" label="最后使用" width="160"/>
-<el-table-column label="操作" width="160"><template #default="{row}"><el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggleKey(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button><el-button size="small" @click="editPerms(row)">权限</el-button></template></el-table-column>
-</el-table>
-<el-pagination v-model:current-page="page" :page-size="20" :total="total" layout="prev,pager,next" @current-change="fetch" style="margin-top:16px;justify-content:center"/>
+<div class="keys-page">
+  <div class="flex-between mb-16"><div><h3>API Key 管理</h3><div class="page-hint">按用户展开查看 Key、状态和模型权限</div></div></div>
+  <el-collapse v-model="expandedUsers" accordion v-loading="loading" class="user-groups">
+    <el-collapse-item v-for="group in groups" :key="group.user_id" :name="group.user_id">
+      <template #title>
+        <div class="user-summary">
+          <div class="avatar">{{ group.username.slice(0,1).toUpperCase() }}</div>
+          <div><div class="username">{{ group.username }}</div><div class="user-meta">用户 ID {{ group.user_id }} · {{ roleLabel(group.role) }}</div></div>
+          <div class="summary-tags"><el-tag size="small" effect="plain">共 {{ group.key_count }} 个 Key</el-tag><el-tag size="small" type="success" effect="plain">启用 {{ group.active_key_count }}</el-tag><el-tag size="small" :type="group.user_status==='active'?'success':'danger'">{{ group.user_status==='active'?'用户正常':'用户停用' }}</el-tag></div>
+        </div>
+      </template>
+      <div class="key-list">
+        <el-empty v-if="!group.keys.length" description="该用户暂无 API Key" :image-size="50"/>
+        <div v-for="key in group.keys" :key="key.id" class="key-card">
+          <div class="key-head"><div><span class="key-name">{{ key.key_name||'未命名 Key' }}</span><span class="key-code">{{ key.key_prefix }}***</span></div><el-tag :type="keyStatusType(key.status)" size="small">{{ keyStatusLabel(key.status) }}</el-tag></div>
+          <div class="key-meta"><span>创建：{{ formatTime(key.created_at) }}</span><span>最后使用：{{ formatTime(key.last_used_at) }}</span><span>每分钟限制：{{ key.rate_limit_per_min }}</span></div>
+          <div class="permission-row"><span class="permission-label">支持模型</span><div class="permission-tags"><el-tag v-for="model in key.permissions" :key="model" size="small" effect="plain">{{ model }}</el-tag><span v-if="!key.permissions.length" class="empty-text">暂无权限</span></div></div>
+          <div class="key-actions"><el-button v-if="key.status!=='revoked'" size="small" :type="key.status==='active'?'warning':'success'" @click="toggleKey(key)">{{ key.status==='active'?'禁用':'启用' }}</el-button><el-button size="small" @click="editPerms(key)">编辑权限</el-button></div>
+        </div>
+      </div>
+    </el-collapse-item>
+  </el-collapse>
+  <el-empty v-if="!loading&&!groups.length" description="暂无用户 Key"/>
+  <el-pagination v-model:current-page="page" :page-size="10" :total="total" layout="prev,pager,next" @current-change="fetch" class="pagination"/>
 
-<el-dialog v-model="permDialog" title="编辑 Key 权限" width="500px"><el-checkbox-group v-model="selModels"><el-checkbox v-for="m in allModels" :key="m.model_code" :label="m.model_code" style="margin:4px">{{ m.model_name }}</el-checkbox></el-checkbox-group><template #footer><el-button @click="permDialog=false">取消</el-button><el-button type="primary" @click="savePerms">保存</el-button></template></el-dialog>
+  <el-dialog v-model="permDialog" title="编辑 Key 权限" width="600px"><el-checkbox-group v-model="selModels" class="permission-picker"><div v-for="provider in modelGroups" :key="provider.name" class="model-group"><div class="model-group-title">{{ provider.label }}</div><el-checkbox v-for="model in provider.models" :key="model.model_code" :label="model.model_code">{{ model.model_name }}（{{ model.model_code }}）</el-checkbox></div></el-checkbox-group><template #footer><el-button @click="permDialog=false">取消</el-button><el-button type="primary" @click="savePerms">保存</el-button></template></el-dialog>
 </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
-const keys=ref([]),loading=ref(false),page=ref(1),total=ref(0),permDialog=ref(false),selModels=ref([]),editingKeyId=ref(null),allModels=ref([])
-onMounted(async()=>{try{allModels.value=(await api.get('/api/admin/models')).data.data}catch(e){};fetch()})
-async function fetch(){loading.value=true;try{const r=await api.get('/api/admin/keys',{params:{page:page.value}});keys.value=r.data.data;total.value=r.data.pagination.total}catch(e){}loading.value=false}
-async function toggleKey(k){const s=k.status==='active'?'disabled':'active';await api.patch(`/api/admin/keys/${k.id}/status`,{status:s});ElMessage.success('操作成功');fetch()}
-function editPerms(k){editingKeyId.value=k.id;selModels.value=k.permissions||[];permDialog.value=true}
+import { ref, computed, onMounted } from 'vue'
+import api from '@/api'
+import { ElMessage } from 'element-plus'
+
+const groups=ref([]),loading=ref(false),page=ref(1),total=ref(0),expandedUsers=ref('')
+const permDialog=ref(false),selModels=ref([]),editingKeyId=ref(null),allModels=ref([])
+const modelGroups=computed(()=>['openai','deepseek','anthropic'].map(name=>({name,label:{openai:'OpenAI',deepseek:'DeepSeek',anthropic:'Anthropic'}[name],models:allModels.value.filter(model=>model.official_provider===name)})).filter(group=>group.models.length))
+onMounted(async()=>{try{allModels.value=(await api.get('/api/admin/models')).data.data||[]}catch(e){};fetch()})
+async function fetch(){loading.value=true;try{const r=await api.get('/api/admin/keys',{params:{page:page.value,limit:10,group_by:'user'}});groups.value=r.data.data||[];total.value=r.data.pagination.total}catch(e){}loading.value=false}
+async function toggleKey(key){const status=key.status==='active'?'disabled':'active';await api.patch(`/api/admin/keys/${key.id}/status`,{status});ElMessage.success('操作成功');fetch()}
+function editPerms(key){editingKeyId.value=key.id;selModels.value=[...(key.permissions||[])];permDialog.value=true}
 async function savePerms(){await api.put(`/api/admin/keys/${editingKeyId.value}/permissions`,{model_codes:selModels.value});ElMessage.success('权限已更新');permDialog.value=false;fetch()}
+function roleLabel(role){return {admin:'管理员',operator:'运营',finance:'财务',user:'普通用户'}[role]||role}
+function keyStatusLabel(status){return {active:'启用',disabled:'停用',revoked:'已撤销'}[status]||status}
+function keyStatusType(status){return {active:'success',disabled:'warning',revoked:'info'}[status]||'info'}
+function formatTime(value){return value?String(value).replace('T',' ').slice(0,19):'从未使用'}
 </script>
+
+<style scoped>
+.keys-page{padding-bottom:24px}.page-hint{font-size:12px;color:#94a3b8;margin-top:4px}.user-groups{border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#fff}.user-groups :deep(.el-collapse-item__header){height:auto;min-height:74px;padding:0 20px}.user-groups :deep(.el-collapse-item__content){padding:0}.user-summary{width:100%;display:flex;align-items:center;gap:12px;padding-right:18px}.avatar{width:38px;height:38px;border-radius:10px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-weight:700}.username{font-weight:650;color:#0f172a;line-height:1.4}.user-meta{font-size:12px;color:#94a3b8}.summary-tags{margin-left:auto;display:flex;gap:8px}.key-list{padding:14px 20px 18px;background:#f8fafc;display:grid;gap:12px}.key-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px}.key-head,.permission-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.key-name{font-weight:600;color:#0f172a}.key-code{font-family:monospace;font-size:12px;color:#64748b;margin-left:12px}.key-meta{display:flex;gap:24px;flex-wrap:wrap;color:#64748b;font-size:12px;margin:10px 0}.permission-row{justify-content:flex-start}.permission-label{font-size:12px;color:#64748b;min-width:56px}.permission-tags{display:flex;gap:5px;flex-wrap:wrap}.empty-text{color:#94a3b8;font-size:12px}.key-actions{text-align:right;margin-top:12px}.pagination{margin-top:16px;justify-content:center}.permission-picker{display:block}.model-group{padding:10px 0;border-bottom:1px solid #f1f5f9}.model-group-title{font-weight:600;margin-bottom:8px}.model-group :deep(.el-checkbox){display:flex;margin:5px 0}
+</style>
