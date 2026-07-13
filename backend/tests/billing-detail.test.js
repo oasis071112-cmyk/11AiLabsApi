@@ -39,6 +39,18 @@ describe('用户计费明细', () => {
     expect(detail.reconciled).toBe(true);
   });
 
+  it('官方快照即使按每千 Token 保存，也要换算为每 1M Token 展示且金额不变', () => {
+    const detail = buildBillingDetail({
+      inputTokens: 1_000,
+      totalCost: 5,
+      official: { currency: 'CNY', input: 5, output: 0, unitTokens: 1_000 },
+      multipliers: { input: 1, output: 1 },
+    });
+
+    expect(detail.dimensions[0]).toMatchObject({ unitTokens: 1_000_000, unitPrice: 5_000, amount: 5 });
+    expect(detail.calculatedTotal).toBe(5);
+  });
+
   it('旧版非零扣费按原来的每千 Token 规则还原并对齐实际扣点', () => {
     const detail = buildBillingDetail({
       inputTokens: 87,
@@ -49,6 +61,9 @@ describe('用户计费明细', () => {
     });
 
     expect(detail.mode).toBe('legacy');
+    expect(detail.dimensions.map(item => [item.unitTokens, item.unitPrice])).toEqual([
+      [1_000_000, 1], [1_000_000, 4],
+    ]);
     expect(detail.dimensions.map(item => item.amount)).toEqual([0.000087, 0.000036]);
     expect(detail.calculatedTotal).toBeCloseTo(0.000123, 12);
     expect(detail.actualTotal).toBeCloseTo(0.000123, 12);

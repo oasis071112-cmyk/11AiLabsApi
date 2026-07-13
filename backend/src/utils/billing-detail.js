@@ -9,6 +9,12 @@ function rounded(value) {
   return Number(number(value).toFixed(12));
 }
 
+const DISPLAY_UNIT_TOKENS = 1_000_000;
+
+function perMillionPrice(price, sourceUnitTokens) {
+  return number(price) * DISPLAY_UNIT_TOKENS / Math.max(number(sourceUnitTokens, DISPLAY_UNIT_TOKENS), 1);
+}
+
 function buildBillingDetail({ inputTokens = 0, cachedInputTokens = 0, outputTokens = 0, totalCost = 0, official = {}, legacy = {}, multipliers = {}, usdCnyRate = 1 } = {}) {
   const input = Math.max(number(inputTokens), 0);
   const cached = Math.min(Math.max(number(cachedInputTokens), 0), input);
@@ -19,13 +25,14 @@ function buildBillingDetail({ inputTokens = 0, cachedInputTokens = 0, outputToke
   if (official.currency) {
     const inputMultiplier = number(multipliers.input, 1);
     const outputMultiplier = number(multipliers.output, 1);
-    const unitTokens = Math.max(number(official.unitTokens, 1_000_000), 1);
+    const sourceUnitTokens = Math.max(number(official.unitTokens, DISPLAY_UNIT_TOKENS), 1);
+    const unitTokens = DISPLAY_UNIT_TOKENS;
     const fxRate = String(official.currency).toUpperCase() === 'USD' ? number(usdCnyRate, 7) : 1;
     const pricing = calculatePricing({ inputTokens: input, cachedInputTokens: cached, outputTokens: output, official, multipliers: { input: inputMultiplier, output: outputMultiplier }, usdCnyRate: fxRate });
     const calculated = pricing.official;
-    if (calculated.uncachedInputTokens > 0) dimensions.push({ label: '普通输入 Token', usage: calculated.uncachedInputTokens, unitTokens, unitPrice: number(official.input), multiplier: inputMultiplier, fxRate, amount: rounded(calculated.inputCost) });
-    if (calculated.cachedInputTokens > 0) dimensions.push({ label: '缓存输入 Token', usage: calculated.cachedInputTokens, unitTokens, unitPrice: number(official.cachedInput, official.input), multiplier: inputMultiplier, fxRate, amount: rounded(calculated.cachedInputCost) });
-    if (calculated.outputTokens > 0) dimensions.push({ label: '输出 Token', usage: calculated.outputTokens, unitTokens, unitPrice: number(official.output), multiplier: outputMultiplier, fxRate, amount: rounded(calculated.outputCost) });
+    if (calculated.uncachedInputTokens > 0) dimensions.push({ label: '普通输入 Token', usage: calculated.uncachedInputTokens, unitTokens, unitPrice: perMillionPrice(official.input, sourceUnitTokens), multiplier: inputMultiplier, fxRate, amount: rounded(calculated.inputCost) });
+    if (calculated.cachedInputTokens > 0) dimensions.push({ label: '缓存输入 Token', usage: calculated.cachedInputTokens, unitTokens, unitPrice: perMillionPrice(official.cachedInput ?? official.input, sourceUnitTokens), multiplier: inputMultiplier, fxRate, amount: rounded(calculated.cachedInputCost) });
+    if (calculated.outputTokens > 0) dimensions.push({ label: '输出 Token', usage: calculated.outputTokens, unitTokens, unitPrice: perMillionPrice(official.output, sourceUnitTokens), multiplier: outputMultiplier, fxRate, amount: rounded(calculated.outputCost) });
     const priceCalculationTotal = rounded(dimensions.reduce((sum, item) => sum + item.amount, 0));
     const actualTotal = rounded(totalCost);
     const difference = rounded(actualTotal - priceCalculationTotal);
@@ -49,9 +56,9 @@ function buildBillingDetail({ inputTokens = 0, cachedInputTokens = 0, outputToke
 
   const actualTotal = rounded(totalCost);
   if (actualTotal === 0) {
-    if (uncached > 0) dimensions.push({ label: '普通输入 Token', usage: uncached, unitTokens: 1_000, unitPrice: 0, multiplier: 1, fxRate: 1, amount: 0 });
-    if (cached > 0) dimensions.push({ label: '缓存输入 Token', usage: cached, unitTokens: 1_000, unitPrice: 0, multiplier: 1, fxRate: 1, amount: 0 });
-    if (output > 0) dimensions.push({ label: '输出 Token', usage: output, unitTokens: 1_000, unitPrice: 0, multiplier: 1, fxRate: 1, amount: 0 });
+    if (uncached > 0) dimensions.push({ label: '普通输入 Token', usage: uncached, unitTokens: DISPLAY_UNIT_TOKENS, unitPrice: 0, multiplier: 1, fxRate: 1, amount: 0 });
+    if (cached > 0) dimensions.push({ label: '缓存输入 Token', usage: cached, unitTokens: DISPLAY_UNIT_TOKENS, unitPrice: 0, multiplier: 1, fxRate: 1, amount: 0 });
+    if (output > 0) dimensions.push({ label: '输出 Token', usage: output, unitTokens: DISPLAY_UNIT_TOKENS, unitPrice: 0, multiplier: 1, fxRate: 1, amount: 0 });
 
     return {
       mode: 'legacy_zero',
@@ -63,11 +70,12 @@ function buildBillingDetail({ inputTokens = 0, cachedInputTokens = 0, outputToke
     };
   }
 
-  const unitTokens = Math.max(number(legacy.unitTokens, 1_000), 1);
+  const sourceUnitTokens = Math.max(number(legacy.unitTokens, 1_000), 1);
+  const unitTokens = DISPLAY_UNIT_TOKENS;
   const inputMultiplier = number(multipliers.input, 1);
   const outputMultiplier = number(multipliers.output, 1);
-  const inputPrice = number(legacy.input);
-  const outputPrice = number(legacy.output);
+  const inputPrice = perMillionPrice(legacy.input, sourceUnitTokens);
+  const outputPrice = perMillionPrice(legacy.output, sourceUnitTokens);
   if (uncached > 0) dimensions.push({ label: '普通输入 Token', usage: uncached, unitTokens, unitPrice: inputPrice, multiplier: inputMultiplier, fxRate: 1, amount: rounded(uncached / unitTokens * inputPrice * inputMultiplier) });
   if (cached > 0) dimensions.push({ label: '缓存输入 Token', usage: cached, unitTokens, unitPrice: inputPrice, multiplier: inputMultiplier, fxRate: 1, amount: rounded(cached / unitTokens * inputPrice * inputMultiplier) });
   if (output > 0) dimensions.push({ label: '输出 Token', usage: output, unitTokens, unitPrice: outputPrice, multiplier: outputMultiplier, fxRate: 1, amount: rounded(output / unitTokens * outputPrice * outputMultiplier) });
@@ -85,7 +93,7 @@ function buildBillingDetail({ inputTokens = 0, cachedInputTokens = 0, outputToke
     actualTotal,
     reconciled: calculatedTotal === actualTotal,
     notice: difference === 0
-      ? '旧版记录按原系统每 1000 Token 的基础价格还原。'
+      ? '旧版价格已换算为每 1M Token 展示。'
       : '旧版记录未保存完整价格快照，差额行用于对齐原系统实际扣点。',
   };
 }

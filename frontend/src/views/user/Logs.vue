@@ -82,7 +82,7 @@
         <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
         <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
         <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ row.total_cost?.toFixed(6)||'0' }} 点</template></el-table-column>
-        <el-table-column label="计费明细" width="130"><template #default="{row}"><el-button v-if="hasBillingDetail(row)" link type="primary" size="small" @click="openBilling(row)">查看计算过程</el-button><span v-else class="no-detail">历史记录无快照</span></template></el-table-column>
+        <el-table-column label="计费明细" width="130"><template #default="{row}"><el-button v-if="hasBillingDetail(row)" class="billing-detail-button" type="primary" size="small" @click="openBilling(row)">查看计算过程</el-button><span v-else class="no-detail">历史记录无快照</span></template></el-table-column>
         <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
         <el-table-column prop="error_message" label="备注" min-width="140" show-overflow-tooltip/>
       </el-table>
@@ -103,7 +103,7 @@
       <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
       <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
       <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ row.total_cost?.toFixed(6)||'0' }} 点</template></el-table-column>
-      <el-table-column label="计费明细" width="130"><template #default="{row}"><el-button v-if="hasBillingDetail(row)" link type="primary" size="small" @click="openBilling(row)">查看计算过程</el-button><span v-else class="no-detail">历史记录无快照</span></template></el-table-column>
+      <el-table-column label="计费明细" width="130"><template #default="{row}"><el-button v-if="hasBillingDetail(row)" class="billing-detail-button" type="primary" size="small" @click="openBilling(row)">查看计算过程</el-button><span v-else class="no-detail">历史记录无快照</span></template></el-table-column>
       <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
       <el-table-column prop="error_message" label="错误信息" min-width="160" show-overflow-tooltip/>
     </el-table>
@@ -124,7 +124,7 @@
         <div class="snapshot-grid">
           <div><span>计费版本</span><strong>{{ billingVersion }}</strong></div>
           <div><span>计费币种</span><strong>{{ selectedBilling.billing_detail.currency||'点数' }}</strong></div>
-          <div><span>计费单位</span><strong>{{ number(selectedBilling.billing_detail.dimensions.find(item=>!item.isAdjustment)?.unitTokens||1000) }} Token</strong></div>
+          <div><span>计费单位</span><strong>{{ formatTokenUnit(selectedBilling.billing_detail.dimensions.find(item=>!item.isAdjustment)?.unitTokens||1000000) }} Token</strong></div>
           <div><span>输入倍率</span><strong>×{{ selectedBilling.billing_multiplier_input }}</strong></div>
           <div><span>输出倍率</span><strong>×{{ selectedBilling.billing_multiplier_output }}</strong></div>
           <div v-if="selectedBilling.official_currency==='USD'"><span>美元兑人民币</span><strong>×{{ selectedBilling.usd_cny_rate }}</strong></div>
@@ -196,7 +196,7 @@ const billingBreakdown = computed(() => {
     if(item.isAdjustment)return {...item,formula:'用于对齐钱包最终保存的实际扣费金额'}
     const multiplierLabel=item.label.includes('输出')?'输出倍率':'输入倍率'
     const fx=currency==='USD'?` × 汇率 ${item.fxRate}`:''
-    return {...item,formula:`${number(item.usage)} ÷ ${number(item.unitTokens)} × ${symbol}${item.unitPrice} × ${multiplierLabel} ${item.multiplier}${fx}`}
+    return {...item,formula:`${number(item.usage)} ÷ ${formatTokenUnit(item.unitTokens)} × ${symbol}${item.unitPrice} × ${multiplierLabel} ${item.multiplier}${fx}`}
   })
 })
 const billingSum = computed(() => point(selectedBilling.value?.billing_detail?.calculatedTotal||0))
@@ -286,6 +286,7 @@ function openBilling(row){selectedBilling.value=row;billingDialog.value=true}
 function openAllLogs(){showAllLogs.value=true;fetchLogs()}
 function hasBillingDetail(row){return Boolean(row?.billing_detail)}
 function number(value){return Number(value||0).toLocaleString()}
+function formatTokenUnit(value){return Number(value)===1000000?'1M':number(value)}
 function point(value){return Number(value||0).toFixed(6)}
 function getPresetRange(preset) { const end = dayjs().format('YYYY-MM-DD'); const start = dayjs().subtract(preset === '30d' ? 29 : preset === '90d' ? 89 : 6, 'day').format('YYYY-MM-DD'); return [start, end] }
 
@@ -307,6 +308,7 @@ onUnmounted(()=>{clearInterval(refreshTimer)})
 
 <style scoped>
 .dashboard { padding: 20px 24px; max-width: 1400px; margin: 0 auto }
+.billing-detail-button { font-weight: 650; --el-button-hover-bg-color: #1d4ed8; --el-button-hover-border-color: #1d4ed8; }
 .kpi-row { margin-bottom: 16px }
 .kpi-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px 24px; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: box-shadow .2s; }
 .kpi-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06) }
