@@ -67,6 +67,11 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
   const bmo = pricingRule ? pricingRule.billing_multiplier_output : model.billing_multiplier_output;
 
   const wallet = db.prepare('SELECT * FROM wallets WHERE user_id=?').get(req.userId);
+  if (!wallet) {
+    return res.status(402).json({
+      error: { message: '账户钱包尚未初始化，请联系管理员', type: 'wallet_not_initialized' }
+    });
+  }
   const qb = wallet.quota_balance || wallet.recharge_balance || 0;
   const gq = wallet.gift_quota || wallet.gift_balance || 0;
   const availableBalance = qb + gq - (wallet.frozen_balance || 0);
