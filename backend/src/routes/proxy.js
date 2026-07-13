@@ -37,11 +37,15 @@ function deductBalance(db, userId, amount) {
   }
 }
 
-router.get('/models', authenticateApiKey, (req, res) => {
+function listModels(req, res) {
   const db = getDatabase();
   const models = db.prepare("SELECT DISTINCT m.model_code,m.model_name FROM models m JOIN api_key_permissions akp ON m.model_code=akp.model_code AND akp.status='active' WHERE m.status='active' AND akp.api_key_id=?").all(req.apiKey.id);
   res.json({ object: 'list', data: models.map(m=>({ id: m.model_code, object: 'model', created: 0, owned_by: 'ai-proxy' })) });
-});
+}
+
+// 兼容部分客户端直接 GET Base URL 来刷新模型列表。
+router.get('/', authenticateApiKey, listModels);
+router.get('/models', authenticateApiKey, listModels);
 
 router.post('/chat/completions', authenticateApiKey, async (req, res) => {
   const db = getDatabase();
