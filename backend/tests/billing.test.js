@@ -3,8 +3,6 @@ import { initDatabase, getDatabase } from '../src/database/init.js';
 import { deductWalletBalance, releaseWalletReservation, reserveWalletBalance, settleWalletReservation, walletBalances } from '../src/utils/wallet-billing.js';
 import { calculatePricing } from '../src/utils/pricing-engine.js';
 
-process.env.DB_PATH = './data/test-proxy.db';
-
 describe('扣费模块', () => {
   let userId;
   beforeAll(async () => {

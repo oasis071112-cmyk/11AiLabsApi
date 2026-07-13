@@ -3,9 +3,6 @@ import { initDatabase, getDatabase } from '../src/database/init.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-process.env.JWT_SECRET = 'test-secret';
-process.env.DB_PATH = './data/test-proxy.db';
-
 const { generateToken } = await import('../src/middleware/auth.js');
 const { authenticate, findApiKey } = await import('../src/middleware/auth.js');
 
