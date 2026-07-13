@@ -32,6 +32,7 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '@/api'
 import { ElMessage } from 'element-plus'
+import { formatBeijingTime } from '@/utils/time'
 
 const groups=ref([]),loading=ref(false),page=ref(1),total=ref(0),expandedUsers=ref('')
 const permDialog=ref(false),selModels=ref([]),editingKeyId=ref(null),allModels=ref([])
@@ -44,7 +45,7 @@ async function savePerms(){await api.put(`/api/admin/keys/${editingKeyId.value}/
 function roleLabel(role){return {admin:'管理员',operator:'运营',finance:'财务',user:'普通用户'}[role]||role}
 function keyStatusLabel(status){return {active:'启用',disabled:'停用',revoked:'已撤销'}[status]||status}
 function keyStatusType(status){return {active:'success',disabled:'warning',revoked:'info'}[status]||'info'}
-function formatTime(value){return value?String(value).replace('T',' ').slice(0,19):'从未使用'}
+function formatTime(value){return formatBeijingTime(value,'从未使用')}
 </script>
 
 <style scoped>

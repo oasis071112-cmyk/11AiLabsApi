@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const { selectChannel, reportResult } = require('../utils/channel-selector');
 const { calculatePricing, extractUsage } = require('../utils/pricing-engine');
+const { resolveChatOutputLimit } = require('../utils/request-limits');
 const {
   releaseWalletReservation,
   reserveWalletBalance,
@@ -143,14 +144,10 @@ function capChatRequestToReservedBalance(db, model, multipliers, requestBody, av
   if (maxAffordableOutput < 1) throw new Error('额度不足以覆盖本次请求的最小输出');
 
   const body = { ...requestBody };
-  const isModernOpenAiReasoningModel = model.official_provider === 'openai' && /^(gpt-5|o[1-9])/.test(String(model.official_model_id || model.model_code || '').toLowerCase());
-  const limitField = Object.prototype.hasOwnProperty.call(body, 'max_completion_tokens')
-    ? 'max_completion_tokens'
-    : (Object.prototype.hasOwnProperty.call(body, 'max_tokens') ? 'max_tokens' : (isModernOpenAiReasoningModel ? 'max_completion_tokens' : 'max_tokens'));
-  const requested = Number(body[limitField]);
-  body[limitField] = Number.isFinite(requested) && requested > 0
-    ? Math.min(Math.floor(requested), maxAffordableOutput)
-    : maxAffordableOutput;
+  const { limitField, maxTokens } = resolveChatOutputLimit({
+    model, requestBody: body, estimatedInputTokens: inputTokens, maxAffordableOutput,
+  });
+  body[limitField] = maxTokens;
   return body;
 }
 

@@ -77,7 +77,7 @@
     <div class="chart-header"><ClipboardList :size="14" color="#6366f1"/><span>最近调用记录</span><span class="chart-sub" style="cursor:pointer;color:#409eff" @click="openAllLogs">查看全部 →</span></div>
     <div class="chart-body" style="padding-top:0">
       <el-table :data="recentLogs" stripe size="small" v-loading="loading">
-        <el-table-column prop="created_at" label="时间" width="170"/>
+        <el-table-column label="时间" width="170"><template #default="{row}">{{ formatBeijingTime(row.created_at) }}</template></el-table-column>
         <el-table-column prop="model_code" label="模型" width="130"><template #default="{row}"><el-tag size="small" effect="plain">{{ row.model_code }}</el-tag></template></el-table-column>
         <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
         <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
@@ -97,7 +97,7 @@
       <el-button size="small" @click="fetchLogs">查询</el-button>
     </div>
     <el-table :data="allLogs" stripe size="small" v-loading="logLoading" max-height="60vh">
-      <el-table-column prop="created_at" label="时间" width="170"/>
+      <el-table-column label="时间" width="170"><template #default="{row}">{{ formatBeijingTime(row.created_at) }}</template></el-table-column>
       <el-table-column prop="request_id" label="请求ID" width="180" show-overflow-tooltip/>
       <el-table-column prop="model_code" label="模型" width="130"/>
       <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
@@ -114,7 +114,7 @@
     <div v-if="selectedBilling" class="billing-dialog">
       <div class="billing-summary">
         <div><span>模型</span><strong>{{ selectedBilling.model_code }}</strong></div>
-        <div><span>请求时间</span><strong>{{ selectedBilling.created_at }}</strong></div>
+        <div><span>请求时间</span><strong>{{ formatBeijingTime(selectedBilling.created_at) }}</strong></div>
         <div class="billing-total"><span>本次实际扣费</span><strong>{{ point(selectedBilling.total_cost) }} 点</strong></div>
       </div>
       <el-alert v-if="!hasBillingDetail(selectedBilling)" title="这条记录暂时没有可展示的计费数据" type="warning" :closable="false"/>
@@ -156,6 +156,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import 'echarts-liquidfill'
 import api from '@/api'
 import dayjs from 'dayjs'
+import { formatBeijingTime } from '@/utils/time'
 
 use([CanvasRenderer, GaugeChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
 

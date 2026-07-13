@@ -61,7 +61,12 @@
       </el-table-column>
       <el-table-column label="最后使用" width="150" align="center">
         <template #default="{row}">
-          <span style="font-size:12px;color:#a3a3a3">{{ row.last_used_at || '—' }}</span>
+          <span style="font-size:12px;color:#a3a3a3">{{ formatBeijingTime(row.last_used_at) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="创建时间" width="150" align="center">
+        <template #default="{row}">
+          <span style="font-size:12px;color:#a3a3a3">{{ formatBeijingTime(row.created_at) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="230" align="center">
@@ -141,6 +146,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
+import { formatBeijingTime } from '@/utils/time'
 import { Key, BookOpen, CircleCheck, Clipboard, Shield, RefreshCw, Loader2 } from '@lucide/vue'
 const keys=ref([]),loading=ref(false),createDialog=ref(false),resultDialog=ref(false),creating=ref(false),newKeyName=ref(''),newKeyRaw=ref('')
 const channels=ref([]),selectedChannelId=ref(null),channelLoading=ref(false)

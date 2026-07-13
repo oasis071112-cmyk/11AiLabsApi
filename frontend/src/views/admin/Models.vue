@@ -18,8 +18,8 @@
     </el-radio-group>
   </div>
 
-  <div class="table-card">
-    <el-table :data="filteredModels" stripe v-loading="loading" empty-text="该分类暂无模型">
+  <div class="table-card" v-loading="loading">
+    <el-table :data="activeModels" stripe empty-text="该分类暂无已上架模型">
       <el-table-column label="模型" min-width="230"><template #default="{row}"><div class="model-name">{{ row.model_name }}</div><div class="model-code">{{ row.model_code }}</div></template></el-table-column>
       <el-table-column label="分类" width="110"><template #default="{row}"><el-tag size="small" effect="plain">{{ typeLabel(row.model_type) }}</el-tag></template></el-table-column>
       <el-table-column label="官方价格 / 1M Token" min-width="250"><template #default="{row}"><div v-if="row.official_input_price||row.official_output_price" class="price-pair"><span>输入 {{ currency(row.official_currency) }}{{ row.official_input_price }}</span><span>输出 {{ currency(row.official_currency) }}{{ row.official_output_price }}</span></div><span v-else class="pending">待同步</span></template></el-table-column>
@@ -27,6 +27,19 @@
       <el-table-column label="状态" width="90"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'info'" size="small">{{ row.status==='active'?'已上架':'已下架' }}</el-tag></template></el-table-column>
       <el-table-column label="操作" width="165" fixed="right"><template #default="{row}"><el-button size="small" @click="openDialog(row)">编辑</el-button><el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggleStatus(row)">{{ row.status==='active'?'下架':'上架' }}</el-button></template></el-table-column>
     </el-table>
+    <el-collapse v-if="inactiveModels.length" v-model="expandedSections" class="inactive-models">
+      <el-collapse-item name="inactive">
+        <template #title><span>已下架模型（{{ inactiveModels.length }}）</span><span class="collapse-hint">点击展开查看</span></template>
+        <el-table :data="inactiveModels" stripe>
+          <el-table-column label="模型" min-width="230"><template #default="{row}"><div class="model-name">{{ row.model_name }}</div><div class="model-code">{{ row.model_code }}</div></template></el-table-column>
+          <el-table-column label="分类" width="110"><template #default="{row}"><el-tag size="small" effect="plain">{{ typeLabel(row.model_type) }}</el-tag></template></el-table-column>
+          <el-table-column label="官方价格 / 1M Token" min-width="250"><template #default="{row}"><div v-if="row.official_input_price||row.official_output_price" class="price-pair"><span>输入 {{ currency(row.official_currency) }}{{ row.official_input_price }}</span><span>输出 {{ currency(row.official_currency) }}{{ row.official_output_price }}</span></div><span v-else class="pending">待同步</span></template></el-table-column>
+          <el-table-column label="用户扣费倍率" width="175"><template #default="{row}"><div class="multiplier"><span>输入 ×{{ row.billing_multiplier_input }}</span><span>输出 ×{{ row.billing_multiplier_output }}</span></div></template></el-table-column>
+          <el-table-column label="状态" width="90"><template #default="{row}"><el-tag type="info" size="small">已下架</el-tag></template></el-table-column>
+          <el-table-column label="操作" width="165" fixed="right"><template #default="{row}"><el-button size="small" @click="openDialog(row)">编辑</el-button><el-button size="small" type="success" @click="toggleStatus(row)">上架</el-button></template></el-table-column>
+        </el-table>
+      </el-collapse-item>
+    </el-collapse>
   </div>
 
   <el-dialog v-model="dialogVisible" :title="isEdit?'编辑模型':'新增模型'" width="600px"><el-form :model="form" label-width="120px">
@@ -43,7 +56,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import api from '@/api'
 import { ElMessage } from 'element-plus'
 
-const models=ref([]),loading=ref(false),dialogVisible=ref(false),isEdit=ref(false),saving=ref(false),syncing=ref(false)
+const models=ref([]),loading=ref(false),dialogVisible=ref(false),isEdit=ref(false),saving=ref(false),syncing=ref(false),expandedSections=ref([])
 const activeProvider=ref('openai'),activeType=ref('all')
 const providers=[{value:'openai',label:'OpenAI'},{value:'deepseek',label:'DeepSeek'},{value:'anthropic',label:'Anthropic'}]
 const types=[{value:'llm',label:'对话'},{value:'embedding',label:'嵌入'},{value:'image',label:'图像'},{value:'audio',label:'音频'},{value:'video',label:'视频'}]
@@ -51,7 +64,10 @@ const providerTabs=computed(()=>providers.map(item=>({...item,count:models.value
 const providerModels=computed(()=>models.value.filter(model=>model.official_provider===activeProvider.value))
 const typeTabs=computed(()=>types.map(item=>({...item,count:providerModels.value.filter(model=>model.model_type===item.value).length})).filter(item=>item.count>0))
 const filteredModels=computed(()=>activeType.value==='all'?providerModels.value:providerModels.value.filter(model=>model.model_type===activeType.value))
+const activeModels=computed(()=>filteredModels.value.filter(model=>model.status==='active').sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)||a.model_code.localeCompare(b.model_code)))
+const inactiveModels=computed(()=>filteredModels.value.filter(model=>model.status!=='active').sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)||a.model_code.localeCompare(b.model_code)))
 watch(activeProvider,()=>{activeType.value='all'})
+watch([activeProvider,activeType],()=>{expandedSections.value=[]})
 
 const emptyForm=()=>({model_code:'',model_name:'',upstream_model_name:'',model_type:'llm',context_length:4096,is_multimodal:false,multiplier_input:1,multiplier_output:1,official_provider:activeProvider.value,official_model_id:''})
 const form=ref(emptyForm())
@@ -66,5 +82,5 @@ function typeLabel(value){return types.find(item=>item.value===value)?.label||va
 </script>
 
 <style scoped>
-.models-page{padding-bottom:24px}.page-hint{font-size:12px;color:#94a3b8;margin-top:4px}.provider-tabs :deep(.el-tabs__item){display:flex;gap:8px;align-items:center}.type-filter{display:flex;justify-content:space-between;align-items:center;margin:4px 0 16px}.table-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}.model-name{font-weight:600;color:#0f172a}.model-code{font-size:12px;color:#94a3b8;margin-top:4px;font-family:monospace}.price-pair,.multiplier{display:flex;gap:16px;flex-wrap:wrap}.price-pair span,.multiplier span{white-space:nowrap}.pending{color:#e6a23c}
+.models-page{padding-bottom:24px}.page-hint{font-size:12px;color:#94a3b8;margin-top:4px}.provider-tabs :deep(.el-tabs__item){display:flex;gap:8px;align-items:center}.type-filter{display:flex;justify-content:space-between;align-items:center;margin:4px 0 16px}.table-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}.inactive-models{border-top:1px solid #e5e7eb}.inactive-models :deep(.el-collapse-item__header){padding:0 18px;font-size:13px;font-weight:600;color:#64748b}.inactive-models :deep(.el-collapse-item__content){padding:0}.collapse-hint{margin-left:auto;margin-right:10px;font-size:12px;font-weight:400;color:#94a3b8}.model-name{font-weight:600;color:#0f172a}.model-code{font-size:12px;color:#94a3b8;margin-top:4px;font-family:monospace}.price-pair,.multiplier{display:flex;gap:16px;flex-wrap:wrap}.price-pair span,.multiplier span{white-space:nowrap}.pending{color:#e6a23c}
 </style>
