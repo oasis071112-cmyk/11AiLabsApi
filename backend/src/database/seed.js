@@ -1,5 +1,5 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
-const { getDatabase, initDatabase } = require('./init');
+const { getDatabase, initDatabase, migrateRoutingGroups } = require('./init');
 const bcrypt = require('bcryptjs');
 
 async function seed() {
@@ -122,6 +122,8 @@ async function seed() {
       .run('default-openai', 'https://api.openai.com/v1', 'sk-your-upstream-key-here', 1, 'active');
     console.log('✅ 默认渠道已创建（请修改 API Key）');
   }
+
+  migrateRoutingGroups(db);
 
   console.log('\n🎉 种子数据完成！');
 }

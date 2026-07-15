@@ -98,7 +98,7 @@ async function syncUsdCnyRate(db) {
 }
 
 async function syncOfficialPricing(db) {
-  const models = db.prepare("SELECT * FROM models WHERE status='active'").all();
+  const models = db.prepare("SELECT * FROM models WHERE status='active' AND COALESCE(official_pricing_mode,'auto')='auto'").all();
   const result = { updated: 0, skipped: 0, failed: 0, details: [] };
 
   for (const model of models) {

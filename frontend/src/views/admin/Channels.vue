@@ -1,14 +1,114 @@
-<template><div><div class="flex-between mb-16"><h3>渠道管理</h3><el-button type="primary" @click="openDialog()">+ 新增渠道</el-button></div><el-alert title="仅保留 OpenAI、DeepSeek、Anthropic 三个官方渠道；同步模型时会自动过滤其他厂商模型。" type="info" :closable="false" style="margin-bottom:16px"/>
-<el-table :data="channels" stripe v-loading="loading"><el-table-column prop="channel_name" label="官方渠道" width="150"/><el-table-column prop="base_url" label="上游地址" min-width="260"/><el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'danger'" size="small">{{ row.status }}</el-tag></template></el-table-column><el-table-column prop="priority" label="优先级" width="80"/><el-table-column label="健康状态" width="110"><template #default="{row}"><el-tag :type="healthType(row)" size="small">{{ healthLabel(row) }}</el-tag></template></el-table-column><el-table-column label="操作" width="290"><template #default="{row}"><el-button size="small" @click="openDialog(row)">编辑</el-button><el-button size="small" type="primary" plain :loading="syncingId===row.id" @click="syncModels(row)">同步模型</el-button><el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggle(row)">{{ row.status==='active'?'停用':'启用' }}</el-button></template></el-table-column></el-table>
-<el-dialog v-model="dialogVisible" :title="isEdit?'编辑渠道':'新增渠道'" width="480px"><el-form :model="form" label-width="100px"><el-form-item label="官方渠道"><el-select v-model="form.channel_name" :disabled="isEdit"><el-option value="openai" label="OpenAI"/><el-option value="deepseek" label="DeepSeek"/><el-option value="anthropic" label="Anthropic"/></el-select></el-form-item><el-form-item label="上游地址"><el-input v-model="form.base_url"/></el-form-item><el-form-item label="API Key"><el-input v-model="form.api_key" type="password" show-password :placeholder="isEdit?'已配置（留空不修改）':'请输入 API Key'"/></el-form-item><el-form-item label="优先级"><el-input-number v-model="form.priority" :min="0"/></el-form-item><el-form-item label="权重"><el-input-number v-model="form.weight" :min="0" :max="1000"/></el-form-item></el-form><template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存</el-button></template></el-dialog></div></template>
+<template>
+<div class="routing-page">
+  <div class="flex-between mb-16">
+    <div><h3>路由与渠道</h3><div class="page-hint">API Key 绑定路由分组；每个分组可配置多个上游渠道并自动择优。</div></div>
+  </div>
+
+  <section class="section-card">
+    <div class="section-head"><div><h4>路由分组</h4><p>面向用户展示，决定 Key 可以使用哪些模型和上游。</p></div><el-button type="primary" @click="openGroup()">+ 新增分组</el-button></div>
+    <el-table :data="groups" stripe v-loading="groupLoading">
+      <el-table-column prop="group_name" label="分组名称" min-width="170"/>
+      <el-table-column label="上游渠道" min-width="260"><template #default="{row}"><el-tag v-for="item in row.channels" :key="item.channel_id" size="small" effect="plain" class="mr-tag">{{ item.channel_name }}</el-tag><span v-if="!row.channels.length" class="muted">未配置</span></template></el-table-column>
+      <el-table-column prop="model_count" label="授权模型" width="90"/>
+      <el-table-column prop="key_count" label="绑定 Key" width="90"/>
+      <el-table-column label="备用分组" width="130"><template #default="{row}">{{ row.fallback_group_name||'—' }}</template></el-table-column>
+      <el-table-column label="状态" width="90"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'info'" size="small">{{ row.status==='active'?'启用':'停用' }}</el-tag></template></el-table-column>
+      <el-table-column label="操作" width="220" fixed="right"><template #default="{row}"><el-button size="small" @click="openGroup(row)">编辑</el-button><el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggleGroup(row)">{{ row.status==='active'?'停用':'启用' }}</el-button><el-popconfirm v-if="!row.key_count" title="确定删除该分组？" @confirm="deleteGroup(row)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm></template></el-table-column>
+    </el-table>
+  </section>
+
+  <section class="section-card">
+    <div class="section-head"><div><h4>上游渠道</h4><p>真实 API 地址和密钥。当前支持任意名称的 OpenAI 兼容渠道。</p></div><el-button type="primary" plain @click="openChannel()">+ 新增渠道</el-button></div>
+    <el-table :data="channels" stripe v-loading="channelLoading">
+      <el-table-column prop="channel_name" label="渠道名称" min-width="150"/>
+      <el-table-column prop="base_url" label="上游地址" min-width="250" show-overflow-tooltip/>
+      <el-table-column label="所属分组" min-width="180"><template #default="{row}">{{ row.group_names||'未加入分组' }}</template></el-table-column>
+      <el-table-column prop="model_count" label="模型" width="70"/>
+      <el-table-column label="健康" width="90"><template #default="{row}"><el-tag :type="healthType(row)" size="small">{{ healthLabel(row) }}</el-tag></template></el-table-column>
+      <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'info'" size="small">{{ row.status==='active'?'启用':'停用' }}</el-tag></template></el-table-column>
+      <el-table-column label="操作" width="370" fixed="right"><template #default="{row}"><el-button size="small" @click="openChannel(row)">编辑</el-button><el-button size="small" @click="openMappings(row)">模型映射</el-button><el-button size="small" type="primary" plain :loading="syncingId===row.id" @click="syncModels(row)">同步模型</el-button><el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggleChannel(row)">{{ row.status==='active'?'停用':'启用' }}</el-button></template></el-table-column>
+    </el-table>
+  </section>
+
+  <el-dialog v-model="groupDialog" :title="editingGroup?'编辑路由分组':'新增路由分组'" width="760px">
+    <el-form :model="groupForm" label-width="100px">
+      <el-form-item label="分组名称" required><el-input v-model="groupForm.group_name" placeholder="例如：稳定线路、低价线路"/></el-form-item>
+      <el-form-item label="说明"><el-input v-model="groupForm.description" type="textarea" :rows="2"/></el-form-item>
+      <el-form-item label="备用分组"><el-select v-model="groupForm.fallback_group_id" clearable placeholder="主分组无可用渠道时切换"><el-option v-for="item in fallbackGroups" :key="item.id" :label="item.group_name" :value="item.id"/></el-select></el-form-item>
+      <el-form-item label="限制模型"><el-switch v-model="groupForm.restrict_models"/><span class="switch-help">开启后，只向该分组 Key 展示并授权下方选中的模型</span></el-form-item>
+      <el-form-item v-if="groupForm.restrict_models" label="可见模型"><el-select v-model="groupForm.model_codes" multiple filterable collapse-tags collapse-tags-tooltip style="width:100%" placeholder="选择该分组允许的模型"><el-option v-for="model in models" :key="model.model_code" :label="`${model.model_name}（${model.model_code}）`" :value="model.model_code"/></el-select></el-form-item>
+      <el-form-item label="上游渠道">
+        <el-table :data="groupForm.channels" size="small" border>
+          <el-table-column label="启用" width="70"><template #default="{row}"><el-switch v-model="row.selected"/></template></el-table-column>
+          <el-table-column prop="channel_name" label="渠道" min-width="180"/>
+          <el-table-column label="优先级" width="140"><template #default="{row}"><el-input-number v-model="row.priority" :min="0" :max="999" size="small" :disabled="!row.selected"/></template></el-table-column>
+          <el-table-column label="流量权重" width="140"><template #default="{row}"><el-input-number v-model="row.weight" :min="1" :max="1000" size="small" :disabled="!row.selected"/></template></el-table-column>
+          <el-table-column label="健康" width="90"><template #default="{row}">{{ Math.round(row.health_score||0) }}%</template></el-table-column>
+        </el-table>
+      </el-form-item>
+    </el-form>
+    <template #footer><el-button @click="groupDialog=false">取消</el-button><el-button type="primary" :loading="savingGroup" @click="saveGroup">保存</el-button></template>
+  </el-dialog>
+
+  <el-dialog v-model="channelDialog" :title="editingChannel?'编辑上游渠道':'新增上游渠道'" width="520px">
+    <el-form :model="channelForm" label-width="100px">
+      <el-form-item label="渠道名称" required><el-input v-model="channelForm.channel_name" placeholder="可自定义，例如：Uozi 主线路"/></el-form-item>
+      <el-form-item label="协议"><el-select v-model="channelForm.protocol_type" disabled><el-option value="openai_compatible" label="OpenAI 兼容协议"/></el-select></el-form-item>
+      <el-form-item label="上游地址" required><el-input v-model="channelForm.base_url" placeholder="https://example.com/v1"/></el-form-item>
+      <el-form-item label="API Key" required><el-input v-model="channelForm.api_key" type="password" show-password :placeholder="editingChannel?'已配置，留空表示不修改':'请输入上游 API Key'"/></el-form-item>
+      <el-form-item label="默认优先级"><el-input-number v-model="channelForm.priority" :min="0"/></el-form-item>
+      <el-form-item label="默认权重"><el-input-number v-model="channelForm.weight" :min="1" :max="1000"/></el-form-item>
+    </el-form>
+    <template #footer><el-button @click="channelDialog=false">取消</el-button><el-button type="primary" :loading="savingChannel" @click="saveChannel">保存</el-button></template>
+  </el-dialog>
+
+  <el-dialog v-model="mappingDialog" :title="`${mappingChannel?.channel_name||''} · 模型映射`" width="760px">
+    <el-alert title="公开模型名是用户调用时使用的名称；上游模型名可按每个渠道单独映射。" type="info" :closable="false" style="margin-bottom:12px"/>
+    <el-input v-model="mappingSearch" clearable placeholder="搜索模型" style="margin-bottom:12px"/>
+    <el-table :data="filteredMappings" height="430" v-loading="mappingLoading">
+      <el-table-column label="启用" width="70"><template #default="{row}"><el-switch v-model="row.selected"/></template></el-table-column>
+      <el-table-column label="公开模型" min-width="230"><template #default="{row}"><strong>{{ row.model_name }}</strong><div class="muted">{{ row.model_code }}</div></template></el-table-column>
+      <el-table-column label="该渠道上游模型名" min-width="280"><template #default="{row}"><el-input v-model="row.upstream_model_name" :disabled="!row.selected" placeholder="上游实际模型 ID"/></template></el-table-column>
+    </el-table>
+    <template #footer><el-button @click="mappingDialog=false">取消</el-button><el-button type="primary" :loading="savingMappings" @click="saveMappings">保存映射</el-button></template>
+  </el-dialog>
+</div>
+</template>
+
 <script setup>
-import { ref, onMounted } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
-const channels=ref([]),loading=ref(false),dialogVisible=ref(false),isEdit=ref(false),saving=ref(false),syncingId=ref(null),originalApiKey=ref('')
-const empty=()=>({channel_name:'openai',base_url:'',api_key:'',priority:0,weight:100});const form=ref(empty());onMounted(fetch)
-async function fetch(){loading.value=true;try{channels.value=(await api.get('/api/admin/channels')).data.data}catch(e){}loading.value=false}
-function openDialog(row){isEdit.value=!!row;form.value=row?{...row}:empty();originalApiKey.value=row?.api_key||'';dialogVisible.value=true}
-async function save(){saving.value=true;try{const data={...form.value};if(isEdit.value&&data.api_key===originalApiKey.value)data.api_key='';if(isEdit.value)await api.put(`/api/admin/channels/${data.id}`,data);else await api.post('/api/admin/channels',data);ElMessage.success('保存成功');dialogVisible.value=false;fetch()}catch(e){}saving.value=false}
-async function toggle(row){await api.patch(`/api/admin/channels/${row.id}/status`,{status:row.status==='active'?'inactive':'active'});ElMessage.success('操作成功');fetch()}
-async function syncModels(row){syncingId.value=row.id;try{const r=await api.post(`/api/admin/channels/${row.id}/sync-models`);ElMessage.success(r.data.message);fetch()}catch(e){}syncingId.value=null}
-function healthType(r){return r.status!=='active'?'info':(r.health_score||100)>=60?'success':'warning'}function healthLabel(r){return r.status!=='active'?'未启用':(r.health_score||100)>=60?'在线':'降级'}
+import { computed, onMounted, ref } from 'vue'
+import api from '@/api'
+import { ElMessage } from 'element-plus'
+
+const groups=ref([]),channels=ref([]),models=ref([]),groupLoading=ref(false),channelLoading=ref(false),syncingId=ref(null)
+const groupDialog=ref(false),editingGroup=ref(null),savingGroup=ref(false),groupForm=ref({})
+const channelDialog=ref(false),editingChannel=ref(null),savingChannel=ref(false),channelForm=ref({}),originalApiKey=ref('')
+const mappingDialog=ref(false),mappingChannel=ref(null),mappingRows=ref([]),mappingSearch=ref(''),mappingLoading=ref(false),savingMappings=ref(false)
+const fallbackGroups=computed(()=>groups.value.filter(item=>item.id!==editingGroup.value?.id))
+const filteredMappings=computed(()=>{const term=mappingSearch.value.trim().toLowerCase();return term?mappingRows.value.filter(item=>`${item.model_name} ${item.model_code}`.toLowerCase().includes(term)):mappingRows.value})
+
+onMounted(loadAll)
+async function loadAll(){await Promise.all([loadGroups(),loadChannels(),loadModels()])}
+async function loadGroups(){groupLoading.value=true;try{groups.value=(await api.get('/api/admin/routing-groups')).data.data||[]}finally{groupLoading.value=false}}
+async function loadChannels(){channelLoading.value=true;try{channels.value=(await api.get('/api/admin/channels')).data.data||[]}finally{channelLoading.value=false}}
+async function loadModels(){models.value=(await api.get('/api/admin/models')).data.data||[]}
+
+function openGroup(row){editingGroup.value=row||null;const linked=new Map((row?.channels||[]).map(item=>[item.channel_id,item]));groupForm.value={group_name:row?.group_name||'',description:row?.description||'',fallback_group_id:row?.fallback_group_id||null,status:row?.status||'active',restrict_models:Number(row?.restrict_models||0)===1,model_codes:[...(row?.model_codes||[])],channels:channels.value.map(channel=>{const link=linked.get(channel.id);return{channel_id:channel.id,channel_name:channel.channel_name,health_score:channel.health_score,selected:!!link,priority:link?.priority??channel.priority??0,weight:link?.weight??channel.weight??100}})};groupDialog.value=true}
+async function saveGroup(){if(!groupForm.value.group_name.trim()){ElMessage.warning('请输入分组名称');return}savingGroup.value=true;try{const payload={...groupForm.value,channels:groupForm.value.channels.filter(item=>item.selected).map(({channel_id,priority,weight})=>({channel_id,priority,weight,status:'active'}))};if(editingGroup.value)await api.put(`/api/admin/routing-groups/${editingGroup.value.id}`,payload);else await api.post('/api/admin/routing-groups',payload);ElMessage.success('分组已保存');groupDialog.value=false;await loadGroups()}finally{savingGroup.value=false}}
+async function toggleGroup(row){await api.patch(`/api/admin/routing-groups/${row.id}/status`,{status:row.status==='active'?'inactive':'active'});await loadGroups()}
+async function deleteGroup(row){await api.delete(`/api/admin/routing-groups/${row.id}`);ElMessage.success('分组已删除');await loadGroups()}
+
+const emptyChannel=()=>({channel_name:'',base_url:'',api_key:'',priority:0,weight:100,protocol_type:'openai_compatible'})
+function openChannel(row){editingChannel.value=row||null;channelForm.value=row?{...row}:emptyChannel();originalApiKey.value=row?.api_key||'';channelDialog.value=true}
+async function saveChannel(){if(!channelForm.value.channel_name.trim()||!channelForm.value.base_url.trim()){ElMessage.warning('请填写渠道名称和上游地址');return}savingChannel.value=true;try{const payload={...channelForm.value};if(editingChannel.value&&payload.api_key===originalApiKey.value)payload.api_key='';if(editingChannel.value)await api.put(`/api/admin/channels/${editingChannel.value.id}`,payload);else await api.post('/api/admin/channels',payload);ElMessage.success('渠道已保存');channelDialog.value=false;await loadAll()}finally{savingChannel.value=false}}
+async function toggleChannel(row){await api.patch(`/api/admin/channels/${row.id}/status`,{status:row.status==='active'?'inactive':'active'});await loadAll()}
+async function syncModels(row){syncingId.value=row.id;try{const result=await api.post(`/api/admin/channels/${row.id}/sync-models`);ElMessage.success(result.data.message);await loadAll()}finally{syncingId.value=null}}
+async function openMappings(row){mappingChannel.value=row;mappingDialog.value=true;mappingLoading.value=true;mappingSearch.value='';try{const result=(await api.get(`/api/admin/channels/${row.id}/models`)).data;const byCode=new Map((result.mappings||[]).map(item=>[item.model_code,item]));mappingRows.value=(result.data||[]).map(model=>{const mapping=byCode.get(model.model_code);return{...model,selected:mapping?.status==='active',upstream_model_name:mapping?.upstream_model_name||model.upstream_model_name||model.model_code}})}finally{mappingLoading.value=false}}
+async function saveMappings(){savingMappings.value=true;try{const selected=mappingRows.value.filter(item=>item.selected);const mappings=Object.fromEntries(selected.map(item=>[item.model_code,item.upstream_model_name||item.model_code]));await api.put(`/api/admin/channels/${mappingChannel.value.id}/models`,{model_codes:selected.map(item=>item.model_code),mappings});ElMessage.success('模型映射已保存');mappingDialog.value=false;await loadAll()}finally{savingMappings.value=false}}
+function healthType(row){return row.status!=='active'?'info':Number(row.health_score||0)>=60?'success':'warning'}
+function healthLabel(row){return row.status!=='active'?'未启用':Number(row.health_score||0)>=60?'在线':'降级'}
 </script>
+
+<style scoped>
+.routing-page{padding-bottom:24px}.page-hint,.section-head p{font-size:12px;color:#94a3b8;margin:4px 0 0}.section-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:18px;overflow:hidden}.section-head{padding:16px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eef2f7}.section-head h4{margin:0;color:#0f172a}.mr-tag{margin:2px 4px 2px 0}.muted,.switch-help{color:#94a3b8;font-size:12px}.switch-help{margin-left:10px}
+</style>

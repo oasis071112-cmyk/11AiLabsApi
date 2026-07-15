@@ -6,6 +6,7 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 const { desensitize } = require('../utils/crypto');
 const { normalizeUpstreamModels, inferModelType } = require('../utils/model-sync');
 const { syncOfficialPricing, syncUsdCnyRate, inferProvider } = require('../utils/pricing-sync');
+const { listModelsForApiKey, listRoutingGroupModels } = require('../utils/routing-group-models');
 
 const SUPPORTED_PROVIDERS = ['openai', 'deepseek', 'anthropic'];
 function supportedProvider(value) {
@@ -16,6 +17,25 @@ function supportedProvider(value) {
 function positiveMultiplier(value) {
   const multiplier = Number(value);
   return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : null;
+}
+
+function nonNegativePrice(value) {
+  const price = Number(value);
+  return Number.isFinite(price) && price >= 0 ? price : null;
+}
+
+function pricingPayload(body) {
+  const mode = body.official_pricing_mode === 'manual' ? 'manual' : 'auto';
+  const provider = supportedProvider(body.official_provider);
+  if (!provider) return { error: '官方价格提供方仅支持 OpenAI、DeepSeek、Anthropic' };
+  const currency = String(body.official_currency || (provider === 'deepseek' ? 'CNY' : 'USD')).toUpperCase();
+  if (!['CNY', 'USD'].includes(currency)) return { error: '价格币种仅支持 CNY 或 USD' };
+  const input = nonNegativePrice(body.official_input_price ?? 0);
+  const cached = nonNegativePrice(body.official_cached_input_price ?? body.official_input_price ?? 0);
+  const output = nonNegativePrice(body.official_output_price ?? 0);
+  if (input === null || cached === null || output === null) return { error: '官方价格必须是大于等于 0 的数字' };
+  if (mode === 'manual' && input <= 0 && output <= 0) return { error: '手动价格的输入或输出至少一项必须大于 0' };
+  return { mode, provider, currency, input, cached, output, unitTokens: 1_000_000 };
 }
 
 function supportedPricingScope(value) {
@@ -204,30 +224,59 @@ router.patch('/quota-orders/:id/reject', authenticate, requireAdmin('admin','fin
 
 router.get('/models', authenticate, requireAdmin('admin','operator'), (req, res) => {
   const db = getDatabase();
-  const models = db.prepare('SELECT m.*, uc.channel_name FROM models m LEFT JOIN upstream_channels uc ON m.channel_id=uc.id ORDER BY m.sort_order ASC').all();
+  const models = db.prepare(`
+    SELECT m.*,GROUP_CONCAT(DISTINCT uc.channel_name) AS channel_names
+    FROM models m
+    LEFT JOIN channel_models cm ON cm.model_code=m.model_code
+    LEFT JOIN upstream_channels uc ON uc.id=cm.channel_id
+    GROUP BY m.id ORDER BY CASE WHEN m.status='active' THEN 0 ELSE 1 END,m.sort_order ASC
+  `).all();
   res.json({ data: models });
 });
 
 router.post('/models', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
-  const { model_code, model_name, upstream_model_name, model_type, context_length, is_multimodal, description, official_provider, official_model_id, sort_order } = req.body;
+  const { model_code, model_name, upstream_model_name, model_type, context_length, is_multimodal, description, official_model_id, sort_order } = req.body;
   const inputMultiplier = positiveMultiplier(req.body.multiplier_input ?? req.body.billing_multiplier_input ?? 1);
   const outputMultiplier = positiveMultiplier(req.body.multiplier_output ?? req.body.billing_multiplier_output ?? 1);
+  const pricing = pricingPayload(req.body);
   if (!model_code || !model_name) return res.status(400).json({ error: '模型编码和名称不能为空' });
-  if (!supportedProvider(official_provider)) return res.status(400).json({ error: '模型仅支持 OpenAI、DeepSeek、Anthropic 官方提供方' });
+  if (pricing.error) return res.status(400).json({ error: pricing.error });
   if (!inputMultiplier || !outputMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
-  db.prepare('INSERT INTO models (model_code,model_name,upstream_model_name,model_type,context_length,is_multimodal,description,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,official_provider,official_model_id,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(model_code, model_name, upstream_model_name||model_code, model_type||'llm', context_length||4096, is_multimodal?1:0, description||'', inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, official_provider||'manual', official_model_id||model_code, sort_order||0);
+  db.prepare(`INSERT INTO models (
+    model_code,model_name,upstream_model_name,model_type,context_length,is_multimodal,description,
+    display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,
+    official_provider,official_model_id,official_currency,official_input_price,official_cached_input_price,
+    official_output_price,official_unit_tokens,official_pricing_mode,official_price_source,official_price_updated_at,sort_order
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?)`).run(
+    model_code, model_name, upstream_model_name||model_code, model_type||'llm', context_length||4096,
+    is_multimodal?1:0, description||'', inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier,
+    pricing.provider, official_model_id||model_code, pricing.currency, pricing.input, pricing.cached, pricing.output,
+    pricing.unitTokens, pricing.mode, pricing.mode === 'manual' ? '管理员手动录入' : null, sort_order||0
+  );
   res.status(201).json({ message: '模型创建成功' });
 });
 
 router.put('/models/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
-  const { model_name, upstream_model_name, model_type, context_length, is_multimodal, description, official_provider, official_model_id, status, sort_order } = req.body;
+  const { model_name, upstream_model_name, model_type, context_length, is_multimodal, description, official_model_id, status, sort_order } = req.body;
   const inputMultiplier = positiveMultiplier(req.body.multiplier_input ?? req.body.billing_multiplier_input ?? 1);
   const outputMultiplier = positiveMultiplier(req.body.multiplier_output ?? req.body.billing_multiplier_output ?? 1);
-  if (!supportedProvider(official_provider)) return res.status(400).json({ error: '模型仅支持 OpenAI、DeepSeek、Anthropic 官方提供方' });
+  const pricing = pricingPayload(req.body);
+  if (pricing.error) return res.status(400).json({ error: pricing.error });
   if (!inputMultiplier || !outputMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
-  db.prepare('UPDATE models SET model_name=?,upstream_model_name=?,model_type=?,context_length=?,is_multimodal=?,description=?,display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,official_provider=?,official_model_id=?,status=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(model_name, upstream_model_name, model_type, context_length, is_multimodal?1:0, description, inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, official_provider||'manual', official_model_id||null, status, sort_order, req.params.id);
+  db.prepare(`UPDATE models SET
+    model_name=?,upstream_model_name=?,model_type=?,context_length=?,is_multimodal=?,description=?,
+    display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,
+    official_provider=?,official_model_id=?,official_currency=?,official_input_price=?,official_cached_input_price=?,
+    official_output_price=?,official_unit_tokens=?,official_pricing_mode=?,official_price_source=?,
+    official_price_updated_at=CURRENT_TIMESTAMP,status=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(
+    model_name, upstream_model_name, model_type, context_length, is_multimodal?1:0, description,
+    inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier,
+    pricing.provider, official_model_id||null, pricing.currency, pricing.input, pricing.cached, pricing.output,
+    pricing.unitTokens, pricing.mode, pricing.mode === 'manual' ? '管理员手动录入' : null,
+    status, sort_order, req.params.id
+  );
   res.json({ message: '模型更新成功' });
 });
 
@@ -298,9 +347,11 @@ router.get('/keys', authenticate, requireAdmin('admin','operator'), (req, res) =
     const total = db.prepare("SELECT COUNT(DISTINCT user_id) as count FROM api_keys").get();
     const userIds = users.map(user => user.user_id);
     const placeholders = userIds.map(() => '?').join(',');
-    const keys = userIds.length ? db.prepare(`SELECT id,user_id,key_name,key_prefix,status,rate_limit_per_min,max_spend_limit,
-      created_at,expired_at,last_used_at FROM api_keys
-      WHERE user_id IN (${placeholders}) ORDER BY created_at DESC`).all(...userIds) : [];
+    const keys = userIds.length ? db.prepare(`SELECT ak.id,ak.user_id,ak.key_name,ak.key_prefix,ak.status,
+      ak.rate_limit_per_min,ak.max_spend_limit,ak.created_at,ak.expired_at,ak.last_used_at,
+      ak.routing_group_id,ak.permission_mode,rg.group_name
+      FROM api_keys ak LEFT JOIN routing_groups rg ON rg.id=ak.routing_group_id
+      WHERE ak.user_id IN (${placeholders}) ORDER BY ak.created_at DESC`).all(...userIds) : [];
     const keyIds = keys.map(key => key.id);
     const keyPlaceholders = keyIds.map(() => '?').join(',');
     const permissions = keyIds.length ? db.prepare(`SELECT api_key_id,model_code FROM api_key_permissions
@@ -313,7 +364,8 @@ router.get('/keys', authenticate, requireAdmin('admin','operator'), (req, res) =
     const keysByUser = new Map();
     for (const key of keys) {
       if (!keysByUser.has(key.user_id)) keysByUser.set(key.user_id, []);
-      keysByUser.get(key.user_id).push({ ...key, permissions: permissionsByKey.get(key.id) || [] });
+      const effectiveModels = listModelsForApiKey(db, key).map(item=>item.model_code);
+      keysByUser.get(key.user_id).push({ ...key, permissions: effectiveModels });
     }
     const groups = users.map(user => ({ ...user, keys: keysByUser.get(user.user_id) || [] }));
     return res.json({ data: groups, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
@@ -321,8 +373,9 @@ router.get('/keys', authenticate, requireAdmin('admin','operator'), (req, res) =
   let where = 'WHERE 1=1'; const p = [];
   if (user_id) { where += ' AND ak.user_id=?'; p.push(user_id); }
   const keys = db.prepare(`SELECT ak.id,ak.user_id,ak.key_name,ak.key_prefix,ak.status,ak.rate_limit_per_min,
-    ak.max_spend_limit,ak.created_at,ak.expired_at,ak.last_used_at,u.username
-    FROM api_keys ak JOIN users u ON ak.user_id=u.id ${where} ORDER BY ak.created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
+    ak.max_spend_limit,ak.created_at,ak.expired_at,ak.last_used_at,ak.routing_group_id,ak.permission_mode,rg.group_name,u.username
+    FROM api_keys ak JOIN users u ON ak.user_id=u.id LEFT JOIN routing_groups rg ON rg.id=ak.routing_group_id
+    ${where} ORDER BY ak.created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
   const total = db.prepare(`SELECT COUNT(*) as count FROM api_keys ak ${where}`).get(...p);
   const keysWithPerms = keys.map(k => ({ ...k, permissions: db.prepare('SELECT model_code FROM api_key_permissions WHERE api_key_id=?').all(k.id).map(x=>x.model_code) }));
   res.json({ data: keysWithPerms, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
@@ -340,6 +393,9 @@ router.patch('/keys/:id/status', authenticate, requireAdmin('admin'), (req, res)
 
 router.put('/keys/:id/permissions', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
+  const key = db.prepare('SELECT routing_group_id,permission_mode FROM api_keys WHERE id=?').get(req.params.id);
+  if (!key) return res.status(404).json({ error: 'Key 不存在' });
+  if (key.permission_mode === 'group_dynamic') return res.status(409).json({ error: '分组 Key 的模型权限由路由分组动态管理' });
   db.prepare('DELETE FROM api_key_permissions WHERE api_key_id=?').run(req.params.id);
   const ins = db.prepare('INSERT OR IGNORE INTO api_key_permissions (api_key_id,model_code) VALUES (?,?)');
   for (const c of req.body.model_codes) ins.run(req.params.id, c);
@@ -362,19 +418,21 @@ router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) =
 // ========== 渠道模型管理 ==========
 router.get('/channels/:id/models', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
-  const models = db.prepare('SELECT * FROM models WHERE channel_id=? OR channel_id IS NULL ORDER BY sort_order ASC').all(req.params.id);
-  const channelModels = db.prepare('SELECT model_code FROM models WHERE channel_id=?').all(req.params.id).map(m=>m.model_code);
-  res.json({ data: models, channel_model_codes: channelModels });
+  const models = db.prepare('SELECT * FROM models ORDER BY sort_order ASC').all();
+  const mappings = db.prepare('SELECT model_code,upstream_model_name,status FROM channel_models WHERE channel_id=?').all(req.params.id);
+  res.json({ data: models, channel_model_codes: mappings.filter(m=>m.status==='active').map(m=>m.model_code), mappings });
 });
 
 router.put('/channels/:id/models', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
-  const { model_codes } = req.body;
-  db.prepare('UPDATE models SET channel_id=NULL WHERE channel_id=?').run(req.params.id);
-  if (model_codes && model_codes.length>0) {
-    const stmt = db.prepare('UPDATE models SET channel_id=?, updated_at=CURRENT_TIMESTAMP WHERE model_code=?');
-    for (const mc of model_codes) stmt.run(req.params.id, mc);
-  }
+  const { model_codes, mappings = {} } = req.body;
+  db.transaction(() => {
+    db.prepare('UPDATE channel_models SET status=\'inactive\',updated_at=CURRENT_TIMESTAMP WHERE channel_id=?').run(req.params.id);
+    const upsert = db.prepare(`INSERT INTO channel_models (channel_id,model_code,upstream_model_name,status)
+      VALUES (?,?,?,'active') ON CONFLICT(channel_id,model_code) DO UPDATE SET
+      upstream_model_name=excluded.upstream_model_name,status='active',updated_at=CURRENT_TIMESTAMP`);
+    for (const modelCode of (model_codes || [])) upsert.run(req.params.id, modelCode, mappings[modelCode] || modelCode);
+  });
   res.json({ message: '渠道模型已更新' });
 });
 
@@ -382,31 +440,39 @@ router.post('/channels/:id/sync-models', authenticate, requireAdmin('admin'), as
   const db = getDatabase();
   const channel = db.prepare('SELECT * FROM upstream_channels WHERE id=?').get(req.params.id);
   if (!channel) return res.status(404).json({ error: '渠道不存在' });
-  const provider = supportedProvider(channel.channel_name);
-  if (!provider) return res.status(400).json({ error: '仅支持 OpenAI、DeepSeek、Anthropic 渠道' });
-
   try {
     const baseUrl = channel.base_url.replace(/\/+$/, '');
     const upstream = await axios.get(`${baseUrl}/models`, {
       headers: { Authorization: `Bearer ${channel.api_key}` },
       timeout: 20000
     });
-    const modelCodes = normalizeUpstreamModels(upstream.data).filter(modelCode => inferProvider({ model_code: modelCode }) === provider);
+    const modelCodes = normalizeUpstreamModels(upstream.data);
     if (modelCodes.length === 0) return res.status(502).json({ error: '上游未返回任何模型' });
 
     let created = 0;
     let updated = 0;
     for (const modelCode of modelCodes) {
       const existing = db.prepare('SELECT id FROM models WHERE model_code=?').get(modelCode);
+      const provider = inferProvider({ model_code: modelCode });
       if (existing) {
-        db.prepare('UPDATE models SET upstream_model_name=?, channel_id=?, official_provider=?, official_model_id=COALESCE(official_model_id,?), status=\'active\', updated_at=CURRENT_TIMESTAMP WHERE id=?')
+        db.prepare(`UPDATE models SET upstream_model_name=COALESCE(upstream_model_name,?),
+          channel_id=COALESCE(channel_id,?),official_provider=COALESCE(?,official_provider),
+          official_model_id=COALESCE(official_model_id,?),status='active',updated_at=CURRENT_TIMESTAMP WHERE id=?`)
           .run(modelCode, channel.id, provider, modelCode, existing.id);
         updated++;
       } else {
-        db.prepare('INSERT INTO models (model_code,model_name,upstream_model_name,model_type,context_length,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,official_provider,official_model_id,channel_id,status,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,\'active\',?)')
-          .run(modelCode, modelCode, modelCode, inferModelType(modelCode), 128000, 1, 1, 1, 1, provider, modelCode, channel.id, 1000 + created);
+        db.prepare(`INSERT INTO models (model_code,model_name,upstream_model_name,model_type,context_length,
+          display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,
+          official_provider,official_model_id,official_pricing_mode,channel_id,status,sort_order)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'active',?)`)
+          .run(modelCode, modelCode, modelCode, inferModelType(modelCode), 128000, 1, 1, 1, 1,
+            provider || 'manual', modelCode, provider ? 'auto' : 'manual', channel.id, 1000 + created);
         created++;
       }
+      db.prepare(`INSERT INTO channel_models (channel_id,model_code,upstream_model_name,status)
+        VALUES (?,?,?,'active') ON CONFLICT(channel_id,model_code) DO UPDATE SET
+        upstream_model_name=excluded.upstream_model_name,status='active',updated_at=CURRENT_TIMESTAMP`)
+        .run(channel.id, modelCode, modelCode);
     }
 
     res.json({ message: `同步完成：新增 ${created}，更新 ${updated}`, created, updated, models: modelCodes });
@@ -416,18 +482,119 @@ router.post('/channels/:id/sync-models', authenticate, requireAdmin('admin'), as
   }
 });
 
+// ========== 路由分组：用户 Key 绑定分组，分组内再按优先级/权重/健康度选渠道 ==========
+router.get('/routing-groups', authenticate, requireAdmin('admin','operator'), (req, res) => {
+  const db = getDatabase();
+  const groups = db.prepare(`
+    SELECT rg.*,fallback.group_name AS fallback_group_name,
+           COUNT(DISTINCT rgc.channel_id) AS channel_count,
+           COUNT(DISTINCT CASE WHEN cm.status='active' AND m.status='active' THEN cm.model_code END) AS model_count,
+           COUNT(DISTINCT ak.id) AS key_count
+    FROM routing_groups rg
+    LEFT JOIN routing_groups fallback ON fallback.id=rg.fallback_group_id
+    LEFT JOIN routing_group_channels rgc ON rgc.group_id=rg.id AND rgc.status='active'
+    LEFT JOIN channel_models cm ON cm.channel_id=rgc.channel_id
+    LEFT JOIN models m ON m.model_code=cm.model_code
+    LEFT JOIN api_keys ak ON ak.routing_group_id=rg.id AND ak.status!='revoked'
+    GROUP BY rg.id ORDER BY CASE WHEN rg.status='active' THEN 0 ELSE 1 END,rg.id ASC
+  `).all();
+  const links = db.prepare(`
+    SELECT rgc.*,uc.channel_name,uc.base_url,uc.health_score,uc.status AS channel_status
+    FROM routing_group_channels rgc JOIN upstream_channels uc ON uc.id=rgc.channel_id
+    ORDER BY rgc.priority DESC,rgc.id ASC
+  `).all();
+  const groupModels = db.prepare("SELECT group_id,model_code FROM routing_group_models WHERE status='active' ORDER BY model_code").all();
+  res.json({ data: groups.map(group => ({
+    ...group,
+    model_count: listRoutingGroupModels(db, group.id).length,
+    channels: links.filter(link => link.group_id === group.id),
+    model_codes: groupModels.filter(item => item.group_id === group.id).map(item => item.model_code),
+  })) });
+});
+
+router.post('/routing-groups', authenticate, requireAdmin('admin'), (req, res) => {
+  const db = getDatabase();
+  const { group_name, description, fallback_group_id, status='active', channels=[], model_codes=[] } = req.body;
+  const restrictModels = req.body.restrict_models ? 1 : 0;
+  if (!String(group_name||'').trim()) return res.status(400).json({ error: '分组名称不能为空' });
+  if (!['active','inactive'].includes(status)) return res.status(400).json({ error: '分组状态无效' });
+  try {
+    const id = db.transaction(() => {
+      const result = db.prepare(`INSERT INTO routing_groups
+        (group_name,description,protocol_type,status,fallback_group_id,restrict_models) VALUES (?,?,'openai_compatible',?,?,?)`)
+        .run(String(group_name).trim(), description||'', status, fallback_group_id||null, restrictModels);
+      const insert = db.prepare(`INSERT INTO routing_group_channels
+        (group_id,channel_id,priority,weight,status) VALUES (?,?,?,?,?)`);
+      for (const channel of channels) insert.run(result.lastInsertRowid, channel.channel_id, channel.priority??0, channel.weight??100, channel.status||'active');
+      const insertModel = db.prepare("INSERT INTO routing_group_models (group_id,model_code,status) VALUES (?,?,'active')");
+      for (const modelCode of model_codes) insertModel.run(result.lastInsertRowid, modelCode);
+      return result.lastInsertRowid;
+    });
+    res.status(201).json({ message: '路由分组创建成功', id });
+  } catch (error) {
+    res.status(409).json({ error: error.message.includes('UNIQUE') ? '分组名称已存在' : '路由分组创建失败' });
+  }
+});
+
+router.put('/routing-groups/:id', authenticate, requireAdmin('admin'), (req, res) => {
+  const db = getDatabase();
+  const { group_name, description, fallback_group_id, status='active', channels=[], model_codes=[] } = req.body;
+  const restrictModels = req.body.restrict_models ? 1 : 0;
+  if (!String(group_name||'').trim()) return res.status(400).json({ error: '分组名称不能为空' });
+  if (Number(fallback_group_id) === Number(req.params.id)) return res.status(400).json({ error: '备用分组不能指向自己' });
+  try {
+    db.transaction(() => {
+      db.prepare(`UPDATE routing_groups SET group_name=?,description=?,fallback_group_id=?,status=?,restrict_models=?,
+        legacy_channel_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+        .run(String(group_name).trim(), description||'', fallback_group_id||null, status, restrictModels, req.params.id);
+      db.prepare('DELETE FROM routing_group_channels WHERE group_id=?').run(req.params.id);
+      const insert = db.prepare(`INSERT INTO routing_group_channels
+        (group_id,channel_id,priority,weight,status) VALUES (?,?,?,?,?)`);
+      for (const channel of channels) insert.run(req.params.id, channel.channel_id, channel.priority??0, channel.weight??100, channel.status||'active');
+      db.prepare('DELETE FROM routing_group_models WHERE group_id=?').run(req.params.id);
+      const insertModel = db.prepare("INSERT INTO routing_group_models (group_id,model_code,status) VALUES (?,?,'active')");
+      for (const modelCode of model_codes) insertModel.run(req.params.id, modelCode);
+    });
+    res.json({ message: '路由分组已更新' });
+  } catch (error) {
+    res.status(409).json({ error: error.message.includes('UNIQUE') ? '分组名称已存在' : '路由分组更新失败' });
+  }
+});
+
+router.patch('/routing-groups/:id/status', authenticate, requireAdmin('admin'), (req, res) => {
+  if (!['active','inactive'].includes(req.body.status)) return res.status(400).json({ error: '分组状态无效' });
+  getDatabase().prepare('UPDATE routing_groups SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.body.status, req.params.id);
+  res.json({ message: '分组状态已更新' });
+});
+
+router.delete('/routing-groups/:id', authenticate, requireAdmin('admin'), (req, res) => {
+  const db = getDatabase();
+  const used = db.prepare("SELECT COUNT(*) AS count FROM api_keys WHERE routing_group_id=? AND status!='revoked'").get(req.params.id);
+  if (used.count > 0) return res.status(409).json({ error: '该分组仍有 API Key 使用，不能删除' });
+  db.transaction(() => {
+    db.prepare('UPDATE routing_groups SET fallback_group_id=NULL WHERE fallback_group_id=?').run(req.params.id);
+    db.prepare('DELETE FROM routing_group_channels WHERE group_id=?').run(req.params.id);
+    db.prepare('DELETE FROM routing_group_models WHERE group_id=?').run(req.params.id);
+    db.prepare('DELETE FROM routing_groups WHERE id=?').run(req.params.id);
+  });
+  res.json({ message: '路由分组已删除' });
+});
+
 router.get('/channels', authenticate, requireAdmin('admin'), (req, res) => {
-  const channels = getDatabase().prepare('SELECT * FROM upstream_channels ORDER BY priority ASC').all();
+  const channels = getDatabase().prepare(`SELECT uc.*,GROUP_CONCAT(DISTINCT rg.group_name) AS group_names,
+    COUNT(DISTINCT cm.model_code) AS model_count FROM upstream_channels uc
+    LEFT JOIN routing_group_channels rgc ON rgc.channel_id=uc.id
+    LEFT JOIN routing_groups rg ON rg.id=rgc.group_id
+    LEFT JOIN channel_models cm ON cm.channel_id=uc.id AND cm.status='active'
+    GROUP BY uc.id ORDER BY uc.priority DESC,uc.id ASC`).all();
   res.json({ data: channels.map(c=>({...c, api_key: desensitize(c.api_key)})) });
 });
 
 router.post('/channels', authenticate, requireAdmin('admin'), (req, res) => {
-  const { channel_name, base_url, api_key, priority, weight } = req.body;
-  const provider = supportedProvider(channel_name);
-  if (!provider) return res.status(400).json({ error: '仅支持 OpenAI、DeepSeek、Anthropic 渠道' });
-  const existing = getDatabase().prepare('SELECT id FROM upstream_channels WHERE lower(channel_name)=?').get(provider);
-  if (existing) return res.status(409).json({ error: `${provider} 渠道已存在，请直接编辑` });
-  getDatabase().prepare('INSERT INTO upstream_channels (channel_name,base_url,api_key,priority,weight) VALUES (?,?,?,?,?)').run(provider, base_url, api_key, priority||0, weight||100);
+  const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible' } = req.body;
+  if (!String(channel_name||'').trim() || !String(base_url||'').trim() || !String(api_key||'').trim()) return res.status(400).json({ error: '渠道名称、上游地址和 API Key 不能为空' });
+  if (protocol_type !== 'openai_compatible') return res.status(400).json({ error: '当前版本仅支持 OpenAI 兼容协议' });
+  getDatabase().prepare('INSERT INTO upstream_channels (channel_name,base_url,api_key,priority,weight,protocol_type) VALUES (?,?,?,?,?,?)').run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type);
   res.status(201).json({ message: '渠道创建成功' });
 });
 
@@ -438,16 +605,16 @@ router.patch('/channels/:id/status', authenticate, requireAdmin('admin'), (req, 
 
 // 更新渠道信息（名称/地址/Key/权重）
 router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
-  const { channel_name, base_url, api_key, priority, weight } = req.body;
+  const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible' } = req.body;
   const db = getDatabase();
-  const provider = supportedProvider(channel_name);
-  if (!provider) return res.status(400).json({ error: '仅支持 OpenAI、DeepSeek、Anthropic 渠道' });
+  if (!String(channel_name||'').trim() || !String(base_url||'').trim()) return res.status(400).json({ error: '渠道名称和上游地址不能为空' });
+  if (protocol_type !== 'openai_compatible') return res.status(400).json({ error: '当前版本仅支持 OpenAI 兼容协议' });
   if (api_key && api_key.trim()) {
-    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, api_key=?, priority=?, weight=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
-      .run(provider, base_url, api_key, priority||0, weight||100, req.params.id);
+    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, api_key=?, priority=?, weight=?, protocol_type=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, req.params.id);
   } else {
-    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, priority=?, weight=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
-      .run(provider, base_url, priority||0, weight||100, req.params.id);
+    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, priority=?, weight=?, protocol_type=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), priority||0, weight||100, protocol_type, req.params.id);
   }
   res.json({ message: '渠道已更新' });
 });

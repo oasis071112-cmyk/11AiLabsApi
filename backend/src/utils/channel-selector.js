@@ -23,19 +23,25 @@ function weightedRoundRobin(channels, modelCode) {
   const available = channels.filter(c => {
     if (c.status !== 'active') return false;
     if (c.circuit_breaker_until && c.circuit_breaker_until > now) return false;
+    if (Number(c.health_score ?? 100) <= 0) return false;
+    if (Number(c.routing_weight ?? 100) <= 0) return false;
     return true;
   });
   if (available.length === 0) return null;
 
-  // 按 health_score 自动分配（健康分高的分到更多流量）
-  const scores = available.map(c => Math.max(1, (c.health_score || 100)));
+  // 先使用最高优先级，再按管理员权重与实时健康分共同分配流量。
+  const preferredPriority = Math.min(...available.map(c => Number(c.routing_priority || 0)));
+  const preferred = available.filter(c => Number(c.routing_priority || 0) === preferredPriority);
+  const scores = preferred.map(c =>
+    Number(c.health_score ?? 100) * Number(c.routing_weight ?? 100)
+  );
   const totalScore = scores.reduce((s, v) => s + v, 0);
   let rand = Math.random() * totalScore;
-  for (let i = 0; i < available.length; i++) {
+  for (let i = 0; i < preferred.length; i++) {
     rand -= scores[i];
-    if (rand <= 0) return available[i];
+    if (rand <= 0) return preferred[i];
   }
-  return available[available.length - 1];
+  return preferred[preferred.length - 1];
 }
 
 /**
@@ -93,16 +99,50 @@ async function healthCheck(db) {
  * @param {string} modelCode - 请求的模型编码
  * @returns {Object|null} 选中的渠道
  */
-function selectChannel(db, modelCode) {
-  // 先查模型对应的 channel_id
-  const model = db.prepare("SELECT channel_id FROM models WHERE model_code=? AND status='active'").get(modelCode);
+function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new Set(), excludedChannelIds = new Set()) {
+  if (routingGroupId) {
+    if (visitedGroups.has(routingGroupId)) return null;
+    visitedGroups.add(routingGroupId);
+
+    const group = db.prepare(`
+      SELECT id,fallback_group_id,restrict_models FROM routing_groups WHERE id=? AND status='active'
+    `).get(routingGroupId);
+    if (!group) return null;
+
+    if (Number(group.restrict_models) === 1) {
+      const allowed = db.prepare("SELECT id FROM routing_group_models WHERE group_id=? AND model_code=? AND status='active'")
+        .get(routingGroupId, modelCode);
+      if (!allowed) {
+        return group.fallback_group_id
+          ? selectChannel(db, modelCode, group.fallback_group_id, visitedGroups, excludedChannelIds)
+          : null;
+      }
+    }
+
+    const channels = db.prepare(`
+      SELECT c.*,cm.upstream_model_name,
+             rgc.priority AS routing_priority,rgc.weight AS routing_weight
+      FROM routing_group_channels rgc
+      JOIN upstream_channels c ON c.id=rgc.channel_id
+      JOIN channel_models cm ON cm.channel_id=c.id
+      JOIN models m ON m.model_code=cm.model_code
+      WHERE rgc.group_id=? AND rgc.status='active'
+        AND c.status='active' AND cm.status='active'
+        AND m.status='active' AND cm.model_code=?
+    `).all(routingGroupId, modelCode);
+    const selected = weightedRoundRobin(channels.filter(channel => !excludedChannelIds.has(channel.id)), modelCode);
+    if (selected) return selected;
+    return group.fallback_group_id
+      ? selectChannel(db, modelCode, group.fallback_group_id, visitedGroups, excludedChannelIds)
+      : null;
+  }
+
+  // 尚未迁移的调用方继续使用旧模型绑定，避免升级瞬间中断。
+  const model = db.prepare("SELECT channel_id,upstream_model_name FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model || !model.channel_id) return null;
-
-  // 只查询该渠道下的活跃上游
-  const channels = db.prepare("SELECT * FROM upstream_channels WHERE id=? AND status='active'").all(model.channel_id);
-  if (!channels || channels.length === 0) return null;
-
-  return weightedRoundRobin(channels, modelCode);
+  const channels = db.prepare("SELECT *,? AS upstream_model_name FROM upstream_channels WHERE id=? AND status='active'")
+    .all(model.upstream_model_name || modelCode, model.channel_id);
+  return weightedRoundRobin(channels.filter(channel => !excludedChannelIds.has(channel.id)), modelCode);
 }
 
 /**
@@ -115,10 +155,13 @@ function reportResult(db, channelId, success) {
   if (success) {
     db.prepare("UPDATE upstream_channels SET consecutive_failures=0, health_score=MIN(100,health_score+1) WHERE id=?").run(channelId);
   } else {
-    const now = new Date().toISOString();
-    // 失败时临时降级该渠道权重（不触发全量熔断）
+    const channel = db.prepare('SELECT consecutive_failures FROM upstream_channels WHERE id=?').get(channelId);
+    const failures = Number(channel?.consecutive_failures || 0) + 1;
+    const breakerMinutes = Math.min(30, Math.pow(2, failures));
+    const breakerUntil = new Date(Date.now() + breakerMinutes * 60_000).toISOString();
+    // 失败后进入指数退避熔断，避免下一请求立即再次命中同一故障渠道。
     db.prepare("UPDATE upstream_channels SET consecutive_failures=consecutive_failures+1, failure_count=failure_count+1, health_score=MAX(0,health_score-10), circuit_breaker_until=? WHERE id=?")
-      .run(now, channelId);
+      .run(breakerUntil, channelId);
   }
 }
 

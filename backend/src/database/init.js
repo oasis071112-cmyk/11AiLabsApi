@@ -3,69 +3,89 @@ const path = require('path');
 const fs = require('fs');
 const logger = require('../utils/logger');
 
-const SUPPORTED_PROVIDERS = ['openai', 'deepseek', 'anthropic'];
+function migrateRoutingGroups(database = db) {
+  if (!database) throw new Error('数据库未初始化');
 
-function providerFromChannelName(channelName) {
-  const name = String(channelName || '').toLowerCase();
-  return SUPPORTED_PROVIDERS.find(provider => name.includes(provider)) || null;
-}
+  return database.transaction(() => {
+    const channels = database.prepare(`
+      SELECT id,channel_name,priority,weight,status FROM upstream_channels ORDER BY id ASC
+    `).all();
 
-function providerFromModelCode(modelCode) {
-  const code = String(modelCode || '').toLowerCase();
-  if (/^(gpt-|o[1-9]|text-embedding|dall-e|tts-|whisper-)/.test(code)) return 'openai';
-  if (code.includes('deepseek')) return 'deepseek';
-  if (code.includes('claude')) return 'anthropic';
-  return null;
-}
-
-function keepOnlySupportedCatalog() {
-  const migrated = sqlDb.exec("SELECT config_value FROM system_config WHERE config_key='supported_catalog_cleanup_v2'");
-  if (migrated[0]?.values?.[0]?.[0] === 'done') return;
-
-  sqlDb.run('BEGIN IMMEDIATE');
-  try {
-    const channels = [];
-    const channelStmt = sqlDb.prepare('SELECT id,channel_name FROM upstream_channels ORDER BY id ASC');
-    while (channelStmt.step()) channels.push(channelStmt.getAsObject());
-    channelStmt.free();
-    const canonicalChannelIds = {};
     for (const channel of channels) {
-      const provider = providerFromChannelName(channel.channel_name);
-      if (provider && !canonicalChannelIds[provider]) canonicalChannelIds[provider] = channel.id;
+      let group = database.prepare('SELECT id FROM routing_groups WHERE legacy_channel_id=?').get(channel.id);
+      if (!group) {
+        const sameName = database.prepare('SELECT id FROM routing_groups WHERE group_name=?').get(channel.channel_name);
+        const groupName = sameName ? `${channel.channel_name}（迁移 ${channel.id}）` : channel.channel_name;
+        const result = database.prepare(`
+          INSERT INTO routing_groups (group_name,description,status,legacy_channel_id)
+          VALUES (?,?,?,?)
+        `).run(groupName, '由原渠道自动迁移', channel.status === 'active' ? 'active' : 'inactive', channel.id);
+        group = { id: result.lastInsertRowid };
+      }
+      database.prepare(`
+        INSERT OR IGNORE INTO routing_group_channels
+          (group_id,channel_id,priority,weight,status)
+        VALUES (?,?,?,?,?)
+      `).run(group.id, channel.id, channel.priority ?? 0, channel.weight ?? 100,
+        channel.status === 'active' ? 'active' : 'inactive');
     }
 
-    const models = [];
-    const modelStmt = sqlDb.prepare('SELECT id,model_code,official_provider FROM models');
-    while (modelStmt.step()) models.push(modelStmt.getAsObject());
-    modelStmt.free();
-    for (const model of models) {
-      const provider = SUPPORTED_PROVIDERS.includes(String(model.official_provider || '').toLowerCase())
-        ? String(model.official_provider).toLowerCase()
-        : providerFromModelCode(model.model_code);
-      const channelId = provider ? canonicalChannelIds[provider] : null;
-      if (!channelId) {
-        const deletePermissions = sqlDb.prepare('DELETE FROM api_key_permissions WHERE model_code=?');
-        deletePermissions.bind([model.model_code]); deletePermissions.step(); deletePermissions.free();
-        const deleteModel = sqlDb.prepare('DELETE FROM models WHERE id=?');
-        deleteModel.bind([model.id]); deleteModel.step(); deleteModel.free();
-        continue;
-      }
-      const updateModel = sqlDb.prepare('UPDATE models SET official_provider=?, official_model_id=COALESCE(official_model_id,?), channel_id=? WHERE id=?');
-      updateModel.bind([provider, model.model_code, channelId, model.id]); updateModel.step(); updateModel.free();
+    const legacyModels = database.prepare(`
+      SELECT model_code,upstream_model_name,channel_id,status
+      FROM models WHERE channel_id IS NOT NULL
+    `).all();
+    for (const model of legacyModels) {
+      database.prepare(`
+        INSERT OR IGNORE INTO channel_models
+          (channel_id,model_code,upstream_model_name,status)
+        VALUES (?,?,?,?)
+      `).run(model.channel_id, model.model_code,
+        model.upstream_model_name || model.model_code,
+        model.status === 'active' ? 'active' : 'inactive');
     }
-    for (const channel of channels) {
-      if (!Object.values(canonicalChannelIds).includes(channel.id)) {
-        const deleteChannel = sqlDb.prepare('DELETE FROM upstream_channels WHERE id=?');
-        deleteChannel.bind([channel.id]); deleteChannel.step(); deleteChannel.free();
+
+    const unassignedKeys = database.prepare(`
+      SELECT id FROM api_keys WHERE routing_group_id IS NULL ORDER BY id ASC
+    `).all();
+    for (const apiKey of unassignedKeys) {
+      const channelRows = database.prepare(`
+        SELECT DISTINCT m.channel_id
+        FROM api_key_permissions p
+        JOIN models m ON m.model_code=p.model_code
+        WHERE p.api_key_id=? AND p.status='active' AND m.channel_id IS NOT NULL
+        ORDER BY m.channel_id ASC
+      `).all(apiKey.id);
+      if (channelRows.length === 0) continue;
+
+      let groupId;
+      if (channelRows.length === 1) {
+        groupId = database.prepare('SELECT id FROM routing_groups WHERE legacy_channel_id=?')
+          .get(channelRows[0].channel_id)?.id;
+      } else {
+        const groupName = `兼容分组（旧 Key ${apiKey.id}）`;
+        let group = database.prepare('SELECT id FROM routing_groups WHERE group_name=?').get(groupName);
+        if (!group) {
+          const created = database.prepare(`
+            INSERT INTO routing_groups (group_name,description,status)
+            VALUES (?,?,'active')
+          `).run(groupName, '为跨渠道旧 Key 自动创建');
+          group = { id: created.lastInsertRowid };
+        }
+        groupId = group.id;
+        for (const row of channelRows) {
+          const channel = channels.find(item => item.id === row.channel_id);
+          database.prepare(`
+            INSERT OR IGNORE INTO routing_group_channels
+              (group_id,channel_id,priority,weight,status)
+            VALUES (?,?,?,?,?)
+          `).run(groupId, row.channel_id, channel?.priority ?? 0, channel?.weight ?? 100, 'active');
+        }
+      }
+      if (groupId) {
+        database.prepare('UPDATE api_keys SET routing_group_id=? WHERE id=?').run(groupId, apiKey.id);
       }
     }
-    sqlDb.run('DROP TABLE IF EXISTS channel_model_costs');
-    sqlDb.run("INSERT OR REPLACE INTO system_config (config_key,config_value,description,updated_at) VALUES ('supported_catalog_cleanup_v2','done','仅保留 OpenAI、DeepSeek、Anthropic 渠道及模型',CURRENT_TIMESTAMP)");
-    sqlDb.run('COMMIT');
-  } catch (error) {
-    try { sqlDb.run('ROLLBACK'); } catch (rollbackError) { logger.error('目录清理回滚失败', { error: rollbackError.message }); }
-    throw error;
-  }
+  });
 }
 
 const DB_PATH = process.env.DB_PATH || './data/proxy.db';
@@ -245,6 +265,7 @@ function createTables() {
   try { sqlDb.run('ALTER TABLE models ADD COLUMN official_unit_tokens INTEGER DEFAULT 1000000'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE models ADD COLUMN official_price_source TEXT'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE models ADD COLUMN official_price_updated_at DATETIME'); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE models ADD COLUMN official_pricing_mode TEXT DEFAULT 'auto'"); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS pricing_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT, rule_name TEXT NOT NULL, model_code TEXT,
@@ -260,6 +281,7 @@ function createTables() {
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
     key_name TEXT, key_hash TEXT UNIQUE NOT NULL, key_prefix TEXT NOT NULL,
     key_encrypted TEXT,
+    permission_mode TEXT DEFAULT 'legacy' CHECK(permission_mode IN ('legacy','group_dynamic')),
     status TEXT DEFAULT 'active' CHECK(status IN ('active','disabled','revoked')),
     rate_limit_per_min INTEGER DEFAULT 60, max_spend_limit REAL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP, expired_at DATETIME, last_used_at DATETIME,
@@ -269,6 +291,8 @@ function createTables() {
   sqlDb.run('CREATE INDEX IF NOT EXISTS idx_ak_hash ON api_keys(key_hash)');
   // 迁移：为已有 api_keys 表添加 key_encrypted 列
   try { sqlDb.run('ALTER TABLE api_keys ADD COLUMN key_encrypted TEXT'); } catch(e) { /* 列已存在，忽略 */ }
+  try { sqlDb.run('ALTER TABLE api_keys ADD COLUMN routing_group_id INTEGER REFERENCES routing_groups(id)'); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE api_keys ADD COLUMN permission_mode TEXT DEFAULT 'legacy'"); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS api_key_permissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, api_key_id INTEGER NOT NULL,
@@ -317,6 +341,57 @@ function createTables() {
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN consecutive_failures INTEGER DEFAULT 0"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_requests INTEGER DEFAULT 0"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_successes INTEGER DEFAULT 0"); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN protocol_type TEXT DEFAULT 'openai_compatible'"); } catch(e) {}
+
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS routing_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    protocol_type TEXT DEFAULT 'openai_compatible',
+    restrict_models INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive')),
+    fallback_group_id INTEGER REFERENCES routing_groups(id),
+    legacy_channel_id INTEGER UNIQUE REFERENCES upstream_channels(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  try { sqlDb.run('ALTER TABLE routing_groups ADD COLUMN restrict_models INTEGER DEFAULT 0'); } catch(e) {}
+
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS routing_group_channels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES routing_groups(id) ON DELETE CASCADE,
+    channel_id INTEGER NOT NULL REFERENCES upstream_channels(id) ON DELETE CASCADE,
+    priority INTEGER DEFAULT 0,
+    weight INTEGER DEFAULT 100,
+    status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(group_id,channel_id)
+  )`);
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_rgc_group ON routing_group_channels(group_id)');
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_rgc_channel ON routing_group_channels(channel_id)');
+
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS channel_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL REFERENCES upstream_channels(id) ON DELETE CASCADE,
+    model_code TEXT NOT NULL REFERENCES models(model_code) ON DELETE CASCADE,
+    upstream_model_name TEXT NOT NULL,
+    status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(channel_id,model_code)
+  )`);
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_cm_model ON channel_models(model_code)');
+
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS routing_group_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES routing_groups(id) ON DELETE CASCADE,
+    model_code TEXT NOT NULL REFERENCES models(model_code) ON DELETE CASCADE,
+    status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(group_id,model_code)
+  )`);
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_rgm_group ON routing_group_models(group_id)');
 
   // 渠道成本不参与产品计费，也不在管理端展示；旧表会在首次迁移时删除。
 
@@ -359,7 +434,7 @@ function createTables() {
   // API Key/用户组规则无法在通用用户模型页准确展示，停用后保证“看到的倍率=实际倍率”。
   sqlDb.run("UPDATE pricing_rules SET status='inactive' WHERE scope_type IN ('api_key','user_group') AND status='active'");
   sqlDb.run("UPDATE pricing_rules SET model_code=NULL WHERE model_code IS NOT NULL AND trim(model_code)='' ");
-  keepOnlySupportedCatalog();
+  // 不再删除非官方渠道；自定义 OpenAI 兼容渠道与模型是正式能力。
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT NOT NULL,
@@ -385,8 +460,15 @@ async function initDatabase() {
 
   // 包装 API
   db = wrapDb();
+  const routingMigration = db.prepare("SELECT config_value FROM system_config WHERE config_key='routing_groups_v1'").get();
+  if (routingMigration?.config_value !== 'done') {
+    migrateRoutingGroups(db);
+    db.prepare(`INSERT OR REPLACE INTO system_config
+      (config_key,config_value,description,updated_at)
+      VALUES ('routing_groups_v1','done','旧渠道、模型与 API Key 已迁移到路由分组',CURRENT_TIMESTAMP)`).run();
+  }
   console.log('✅ 数据库初始化完成');
   return db;
 }
 
-module.exports = { getDatabase, initDatabase, saveDatabase };
+module.exports = { getDatabase, initDatabase, saveDatabase, migrateRoutingGroups };

@@ -14,9 +14,9 @@
         <el-empty v-if="!group.keys.length" description="该用户暂无 API Key" :image-size="50"/>
         <div v-for="key in group.keys" :key="key.id" class="key-card">
           <div class="key-head"><div><span class="key-name">{{ key.key_name||'未命名 Key' }}</span><span class="key-code">{{ key.key_prefix }}***</span></div><el-tag :type="keyStatusType(key.status)" size="small">{{ keyStatusLabel(key.status) }}</el-tag></div>
-          <div class="key-meta"><span>创建：{{ formatTime(key.created_at) }}</span><span>最后使用：{{ formatTime(key.last_used_at) }}</span><span>每分钟限制：{{ key.rate_limit_per_min }}</span></div>
+          <div class="key-meta"><span v-if="key.group_name">路由分组：{{ key.group_name }}</span><span>创建：{{ formatTime(key.created_at) }}</span><span>最后使用：{{ formatTime(key.last_used_at) }}</span><span>每分钟限制：{{ key.rate_limit_per_min }}</span></div>
           <div class="permission-row"><span class="permission-label">支持模型</span><div class="permission-tags"><el-tag v-for="model in key.permissions" :key="model" size="small" effect="plain">{{ model }}</el-tag><span v-if="!key.permissions.length" class="empty-text">暂无权限</span></div></div>
-          <div class="key-actions"><el-button v-if="key.status!=='revoked'" size="small" :type="key.status==='active'?'warning':'success'" @click="toggleKey(key)">{{ key.status==='active'?'禁用':'启用' }}</el-button><el-button size="small" @click="editPerms(key)">编辑权限</el-button></div>
+          <div class="key-actions"><el-button v-if="key.status!=='revoked'" size="small" :type="key.status==='active'?'warning':'success'" @click="toggleKey(key)">{{ key.status==='active'?'禁用':'启用' }}</el-button><el-button v-if="key.permission_mode!=='group_dynamic'" size="small" @click="editPerms(key)">编辑权限</el-button><span v-else class="empty-text">模型权限随分组自动更新</span></div>
         </div>
       </div>
     </el-collapse-item>

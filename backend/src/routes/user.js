@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const { encrypt, decrypt, desensitize } = require('../utils/crypto');
 const { generateDocs } = require('../utils/channel-docs');
 const { buildBillingDetail } = require('../utils/billing-detail');
+const { listModelsForApiKey, listRoutingGroupModels } = require('../utils/routing-group-models');
 
 router.get('/wallet', authenticate, (req, res) => {
   const db = getDatabase();
@@ -62,40 +63,54 @@ router.get('/models', authenticate, (req, res) => {
 
 router.get('/channels', authenticate, (req, res) => {
   const db = getDatabase();
-  const channels = db.prepare("SELECT uc.id, uc.channel_name, COUNT(m.id) as model_count FROM upstream_channels uc LEFT JOIN models m ON m.channel_id=uc.id AND m.status='active' WHERE uc.status='active' GROUP BY uc.id ORDER BY uc.priority ASC").all();
-  res.json({ data: channels });
+  const groups = db.prepare(`
+    SELECT rg.id,rg.group_name AS channel_name,rg.description,rg.protocol_type,
+           COUNT(DISTINCT CASE WHEN m.status='active' AND cm.status='active' THEN m.model_code END) AS model_count
+    FROM routing_groups rg
+    LEFT JOIN routing_group_channels rgc ON rgc.group_id=rg.id AND rgc.status='active'
+    LEFT JOIN channel_models cm ON cm.channel_id=rgc.channel_id
+    LEFT JOIN models m ON m.model_code=cm.model_code
+    WHERE rg.status='active'
+    GROUP BY rg.id ORDER BY rg.id ASC
+  `).all();
+  res.json({ data: groups.map(group => ({ ...group, model_count: listRoutingGroupModels(db, group.id).length })) });
 });
 
 // ========== API Keys ==========
 
 router.get('/keys', authenticate, (req, res) => {
   const db = getDatabase();
-  const keys = db.prepare("SELECT id,key_name,key_prefix,status,rate_limit_per_min,max_spend_limit,created_at,expired_at,last_used_at FROM api_keys WHERE user_id=? AND status!='revoked' ORDER BY created_at DESC").all(req.user.id);
+  const keys = db.prepare(`
+    SELECT ak.id,ak.key_name,ak.key_prefix,ak.status,ak.rate_limit_per_min,ak.max_spend_limit,
+           ak.created_at,ak.expired_at,ak.last_used_at,ak.routing_group_id,ak.permission_mode,rg.group_name
+    FROM api_keys ak LEFT JOIN routing_groups rg ON rg.id=ak.routing_group_id
+    WHERE ak.user_id=? AND ak.status!='revoked' ORDER BY ak.created_at DESC
+  `).all(req.user.id);
   const keysWithModels = keys.map(k => {
     // 脱敏 key_prefix: sk-XXXX... → sk-XXX****XXXX
     k.key_prefix = desensitize(k.key_prefix);
-    const models = db.prepare("SELECT m.model_code,m.model_name,uc.channel_name FROM api_key_permissions akp JOIN models m ON akp.model_code=m.model_code AND m.status='active' LEFT JOIN upstream_channels uc ON m.channel_id=uc.id WHERE akp.api_key_id=? AND akp.status='active'").all(k.id);
-    const channelNames = [...new Set(models.map(m=>m.channel_name).filter(Boolean))];
-    return { ...k, models, model_count: models.length, channel_name: channelNames[0] || null, channel_names: channelNames };
+    const models = listModelsForApiKey(db, k);
+    return { ...k, models, model_count: models.length, channel_name: k.group_name || null, channel_names: k.group_name ? [k.group_name] : [] };
   });
   res.json({ data: keysWithModels });
 });
 
 router.post('/keys', authenticate, (req, res) => {
-  const { key_name, channel_id } = req.body;
-  if (!channel_id) return res.status(400).json({ error: '请选择分组' });
+  const { key_name } = req.body;
+  const routingGroupId = req.body.routing_group_id || req.body.channel_id;
+  if (!routingGroupId) return res.status(400).json({ error: '请选择分组' });
   const db = getDatabase();
-  const channel = db.prepare("SELECT * FROM upstream_channels WHERE id=? AND status='active'").get(channel_id);
-  if (!channel) return res.status(400).json({ error: '分组无效' });
+  const group = db.prepare("SELECT * FROM routing_groups WHERE id=? AND status='active'").get(routingGroupId);
+  if (!group) return res.status(400).json({ error: '分组无效' });
   const keyRaw = 'sk-' + uuidv4().replace(/-/g, '');
   const keyHash = bcrypt.hashSync(keyRaw, 10);
   const keyEncrypted = encrypt(keyRaw);           // AES 加密存储原密钥
   const keyPrefix = keyRaw.substring(0, 12);      // 原始前缀，列表页会脱敏
-  const result = db.prepare("INSERT INTO api_keys (user_id,key_name,key_hash,key_prefix,key_encrypted,status) VALUES (?,?,?,?,?,'active')").run(req.user.id, key_name||'未命名密钥', keyHash, keyPrefix, keyEncrypted);
-  const activeModels = db.prepare("SELECT model_code FROM models WHERE status='active' AND channel_id=?").all(channel_id);
+  const result = db.prepare("INSERT INTO api_keys (user_id,key_name,key_hash,key_prefix,key_encrypted,routing_group_id,permission_mode,status) VALUES (?,?,?,?,?,?,'group_dynamic','active')").run(req.user.id, key_name||'未命名密钥', keyHash, keyPrefix, keyEncrypted, routingGroupId);
+  const activeModels = listRoutingGroupModels(db, routingGroupId);
   const insertPerm = db.prepare('INSERT OR IGNORE INTO api_key_permissions (api_key_id,model_code) VALUES (?,?)');
   for (const m of activeModels) insertPerm.run(result.lastInsertRowid, m.model_code);
-  res.status(201).json({ message: 'API Key 创建成功', key: { id: result.lastInsertRowid, key_raw: keyRaw, key_prefix: desensitize(keyPrefix), key_name: key_name||'未命名密钥', channel_name: channel.channel_name } });
+  res.status(201).json({ message: 'API Key 创建成功', key: { id: result.lastInsertRowid, key_raw: keyRaw, key_prefix: desensitize(keyPrefix), key_name: key_name||'未命名密钥', channel_name: group.group_name, routing_group_id: routingGroupId } });
 });
 
 // 导出/恢复完整密钥（需验证密码）
@@ -225,11 +240,14 @@ router.get('/docs/channel', authenticate, (req, res) => {
   const { channel_name } = req.query;
   if (!channel_name) return res.status(400).json({ error: '缺少 channel_name 参数' });
   const db = getDatabase();
-  const channel = db.prepare("SELECT * FROM upstream_channels WHERE channel_name=? AND status='active'").get(channel_name);
-  if (!channel) return res.status(404).json({ error: '渠道不存在' });
-  const models = db.prepare("SELECT model_code, model_name FROM models WHERE channel_id=? AND status='active' ORDER BY sort_order ASC").all(channel.id);
-  // 获取当前用户的一个有效的 key_prefix
-  const apiKey = db.prepare("SELECT key_prefix FROM api_keys WHERE user_id=? AND status='active' ORDER BY created_at DESC LIMIT 1").get(req.user.id);
+  const group = db.prepare("SELECT * FROM routing_groups WHERE group_name=? AND status='active'").get(channel_name);
+  if (!group) return res.status(404).json({ error: '分组不存在' });
+  const apiKey = db.prepare(`SELECT id,key_prefix,routing_group_id,permission_mode FROM api_keys
+    WHERE user_id=? AND routing_group_id=? AND status='active' ORDER BY created_at DESC LIMIT 1`)
+    .get(req.user.id, group.id);
+  if (!apiKey) return res.status(404).json({ error: '当前账户没有该分组的有效 API Key' });
+  const models = listModelsForApiKey(db, apiKey);
+  // 获取当前用户在该分组下的有效 key_prefix
   const keyPrefix = apiKey ? desensitize(apiKey.key_prefix).substring(0, 15) : 'sk-your-key';
   const protocol = req.protocol;
   const host = req.get('host');

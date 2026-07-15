@@ -14,7 +14,7 @@
     <el-menu-item index="/admin"><el-icon><LayoutDashboard :size="16"/></el-icon>仪表盘</el-menu-item>
     <el-menu-item index="/admin/users"><el-icon><Users :size="16"/></el-icon>用户管理</el-menu-item>
     <el-menu-item index="/admin/orders"><el-icon><ShoppingCart :size="16"/></el-icon>额度订单</el-menu-item>
-    <el-menu-item index="/admin/channels"><el-icon><Share2 :size="16"/></el-icon>渠道管理</el-menu-item>
+    <el-menu-item index="/admin/channels"><el-icon><Share2 :size="16"/></el-icon>路由与渠道</el-menu-item>
     <el-menu-item index="/admin/models"><el-icon><Cpu :size="16"/></el-icon>模型管理</el-menu-item>
     <el-menu-item index="/admin/pricing"><el-icon><Percent :size="16"/></el-icon>倍率规则</el-menu-item>
     <el-menu-item index="/admin/keys"><el-icon><Key :size="16"/></el-icon>API Key</el-menu-item>
@@ -45,6 +45,6 @@
 import { computed } from 'vue';import { useRoute } from 'vue-router';import { useAuthStore } from '@/stores/auth'
 import { LayoutDashboard, Users, ShoppingCart, Cpu, Percent, Key, ScrollText, Share2, Settings, Lock } from '@lucide/vue'
 const route=useRoute(),authStore=useAuthStore()
-const pageTitle=computed(()=>{const m={'/admin':'仪表盘','/admin/users':'用户管理','/admin/orders':'额度购买订单','/admin/models':'模型管理','/admin/pricing':'倍率规则','/admin/keys':'API Key 管理','/admin/logs':'调用日志','/admin/channels':'渠道管理','/admin/settings':'系统设置','/admin/change-password':'修改密码'};return m[route.path]||'管理后台'})
+const pageTitle=computed(()=>{const m={'/admin':'仪表盘','/admin/users':'用户管理','/admin/orders':'额度购买订单','/admin/models':'模型管理','/admin/pricing':'倍率规则','/admin/keys':'API Key 管理','/admin/logs':'调用日志','/admin/channels':'路由与渠道','/admin/settings':'系统设置','/admin/change-password':'修改密码'};return m[route.path]||'管理后台'})
 const roleLabel=computed(()=>{const m={admin:'超级管理员',operator:'运营',finance:'财务'};return m[authStore.user?.role]||''})
 </script>

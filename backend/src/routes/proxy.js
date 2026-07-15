@@ -5,6 +5,7 @@ const { authenticateApiKey } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const { selectChannel, reportResult } = require('../utils/channel-selector');
+const { apiKeyCanUseModel, listModelsForApiKey } = require('../utils/routing-group-models');
 const { calculatePricing, extractUsage } = require('../utils/pricing-engine');
 const { resolveChatOutputLimit } = require('../utils/request-limits');
 const {
@@ -82,7 +83,7 @@ function insertUpstreamFailureLog(db, { requestId, userId, apiKeyId, modelCode, 
 
 function listModels(req, res) {
   const db = getDatabase();
-  const models = db.prepare("SELECT DISTINCT m.model_code,m.model_name FROM models m JOIN api_key_permissions akp ON m.model_code=akp.model_code AND akp.status='active' WHERE m.status='active' AND akp.api_key_id=?").all(req.apiKey.id);
+  const models = listModelsForApiKey(db, req.apiKey);
   res.json({ object: 'list', data: models.map(m => ({ id: m.model_code, object: 'model', created: 0, owned_by: 'ai-proxy' })) });
 }
 
@@ -158,6 +159,35 @@ function availableWalletBalance(db, userId) {
   return available;
 }
 
+const SAFE_FAILOVER_STATUSES = new Set([401, 403, 404, 429]);
+
+async function postWithSafeFailover({ db, modelCode, routingGroupId, initialChannel, endpoint, body, config }) {
+  let channel = initialChannel;
+  const excludedChannelIds = new Set();
+  while (channel) {
+    const requestBody = { ...body, model: channel.upstream_model_name || body.model || modelCode };
+    try {
+      const response = await axios.post(`${channel.base_url}/${endpoint}`, requestBody, config(channel));
+      return { response, channel, requestBody };
+    } catch (error) {
+      if (!SAFE_FAILOVER_STATUSES.has(Number(error.response?.status))) {
+        error.upstreamChannel = channel;
+        throw error;
+      }
+      const failedChannel = channel;
+      reportResult(db, channel.id, false);
+      error.failoverReported = true;
+      excludedChannelIds.add(channel.id);
+      channel = selectChannel(db, modelCode, routingGroupId, new Set(), excludedChannelIds);
+      if (!channel) {
+        error.upstreamChannel = failedChannel;
+        throw error;
+      }
+    }
+  }
+  throw new Error('暂无可用上游渠道');
+}
+
 // 兼容部分客户端直接 GET Base URL 来刷新模型列表。
 router.get('/', authenticateApiKey, listModels);
 router.get('/models', authenticateApiKey, listModels);
@@ -172,8 +202,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
   let isStream = req.body.stream === true;
   let upstreamConfirmed = false;
 
-  const permission = db.prepare("SELECT * FROM api_key_permissions WHERE api_key_id=? AND model_code=? AND status='active'").get(req.apiKey.id, modelCode);
-  if (!permission) {
+  if (!apiKeyCanUseModel(db, req.apiKey, modelCode)) {
     db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,'blocked',?,'unauthorized_model',?,?)")
       .run(requestId, req.userId, req.apiKey.id, modelCode, `模型 ${modelCode} 未授权`, req.ip, Date.now() - startTime);
     return res.status(403).json({ error: { message: `模型 ${modelCode} 未授权`, type: 'unauthorized_model' } });
@@ -204,20 +233,27 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     return res.status(402).json({ error: { message, type: 'insufficient_balance' } });
   }
 
-  channel = selectChannel(db, modelCode);
+  channel = selectChannel(db, modelCode, req.apiKey.routing_group_id);
   if (!channel) {
     releaseWalletReservation(db, req.userId, reservedAmount, requestId, '无可用上游渠道，释放冻结额度');
     return res.status(503).json({ error: { message: '暂无可用上游渠道', type: 'no_channel' } });
   }
-  upstreamBody.model = model.upstream_model_name || modelCode;
+  upstreamBody.model = channel.upstream_model_name || model.upstream_model_name || modelCode;
 
   try {
     if (isStream) {
       upstreamBody.stream_options = { ...(upstreamBody.stream_options || {}), include_usage: true };
-      const upstreamResp = await axios.post(`${channel.base_url}/chat/completions`, upstreamBody, {
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${channel.api_key}` },
-        responseType: 'stream', timeout: 300000,
+      const upstreamResult = await postWithSafeFailover({
+        db, modelCode, routingGroupId: req.apiKey.routing_group_id, initialChannel: channel,
+        endpoint: 'chat/completions', body: upstreamBody,
+        config: selected => ({
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${selected.api_key}` },
+          responseType: 'stream', timeout: 300000,
+        }),
       });
+      const upstreamResp = upstreamResult.response;
+      channel = upstreamResult.channel;
+      upstreamBody = upstreamResult.requestBody;
 
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -327,9 +363,16 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       return;
     }
 
-    const upstreamResponse = await axios.post(`${channel.base_url}/chat/completions`, upstreamBody, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${channel.api_key}` }, timeout: 120000,
+    const upstreamResult = await postWithSafeFailover({
+      db, modelCode, routingGroupId: req.apiKey.routing_group_id, initialChannel: channel,
+      endpoint: 'chat/completions', body: upstreamBody,
+      config: selected => ({
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${selected.api_key}` }, timeout: 120000,
+      }),
     });
+    const upstreamResponse = upstreamResult.response;
+    channel = upstreamResult.channel;
+    upstreamBody = upstreamResult.requestBody;
     upstreamConfirmed = true;
     if (!hasBillableUsage(upstreamResponse.data)) {
       const usage = fallbackChatUsage(upstreamBody, upstreamResponse.data);
@@ -359,13 +402,14 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     reportResult(db, channel.id, true);
     return res.json(upstreamResponse.data);
   } catch (error) {
+    if (error.upstreamChannel) channel = error.upstreamChannel;
     // 只有明确收到上游 HTTP 错误响应，才可确认本次没有成功结果并释放额度。
     // 网络超时/断连时上游可能已执行，必须保留冻结额度，不能免费放行。
     const executionUncertain = !upstreamConfirmed && !error.response;
     if (reservedAmount > 0 && !upstreamConfirmed && !executionUncertain) {
       try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放冻结额度失败]', releaseError); }
     }
-    if (channel?.id) reportResult(db, channel.id, false);
+    if (channel?.id && !error.failoverReported) reportResult(db, channel.id, false);
     if (upstreamConfirmed || executionUncertain) {
       insertSettlementFailureLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel?.id,
@@ -392,8 +436,7 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
   let reservedAmount = 0;
   let upstreamConfirmed = false;
 
-  const permission = db.prepare("SELECT * FROM api_key_permissions WHERE api_key_id=? AND model_code=? AND status='active'").get(req.apiKey.id, modelCode);
-  if (!permission) return res.status(403).json({ error: { message: `模型 ${modelCode} 未授权`, type: 'unauthorized_model' } });
+  if (!apiKeyCanUseModel(db, req.apiKey, modelCode)) return res.status(403).json({ error: { message: `模型 ${modelCode} 未授权`, type: 'unauthorized_model' } });
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
   if (Number(model.official_input_price) <= 0) return res.status(503).json({ error: { message: '该模型的官方价格尚未同步完成，暂不能计费调用', type: 'official_price_unavailable' } });
@@ -414,15 +457,21 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
     return res.status(402).json({ error: { message: error.message || '额度不足，请购买额度包后重试', type: 'insufficient_balance' } });
   }
 
-  const channel = selectChannel(db, modelCode);
+  let channel = selectChannel(db, modelCode, req.apiKey.routing_group_id);
   if (!channel) {
     releaseWalletReservation(db, req.userId, reservedAmount, requestId, '无可用上游渠道，释放冻结额度');
     return res.status(503).json({ error: { message: '暂无可用上游渠道', type: 'no_channel' } });
   }
   try {
-    const upstreamResponse = await axios.post(`${channel.base_url}/embeddings`, { ...req.body, model: model.upstream_model_name || modelCode }, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${channel.api_key}` }, timeout: 60000,
+    const upstreamResult = await postWithSafeFailover({
+      db, modelCode, routingGroupId: req.apiKey.routing_group_id, initialChannel: channel,
+      endpoint: 'embeddings', body: { ...req.body, model: channel.upstream_model_name || model.upstream_model_name || modelCode },
+      config: selected => ({
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${selected.api_key}` }, timeout: 60000,
+      }),
     });
+    const upstreamResponse = upstreamResult.response;
+    channel = upstreamResult.channel;
     upstreamConfirmed = true;
     if (!hasBillableUsage(upstreamResponse.data)) {
       const usage = fallbackEmbeddingUsage(req.body);
@@ -449,11 +498,12 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
     reportResult(db, channel.id, true);
     return res.json(upstreamResponse.data);
   } catch (error) {
+    if (error.upstreamChannel) channel = error.upstreamChannel;
     const executionUncertain = !upstreamConfirmed && !error.response;
     if (reservedAmount > 0 && !upstreamConfirmed && !executionUncertain) {
       try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放冻结额度失败]', releaseError); }
     }
-    reportResult(db, channel.id, false);
+    if (!error.failoverReported) reportResult(db, channel.id, false);
     if (upstreamConfirmed || executionUncertain) {
       insertSettlementFailureLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
