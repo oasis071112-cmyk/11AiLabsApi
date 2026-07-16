@@ -179,15 +179,15 @@ body::before {
 /* ========== 手机端 ========== */
 @media (max-width: 768px) {
   html, body, #app { min-height: 100%; }
-  body { font-size: 14px; overflow: hidden; }
+  body { font-size: 14px; overflow: auto; }
   body::before { opacity: .6; }
 
   .app-shell { padding: 0; gap: 0; flex-direction: column; }
-  .app-content { width: 100%; height: calc(100dvh - 58px); }
-  .app-main { width: 100%; height: calc(100dvh - 58px); -webkit-overflow-scrolling: touch; }
+  .app-content { width: 100%; height: calc(100dvh - 58px - env(safe-area-inset-top, 0px)); }
+  .app-main { width: 100%; height: calc(100dvh - 58px - env(safe-area-inset-top, 0px)); -webkit-overflow-scrolling: touch; }
   .mobile-topbar {
     display: flex; align-items: center; justify-content: space-between;
-    height: 58px; min-height: 58px; padding: 0 14px;
+    height: calc(58px + env(safe-area-inset-top, 0px)); min-height: calc(58px + env(safe-area-inset-top, 0px)); padding: 0 14px;
     padding-top: env(safe-area-inset-top);
     background: rgba(255,255,255,.96); border-bottom: 1px solid var(--border);
     position: relative; z-index: 30; backdrop-filter: blur(12px);
@@ -246,7 +246,7 @@ body::before {
   .admin-shell .el-radio-group { max-width: 100%; overflow-x: auto; flex-wrap: nowrap; }
   .admin-shell .el-radio-button { flex-shrink: 0; }
 
-  .auth-page { padding: 18px 12px; min-height: 100dvh !important; }
+  .auth-page { padding: 18px 12px; min-height: 100dvh !important; overflow-y: auto; }
   .auth-card { width: 100% !important; max-width: 420px; padding: 30px 22px !important; }
 }
 

@@ -8,7 +8,7 @@ const props=defineProps({data:{type:Array,default:()=>[]}})
 const chartElement=ref(null)
 let chart
 
-async function draw(){await nextTick();if(!chartElement.value||!props.data.length)return;chart?.dispose();chart=echarts.init(chartElement.value);chart.setOption({tooltip:{trigger:'axis'},legend:{data:['成功','失败']},grid:{left:32,right:16,top:42,bottom:26,containLabel:true},xAxis:{type:'category',data:props.data.map(item=>item.date)},yAxis:{type:'value'},series:[{name:'成功',type:'line',data:props.data.map(item=>item.success_calls),smooth:true,color:'#67c23a'},{name:'失败',type:'line',data:props.data.map(item=>item.failed_calls),smooth:true,color:'#f56c6c'}]})}
+async function draw(){await nextTick();if(!chartElement.value)return;if(!chart)chart=echarts.init(chartElement.value);if(!props.data.length){chart.clear();return}chart.setOption({tooltip:{trigger:'axis'},legend:{data:['成功','失败']},grid:{left:32,right:16,top:42,bottom:26,containLabel:true},xAxis:{type:'category',data:props.data.map(item=>item.date)},yAxis:{type:'value'},series:[{name:'成功',type:'line',data:props.data.map(item=>item.success_calls),smooth:true,color:'#67c23a'},{name:'失败',type:'line',data:props.data.map(item=>item.failed_calls),smooth:true,color:'#f56c6c'}]},true)}
 function resize(){chart?.resize()}
 watch(()=>props.data,draw,{deep:true})
 onMounted(()=>{draw();window.addEventListener('resize',resize)})

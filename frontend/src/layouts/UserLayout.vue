@@ -1,28 +1,28 @@
 <template>
 <div class="app-shell user-shell">
   <header class="mobile-topbar">
-    <button class="mobile-menu-button" type="button" aria-label="打开导航菜单" @click="drawerOpen=true"><Menu :size="22"/></button>
+    <button ref="triggerRef" class="mobile-menu-button" type="button" aria-label="打开导航菜单" @click="openDrawer"><Menu :size="22"/></button>
     <router-link to="/" class="mobile-brand"><img src="/logo-icon.svg" alt="11AiLabs"/><span>11AiLabs</span></router-link>
-    <button class="mobile-avatar" type="button" aria-label="打开用户菜单" @click="drawerOpen=true">{{ userInitial }}</button>
+    <button class="mobile-avatar" type="button" aria-label="打开用户菜单" @click="openDrawer">{{ userInitial }}</button>
   </header>
 
-  <button v-if="drawerOpen" class="drawer-backdrop" type="button" aria-label="关闭导航菜单" @click="drawerOpen=false"></button>
+  <button v-if="drawerOpen" class="drawer-backdrop" type="button" aria-label="关闭导航菜单" @click="closeDrawer"></button>
 
-  <aside class="app-sidebar user-sidebar" :class="{open:drawerOpen}">
+  <aside ref="drawerRef" class="app-sidebar user-sidebar" :class="{open:drawerOpen}" :aria-hidden="isMobile&&!drawerOpen" :inert="isMobile&&!drawerOpen?'':null">
     <div class="sidebar-mobile-head">
       <span>导航菜单</span>
-      <button type="button" aria-label="关闭导航菜单" @click="drawerOpen=false"><X :size="20"/></button>
+      <button type="button" aria-label="关闭导航菜单" @click="closeDrawer"><X :size="20"/></button>
     </div>
 
     <div class="sidebar-logo">
-      <router-link to="/" @click="drawerOpen=false">
+      <router-link to="/" @click="closeDrawer">
         <img src="/logo-icon.svg" alt="11AiLabs"/>
         <span>11AiLabs</span>
       </router-link>
     </div>
 
     <nav class="sidebar-nav">
-      <router-link v-for="item in navItems" :key="item.path" :to="item.path" class="sidebar-link" :class="{active:route.path===item.path}" @click="drawerOpen=false">
+      <router-link v-for="item in navItems" :key="item.path" :to="item.path" class="sidebar-link" :class="{active:route.path===item.path}" @click="closeDrawer">
         <component :is="item.icon" :size="18"/>
         <span>{{ item.label }}</span>
       </router-link>
@@ -48,14 +48,15 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { useMobileDrawer } from '@/composables/useMobileDrawer'
 import { LayoutDashboard, Wallet, Key, Cpu, ScrollText, Shield, LogOut, Lock, ShoppingCart, Menu, X } from '@lucide/vue'
 
 const route=useRoute(),router=useRouter(),authStore=useAuthStore(),appStore=useAppStore()
-const drawerOpen=ref(false)
+const { isMobile, drawerOpen, drawerRef, triggerRef, openDrawer, closeDrawer }=useMobileDrawer()
 const userInitial=computed(()=>(authStore.user?.username||'U').slice(0,1).toUpperCase())
 const navItems=[
   {path:'/',label:'控制台',icon:LayoutDashboard},
@@ -66,10 +67,9 @@ const navItems=[
   {path:'/logs',label:'调用记录',icon:ScrollText},
 ]
 
-function go(path){drawerOpen.value=false;router.push(path)}
-function logout(){drawerOpen.value=false;authStore.logout();router.push('/login')}
+function go(path){closeDrawer();router.push(path)}
+function logout(){closeDrawer();authStore.logout();router.push('/login')}
 
-watch(()=>route.fullPath,()=>{drawerOpen.value=false})
 onMounted(()=>{appStore.fetchPlatformInfo()})
 </script>
 
