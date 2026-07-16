@@ -18,8 +18,18 @@
 
   <el-alert title="⚠️ API Key 创建后仅展示一次，请立即保存" type="warning" show-icon :closable="false" style="margin-bottom:20px"/>
 
-  <!-- 毛玻璃表格 -->
-  <div class="glass-table kpi-appear-4">
+  <div v-if="isMobile" class="mobile-key-list kpi-appear-4" v-loading="loading">
+    <article v-for="row in keys" :key="row.id" class="mobile-key-card">
+      <div class="mobile-key-head"><div><span class="status-dot" :class="row.status==='active'?'dot-on':'dot-off'"></span><strong>{{ row.key_name }}</strong></div><el-tag :type="row.status==='active'?'success':'info'" size="small" effect="plain">{{ row.status==='active'?'启用':'禁用' }}</el-tag></div>
+      <code>{{ row.key_prefix }}</code>
+      <div class="mobile-key-meta"><span><small>分组</small>{{ row.channel_name||'未分组' }}</span><span><small>模型数</small>{{ row.models?.length||0 }} 个</span><span><small>最后使用</small>{{ formatBeijingTime(row.last_used_at) }}</span></div>
+      <div class="mobile-key-actions"><el-button size="small" type="primary" @click="openExport(row)">复制</el-button><el-button size="small" @click="toggleKey(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button><el-button v-if="row.channel_name" size="small" type="success" @click="openDocs(row)" :loading="docsLoading&&docsTarget===row"><BookOpen :size="13"/>文档</el-button><el-popconfirm title="确定删除？" @confirm="deleteKey(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm></div>
+    </article>
+    <el-empty v-if="!loading&&!keys.length" description="暂无 API Key"/>
+  </div>
+
+  <!-- 桌面端表格 -->
+  <div v-else class="glass-table kpi-appear-4">
     <el-table :data="keys" v-loading="loading" size="medium" style="background:transparent" :header-cell-style="{background:'transparent',borderColor:'rgba(0,0,0,0.06)',color:'#525252',fontWeight:600,fontSize:'11px',textTransform:'uppercase',letterSpacing:'.5px',textAlign:'center'}" :cell-style="{borderColor:'rgba(0,0,0,0.04)'}">
       <el-table-column label="Key名称" min-width="200" align="center">
         <template #default="{row}">
@@ -147,6 +157,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
 import { formatBeijingTime } from '@/utils/time'
+import { useMobile } from '@/composables/useMobile'
 import { Key, BookOpen, CircleCheck, Clipboard, Shield, RefreshCw, Loader2 } from '@lucide/vue'
 const keys=ref([]),loading=ref(false),createDialog=ref(false),resultDialog=ref(false),creating=ref(false),newKeyName=ref(''),newKeyRaw=ref('')
 const channels=ref([]),selectedChannelId=ref(null),channelLoading=ref(false)
@@ -156,6 +167,7 @@ const exportPwd=ref('')
 const docsDialog=ref(false),docsLoading=ref(false),docsTarget=ref(null),docsData=ref({}),docsChannelName=ref(''),docsCopied=ref(false)
 const tabs=[{key:'curl',label:'cURL'},{key:'python',label:'Python'},{key:'nodejs',label:'Node.js'}]
 const activeTab=ref('curl');const activeCode=computed(()=>docsData.value?.[activeTab.value]||'')
+const isMobile=useMobile()
 onMounted(()=>{fetchKeys()})
 async function fetchKeys(){loading.value=true;try{keys.value=(await api.get('/api/user/keys')).data.data}catch(e){}loading.value=false}
 async function openCreate(){createDialog.value=true;selectedChannelId.value=null;channelLoading.value=true;try{channels.value=(await api.get('/api/user/channels')).data.data}catch(e){}channelLoading.value=false}
@@ -203,4 +215,6 @@ async function copyDocsCode(){try{await navigator.clipboard.writeText(activeCode
 .kpi-appear-2{animation:appear-up .4s cubic-bezier(.4,0,.2,1) both;animation-delay:.1s}
 .kpi-appear-3{animation:appear-up .4s cubic-bezier(.4,0,.2,1) both;animation-delay:.15s}
 .kpi-appear-4{animation:appear-up .4s cubic-bezier(.4,0,.2,1) both;animation-delay:.2s}
+.mobile-key-list{display:grid;gap:10px;min-height:100px}.mobile-key-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px}.mobile-key-head,.mobile-key-head>div{display:flex;align-items:center;gap:9px}.mobile-key-head{justify-content:space-between}.mobile-key-card>code{display:block;color:#737373;font-size:11px;margin:7px 0 12px;overflow:hidden;text-overflow:ellipsis}.mobile-key-meta{display:grid;grid-template-columns:1fr 70px;gap:8px}.mobile-key-meta span{background:#f8fafc;border-radius:8px;padding:8px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobile-key-meta span:last-child{grid-column:1/-1}.mobile-key-meta small{display:block;color:#94a3b8;font-size:10px;margin-bottom:2px}.mobile-key-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.mobile-key-actions .el-button{margin:0;flex:1;min-width:64px}
+@media(max-width:768px){.kpi-card{padding:14px 16px}.filter-bar{padding:12px 14px}.filter-bar>div{width:100%;margin-left:0!important}.filter-bar .el-button--primary{flex:1}.kpi-row{margin-bottom:12px}}
 </style>

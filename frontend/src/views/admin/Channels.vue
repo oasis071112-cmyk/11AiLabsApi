@@ -111,4 +111,5 @@ function healthLabel(row){return row.status!=='active'?'未启用':Number(row.he
 
 <style scoped>
 .routing-page{padding-bottom:24px}.page-hint,.section-head p{font-size:12px;color:#94a3b8;margin:4px 0 0}.section-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:18px;overflow:hidden}.section-head{padding:16px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eef2f7}.section-head h4{margin:0;color:#0f172a}.mr-tag{margin:2px 4px 2px 0}.muted,.switch-help{color:#94a3b8;font-size:12px}.switch-help{margin-left:10px}
+@media(max-width:768px){.section-card{margin-bottom:12px}.section-head{padding:14px;align-items:flex-start;gap:12px;flex-wrap:wrap}.section-head .el-button{width:100%;margin:0}.switch-help{display:block;margin:6px 0 0}.routing-page :deep(.el-table__inner-wrapper){min-width:680px}.routing-page :deep(.el-dialog .el-table__inner-wrapper){min-width:620px}}
 </style>
