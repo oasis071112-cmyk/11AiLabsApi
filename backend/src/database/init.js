@@ -92,8 +92,30 @@ function migrateRoutingGroups(database = db) {
 const DB_PATH = process.env.DB_PATH || './data/proxy.db';
 if (process.env.NODE_ENV === 'test') {
   const resolvedDbPath = path.resolve(DB_PATH);
-  const tempDirectory = path.resolve(os.tmpdir()) + path.sep;
-  if (!process.env.DB_PATH || !resolvedDbPath.startsWith(tempDirectory)) {
+  const businessDbPath = path.resolve(__dirname, '../../data/proxy.db');
+  const dbParentPath = path.dirname(resolvedDbPath);
+  const realTempDirectory = fs.realpathSync(os.tmpdir());
+  const dbPathExists = fs.existsSync(resolvedDbPath);
+  let hasDanglingSymlink = false;
+  if (!dbPathExists) {
+    try {
+      hasDanglingSymlink = fs.lstatSync(resolvedDbPath).isSymbolicLink();
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  const realDbPath = dbPathExists
+    ? fs.realpathSync(resolvedDbPath)
+    : fs.existsSync(dbParentPath)
+      ? path.join(fs.realpathSync(dbParentPath), path.basename(resolvedDbPath))
+      : null;
+  const relativeToTemp = realDbPath ? path.relative(realTempDirectory, realDbPath) : '..';
+  const isInsideTemp = relativeToTemp !== ''
+    && relativeToTemp !== '..'
+    && !relativeToTemp.startsWith(`..${path.sep}`)
+    && !path.isAbsolute(relativeToTemp);
+  const isBusinessDb = path.relative(businessDbPath, resolvedDbPath) === '';
+  if (!process.env.DB_PATH || hasDanglingSymlink || isBusinessDb || !isInsideTemp) {
     throw new Error(`测试环境拒绝使用业务数据库：${resolvedDbPath}`);
   }
 }
