@@ -1,6 +1,7 @@
 const initSqlJs = require('sql.js');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const logger = require('../utils/logger');
 
 function migrateRoutingGroups(database = db) {
@@ -89,6 +90,13 @@ function migrateRoutingGroups(database = db) {
 }
 
 const DB_PATH = process.env.DB_PATH || './data/proxy.db';
+if (process.env.NODE_ENV === 'test') {
+  const resolvedDbPath = path.resolve(DB_PATH);
+  const tempDirectory = path.resolve(os.tmpdir()) + path.sep;
+  if (!process.env.DB_PATH || !resolvedDbPath.startsWith(tempDirectory)) {
+    throw new Error(`测试环境拒绝使用业务数据库：${resolvedDbPath}`);
+  }
+}
 let sqlDb = null;    // 原始 sql.js 实例
 let db = null;       // 包装后的实例
 let transactionDepth = 0;
