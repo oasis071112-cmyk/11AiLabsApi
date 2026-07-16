@@ -34,7 +34,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useMobileDrawer } from '@/composables/useMobileDrawer'
@@ -50,9 +50,16 @@ const pageTitle=computed(()=>titles[route.path]||'管理后台')
 const roleLabel=computed(()=>({admin:'超级管理员',operator:'运营',finance:'财务'}[authStore.user?.role]||''))
 const userInitial=computed(()=>(authStore.user?.username||'A').slice(0,1).toUpperCase())
 function logout(){closeDrawer();authStore.logout();router.push('/login')}
+onMounted(()=>{
+  if(!window.matchMedia('(min-width: 769px)').matches||navigator.connection?.saveData)return
+  const loaders=[()=>import('@/views/admin/Users.vue'),()=>import('@/views/admin/Orders.vue'),()=>import('@/views/admin/Channels.vue'),()=>import('@/views/admin/Models.vue'),()=>import('@/views/admin/Pricing.vue'),()=>import('@/views/admin/Keys.vue'),()=>import('@/views/admin/Logs.vue'),()=>import('@/views/admin/Settings.vue')]
+  const loadNext=()=>{const loader=loaders.shift();if(!loader)return;loader().finally(schedule)}
+  const schedule=()=>{'requestIdleCallback' in window?window.requestIdleCallback(loadNext,{timeout:1500}):window.setTimeout(loadNext,500)}
+  schedule()
+})
 </script>
 
 <style scoped>
-.admin-sidebar{background:#111827}.admin-logo{padding:20px 20px 16px;text-align:center;border-bottom:1px solid #1f2937}.admin-logo img{height:32px;margin-bottom:6px}.admin-logo div{font-size:14px;font-weight:700;color:#fff}.admin-menu{border-right:0;flex:1}.desktop-admin-header{background:#fff;border:1px solid var(--border);border-radius:12px;display:flex;justify-content:space-between;align-items:center;padding:0 24px;height:52px;margin-bottom:12px;flex-shrink:0;box-shadow:var(--shadow-sm)}.desktop-admin-header>span{font-size:15px;font-weight:700;color:#000}.desktop-admin-header>div{display:flex;align-items:center;gap:14px}.desktop-admin-header small{font-size:12px;color:var(--text-muted);font-weight:500}.desktop-admin-header strong{font-size:13px;font-weight:500}.admin-mobile-account{display:none}
+.admin-sidebar{background:#111827}.admin-logo{padding:20px 20px 16px;text-align:center;border-bottom:1px solid #1f2937}.admin-logo img{height:32px;margin-bottom:6px}.admin-logo div{font-size:14px;font-weight:700;color:#fff}.admin-menu{border-right:0;flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}.desktop-admin-header{background:#fff;border:1px solid var(--border);border-radius:12px;display:flex;justify-content:space-between;align-items:center;padding:0 24px;height:52px;margin-bottom:12px;flex-shrink:0;box-shadow:var(--shadow-sm)}.desktop-admin-header>span{font-size:15px;font-weight:700;color:#000}.desktop-admin-header>div{display:flex;align-items:center;gap:14px}.desktop-admin-header small{font-size:12px;color:var(--text-muted);font-weight:500}.desktop-admin-header strong{font-size:13px;font-weight:500}.admin-mobile-account{display:none}
 @media(max-width:768px){.desktop-admin-header{display:none}.admin-logo{padding-top:10px}.admin-mobile-account{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px max(14px,env(safe-area-inset-bottom));border-top:1px solid #1f2937;color:#fff}.admin-mobile-account div{min-width:0}.admin-mobile-account strong,.admin-mobile-account small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.admin-mobile-account small{color:#9ca3af;font-size:11px;margin-top:2px}.admin-mobile-account .el-button{margin:0;flex-shrink:0}.mobile-page-title{display:flex;flex-direction:column;min-width:0;text-align:center}.mobile-page-title small{font-size:10px;color:var(--text-muted);line-height:1.2}.mobile-page-title span{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.admin-avatar{background:#111827}}
 </style>

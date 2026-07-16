@@ -28,55 +28,14 @@
     </div>
   </div>
 
-  <!-- 2x2 球型图表 -->
-  <el-row :gutter="20" class="charts-row">
-    <!-- 消费趋势球型图 -->
-    <el-col :span="6">
-      <div class="chart-card">
-        <div class="chart-header"><TrendingUp :size="14" color="#409eff"/><span>消费趋势</span></div>
-        <div class="chart-body chart-sphere">
-          <v-chart :option="costGaugeOption" autoresize style="height:240px" v-if="dailyData.length"/>
-          <el-empty v-else description="暂无数据" :image-size="50" style="padding:30px 0"/>
-        </div>
-      </div>
-    </el-col>
-    <!-- Token消耗球型图 -->
-    <el-col :span="6">
-      <div class="chart-card">
-        <div class="chart-header"><Hash :size="14" color="#22c55e"/><span>Token 消耗</span></div>
-        <div class="chart-body chart-sphere">
-          <v-chart :option="tokenLiquidOption" autoresize style="height:240px" v-if="dailyData.length"/>
-          <el-empty v-else description="暂无数据" :image-size="50" style="padding:30px 0"/>
-        </div>
-      </div>
-    </el-col>
-    <!-- 模型费用分布球型图 -->
-    <el-col :span="6">
-      <div class="chart-card">
-        <div class="chart-header"><ChartPie :size="14" color="#f59e0b"/><span>费用分布</span></div>
-        <div class="chart-body chart-sphere">
-          <v-chart :option="modelPie3DOption" autoresize style="height:240px" v-if="stats.model_usage?.length"/>
-          <el-empty v-else description="暂无数据" :image-size="50" style="padding:30px 0"/>
-        </div>
-      </div>
-    </el-col>
-    <!-- 模型调用排行球型图 -->
-    <el-col :span="6">
-      <div class="chart-card">
-        <div class="chart-header"><BarChart3 :size="14" color="#8b5cf6"/><span>调用排行</span></div>
-        <div class="chart-body chart-sphere">
-          <v-chart :option="modelRankGaugeOption" autoresize style="height:240px" v-if="stats.model_usage?.length"/>
-          <el-empty v-else description="暂无数据" :image-size="50" style="padding:30px 0"/>
-        </div>
-      </div>
-    </el-col>
-  </el-row>
+  <div v-if="!chartsReady" class="charts-loading">调用分析加载中…</div>
+  <UsageCharts v-else :stats="stats" :daily-data="dailyData"/>
 
   <!-- 调用明细表 -->
   <div class="chart-card" style="margin-top:0">
     <div class="chart-header"><ClipboardList :size="14" color="#6366f1"/><span>最近调用记录</span><span class="chart-sub" style="cursor:pointer;color:#409eff" @click="openAllLogs">查看全部 →</span></div>
     <div class="chart-body" style="padding-top:0">
-      <el-table :data="recentLogs" stripe size="small" v-loading="loading">
+      <el-table class="desktop-log-table" :data="recentLogs" stripe size="small" v-loading="loading">
         <el-table-column label="时间" width="170"><template #default="{row}">{{ formatBeijingTime(row.created_at) }}</template></el-table-column>
         <el-table-column prop="model_code" label="模型" width="130"><template #default="{row}"><el-tag size="small" effect="plain">{{ row.model_code }}</el-tag></template></el-table-column>
         <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
@@ -86,6 +45,16 @@
         <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
         <el-table-column prop="error_message" label="备注" min-width="140" show-overflow-tooltip/>
       </el-table>
+      <div class="mobile-log-list" v-loading="loading">
+        <article v-for="row in recentLogs" :key="row.id||row.request_id" class="mobile-log-card">
+          <div class="mobile-log-head"><el-tag size="small" effect="plain">{{ row.model_code }}</el-tag><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></div>
+          <div class="mobile-log-time">{{ formatBeijingTime(row.created_at) }}</div>
+          <div class="mobile-log-usage"><span>输入 <strong>{{ number(row.input_tokens) }}</strong></span><span>输出 <strong>{{ number(row.output_tokens) }}</strong></span><span>扣费 <strong>{{ point(row.total_cost) }} 点</strong></span></div>
+          <el-button v-if="hasBillingDetail(row)" class="billing-detail-button" type="primary" size="small" @click="openBilling(row)">查看扣费计算过程</el-button>
+          <span v-else class="no-detail">历史记录无快照</span>
+        </article>
+        <el-empty v-if="!loading&&!recentLogs.length" description="暂无调用记录" :image-size="50"/>
+      </div>
     </div>
   </div>
 
@@ -146,19 +115,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { DollarSign, Activity, Coins, Target, TrendingUp, Hash, ChartPie, BarChart3, ClipboardList, RefreshCw } from '@lucide/vue'
-import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import { GaugeChart, PieChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
-import 'echarts-liquidfill'
+import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
+import { DollarSign, Activity, Coins, Target, ClipboardList, RefreshCw } from '@lucide/vue'
 import api from '@/api'
 import dayjs from 'dayjs'
 import { formatBeijingTime } from '@/utils/time'
 
-use([CanvasRenderer, GaugeChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
+const UsageCharts=defineAsyncComponent(()=>import('@/components/logs/UsageCharts.vue'))
 
 const stats = ref({})
 const modelList = ref([])
@@ -178,6 +141,7 @@ const logFilter = ref({ model: '', dateRange: [] })
 const billingDialog = ref(false)
 const selectedBilling = ref(null)
 const autoRefresh = ref(false)
+const chartsReady = ref(false)
 let refreshTimer = null
 
 const successRate = computed(() => {
@@ -293,16 +257,29 @@ function getPresetRange(preset) { const end = dayjs().format('YYYY-MM-DD'); cons
 
 async function fetchAll() {
   loading.value = true
-  try {
-    const [modelsRes, statsRes, dailyRes, logsRes] = await Promise.all([api.get('/api/user/models'),api.get('/api/user/stats'),api.get('/api/user/stats/daily',{params:{start_date:dateRange.value[0],end_date:dateRange.value[1]}}),api.get('/api/user/logs',{params:{limit:10,model:filterModel.value||undefined}})])
-    modelList.value=modelsRes.data.data||[];stats.value=statsRes.data;dailyData.value=dailyRes.data.data||[];recentLogs.value=logsRes.data.data||[]
-  }catch(e){}
+  const results=await Promise.allSettled([
+    api.get('/api/user/models'),
+    api.get('/api/user/stats'),
+    api.get('/api/user/stats/daily',{params:{start_date:dateRange.value[0],end_date:dateRange.value[1]}}),
+    api.get('/api/user/logs',{params:{limit:10,model:filterModel.value||undefined}}),
+  ])
+  if(results[0].status==='fulfilled')modelList.value=results[0].value.data.data||[]
+  if(results[1].status==='fulfilled')stats.value=results[1].value.data||{}
+  if(results[2].status==='fulfilled')dailyData.value=results[2].value.data.data||[]
+  if(results[3].status==='fulfilled')recentLogs.value=results[3].value.data.data||[]
   loading.value=false
+  scheduleCharts()
 }
 async function fetchLogs(){logLoading.value=true;try{const p={page:logPage.value,limit:20};if(logFilter.value.model)p.model=logFilter.value.model;if(logFilter.value.dateRange?.length===2){p.start_date=logFilter.value.dateRange[0];p.end_date=logFilter.value.dateRange[1]}const r=await api.get('/api/user/logs',{params:p});allLogs.value=r.data.data;logTotal.value=r.data.pagination.total}catch(e){}logLoading.value=false}
 function onPresetChange(val){if(val!=='custom'){dateRange.value=getPresetRange(val);fetchAll()}}
 function onCustomChange(val){if(val?.length===2){dateRange.value=val;fetchAll()}}
 function toggleAutoRefresh(){autoRefresh.value=!autoRefresh.value;if(autoRefresh.value){refreshTimer=setInterval(fetchAll,5000)}else{clearInterval(refreshTimer)}}
+function scheduleCharts(){
+  if(chartsReady.value)return
+  const show=()=>{chartsReady.value=true}
+  if('requestIdleCallback' in window)window.requestIdleCallback(show,{timeout:800})
+  else window.setTimeout(show,80)
+}
 onMounted(()=>{dateRange.value=getPresetRange('7d');fetchAll()})
 onUnmounted(()=>{clearInterval(refreshTimer)})
 </script>
@@ -326,6 +303,7 @@ onUnmounted(()=>{clearInterval(refreshTimer)})
 .chart-body { padding: 8px 12px 8px 12px }
 .no-detail { color: #94a3b8; font-size: 11px; }
 .chart-sphere { display: flex; align-items: center; justify-content: center; min-height: 240px }
+.charts-loading{height:84px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #e2e8f0;border-radius:10px;color:#64748b;margin-bottom:16px}.mobile-log-list{display:none}.mobile-log-card{border:1px solid #e2e8f0;border-radius:12px;padding:13px;background:#fff}.mobile-log-head{display:flex;justify-content:space-between;gap:8px}.mobile-log-time{font-size:11px;color:#94a3b8;margin:7px 0}.mobile-log-usage{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}.mobile-log-usage span{background:#f8fafc;border-radius:8px;padding:7px;font-size:11px;color:#64748b}.mobile-log-usage span:last-child{grid-column:1/-1}.mobile-log-usage strong{display:block;color:#0f172a;font-size:12px}.mobile-log-card .billing-detail-button{width:100%}
 .billing-summary{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:10px;margin-bottom:18px}.billing-summary>div,.snapshot-grid>div{background:#f8fafc;border-radius:9px;padding:11px 12px}.billing-summary span,.snapshot-grid span{display:block;font-size:11px;color:#94a3b8;margin-bottom:4px}.billing-summary strong,.snapshot-grid strong{color:#0f172a;font-size:13px}.billing-total{background:#eff6ff!important}.billing-total strong{color:#2563eb!important;font-size:16px!important}.snapshot-title,.breakdown-title{font-size:13px;font-weight:650;color:#334155;margin:16px 0 9px}.snapshot-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.breakdown-list{display:grid;gap:9px}.breakdown-item{border:1px solid #e2e8f0;border-radius:9px;padding:11px 13px}.breakdown-head{display:flex;justify-content:space-between;margin-bottom:7px;color:#334155}.breakdown-head strong{color:#2563eb}.breakdown-item code{display:block;background:#f8fafc;color:#475569;padding:8px;border-radius:6px;font-size:12px;white-space:normal;line-height:1.6}.billing-result{display:flex;align-items:center;gap:12px;background:#0f172a;color:#fff;border-radius:9px;padding:13px 15px;margin-top:12px}.billing-result strong{font-size:17px;color:#93c5fd}.billing-result .equals{margin-left:auto;color:#cbd5e1;font-size:12px}.billing-note{font-size:11px;color:#94a3b8;margin-top:9px}
-@media(max-width:768px){.kpi-card{padding:14px 16px}.filter-bar{padding:12px 14px}.filter-left{width:100%}.filter-left>*{max-width:100%}.charts-row{margin-bottom:4px}.chart-card{margin-bottom:12px}.chart-body{overflow-x:auto}.chart-sphere{min-height:210px}.chart-sphere>div{height:210px!important}.billing-summary{grid-template-columns:1fr}.snapshot-grid{grid-template-columns:1fr 1fr}.billing-result{align-items:flex-start;flex-direction:column;gap:4px}.billing-result .equals{margin-left:0}.breakdown-item code{overflow-wrap:anywhere}.chart-header{padding:12px}.chart-sub{white-space:nowrap}}
+@media(max-width:768px){.kpi-card{padding:14px 16px}.filter-bar{padding:12px 14px}.filter-left{width:100%}.filter-left>*{max-width:100%}.charts-row{margin-bottom:4px}.chart-card{margin-bottom:12px}.chart-body{overflow-x:auto}.desktop-log-table{display:none}.mobile-log-list{display:grid;gap:10px;padding:10px 0}.chart-sphere{min-height:210px}.chart-sphere>div{height:210px!important}.billing-summary{grid-template-columns:1fr}.snapshot-grid{grid-template-columns:1fr 1fr}.billing-result{align-items:flex-start;flex-direction:column;gap:4px}.billing-result .equals{margin-left:0}.breakdown-item code{overflow-wrap:anywhere}.chart-header{padding:12px}.chart-sub{white-space:nowrap}}
 </style>

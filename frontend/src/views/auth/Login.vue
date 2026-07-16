@@ -1,10 +1,10 @@
 <template>
 <div class="auth-page"><div class="auth-card">
 <div style="text-align:center;margin-bottom:28px"><img src="/logo-icon.svg" alt="11AiLabs" style="height:56px"/><div style="font-size:22px;font-weight:700;color:var(--text-primary);margin-top:10px;letter-spacing:1px">11AiLabs</div></div>
-<el-form :model="form" :rules="rules" ref="frm">
+<el-form :model="form" :rules="rules" ref="frm" @submit.prevent="handleLogin">
 <el-form-item prop="username"><el-input v-model="form.username" placeholder="用户名" size="large"/></el-form-item>
-<el-form-item prop="password"><el-input v-model="form.password" type="password" placeholder="密码" size="large" show-password/></el-form-item>
-<el-form-item><el-button type="primary" size="large" style="width:100%" :loading="loading" @click="handleLogin">登 录</el-button></el-form-item>
+<el-form-item prop="password"><el-input v-model="form.password" type="password" placeholder="密码" size="large" show-password @keyup.enter="handleLogin"/></el-form-item>
+<el-form-item><el-button native-type="submit" type="primary" size="large" style="width:100%" :loading="loading">登 录</el-button></el-form-item>
 </el-form>
 <div style="text-align:center;color:#909399">没有账号？<el-link type="primary" @click="$router.push('/register')">立即注册</el-link></div>
 </div></div>
@@ -27,9 +27,10 @@ const rules = {
 }
 
 async function handleLogin() {
-  const valid = await frm.value.validate().catch(() => false)
-  if (!valid) return
+  if (loading.value) return
   loading.value = true
+  const valid = await frm.value.validate().catch(() => false)
+  if (!valid) { loading.value = false; return }
   try {
     await authStore.login(form.username, form.password)
     ElMessage.success('登录成功')

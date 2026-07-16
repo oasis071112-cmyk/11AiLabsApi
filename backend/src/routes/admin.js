@@ -42,6 +42,39 @@ function supportedPricingScope(value) {
   return ['platform', 'user'].includes(value) ? value : null;
 }
 
+function routeError(status, code, message) {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  return error;
+}
+
+function grantQuotaOrder(db, orderId, operatorId) {
+  return db.transaction(() => {
+    const order = db.prepare('SELECT * FROM quota_orders WHERE id=?').get(orderId);
+    if (!order) throw routeError(404, 'ORDER_NOT_FOUND', '订单不存在');
+    if (!['pending', 'paid'].includes(order.status)) {
+      throw routeError(409, 'ORDER_ALREADY_PROCESSED', '订单已处理，请勿重复发放');
+    }
+    const existingGrant = db.prepare("SELECT id FROM wallet_transactions WHERE related_order_id=? AND transaction_type='purchase'").get(orderId);
+    if (existingGrant) throw routeError(409, 'ORDER_ALREADY_GRANTED', '该订单已有到账流水，请勿重复发放');
+    const updated = db.prepare("UPDATE quota_orders SET status='granted',granted_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('pending','paid')").run(orderId);
+    if (updated.changes !== 1) throw routeError(409, 'ORDER_ALREADY_PROCESSED', '订单状态已变化，请刷新后重试');
+    const wallet = db.prepare('SELECT * FROM wallets WHERE user_id=?').get(order.user_id);
+    if (!wallet) throw routeError(409, 'WALLET_NOT_FOUND', '用户钱包不存在，无法发放');
+    const beforeBalance = Number(wallet.quota_balance ?? wallet.recharge_balance ?? 0);
+    const afterBalance = beforeBalance + Number(order.amount);
+    db.prepare('UPDATE wallets SET quota_balance=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?').run(afterBalance, order.user_id);
+    db.prepare("INSERT INTO wallet_transactions (user_id,transaction_type,balance_type,amount,before_balance,after_balance,related_order_id,remark,operator_id) VALUES (?,'purchase','quota',?,?,?,?,'额度包发放到账',?)")
+      .run(order.user_id, Number(order.amount), beforeBalance, afterBalance, orderId, operatorId || null);
+  });
+}
+
+function sendRouteError(res, error) {
+  if (error?.status) return res.status(error.status).json({ error: error.message, code: error.code });
+  throw error;
+}
+
 router.get('/dashboard', authenticate, requireAdmin('admin','operator','finance'), (req, res) => {
   const db = getDatabase();
   const today = new Date().toISOString().split('T')[0];
@@ -82,7 +115,8 @@ router.get('/users/:id', authenticate, requireAdmin('admin','operator'), (req, r
   const keys = db.prepare('SELECT * FROM api_keys WHERE user_id=?').all(req.params.id);
   const recentLogs = db.prepare('SELECT * FROM api_request_logs WHERE user_id=? ORDER BY created_at DESC LIMIT 10').all(req.params.id);
   const recentTransactions = db.prepare('SELECT * FROM wallet_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 10').all(req.params.id);
-  res.json({ user, keys, recent_logs: recentLogs, recent_transactions: recentTransactions });
+  const pendingOrders = db.prepare("SELECT id,order_no,amount,status,created_at FROM quota_orders WHERE user_id=? AND status IN ('pending','paid') ORDER BY created_at DESC").all(req.params.id);
+  res.json({ user, keys, recent_logs: recentLogs, recent_transactions: recentTransactions, pending_orders: pendingOrders });
 });
 
 router.patch('/users/:id/status', authenticate, requireAdmin('admin'), (req, res) => {
@@ -94,21 +128,37 @@ router.patch('/users/:id/status', authenticate, requireAdmin('admin'), (req, res
 });
 
 router.post('/users/:id/adjust-balance', authenticate, requireAdmin('admin','finance'), (req, res) => {
-  const { amount, type, balance_type, remark } = req.body;
-  if (!amount || !type || !['manual_add','manual_deduct'].includes(type)) return res.status(400).json({ error: '参数无效' });
+  const { amount, type, balance_type, remark, allow_pending_order_conflict: allowPendingOrderConflict } = req.body;
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0 || !type || !['manual_add','manual_deduct'].includes(type)) return res.status(400).json({ error: '参数无效' });
   const db = getDatabase();
   const wallet = db.prepare('SELECT * FROM wallets WHERE user_id=?').get(req.params.id);
   if (!wallet) return res.status(404).json({ error: '钱包不存在' });
-  const changeAmount = type === 'manual_add' ? Math.abs(amount) : -Math.abs(amount);
-  const bt = (balance_type === 'recharge') ? 'quota' : (balance_type === 'gift') ? 'gift_quota' : (balance_type || 'quota');
-  const qb = wallet.quota_balance ?? wallet.recharge_balance ?? 0;
-  const gq = wallet.gift_quota ?? wallet.gift_balance ?? 0;
-  const beforeBalance = bt === 'quota' ? qb : gq;
+  const balanceType = (balance_type === 'recharge') ? 'quota' : (balance_type === 'gift') ? 'gift_quota' : (balance_type || 'quota');
+  if (!['quota', 'gift_quota'].includes(balanceType)) return res.status(400).json({ error: '点数类型无效' });
+  if (type === 'manual_add' && balanceType === 'quota' && allowPendingOrderConflict !== true) {
+    const pendingOrder = db.prepare("SELECT id,order_no,amount,status FROM quota_orders WHERE user_id=? AND amount=? AND status IN ('pending','paid') ORDER BY created_at DESC LIMIT 1")
+      .get(req.params.id, numericAmount);
+    if (pendingOrder) {
+      return res.status(409).json({
+        error: `该用户有一笔同额待处理订单（${pendingOrder.order_no}），请前往额度订单确认发放，避免重复入账`,
+        code: 'PENDING_ORDER_CONFLICT',
+        pending_order: pendingOrder,
+      });
+    }
+  }
+  const changeAmount = type === 'manual_add' ? numericAmount : -numericAmount;
+  const quotaBalance = wallet.quota_balance ?? wallet.recharge_balance ?? 0;
+  const giftQuotaBalance = wallet.gift_quota ?? wallet.gift_balance ?? 0;
+  const beforeBalance = balanceType === 'quota' ? quotaBalance : giftQuotaBalance;
   const afterBalance = beforeBalance + changeAmount;
   if (afterBalance < 0) return res.status(400).json({ error: '额度不足' });
-  if (bt === 'quota') db.prepare('UPDATE wallets SET quota_balance=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?').run(afterBalance, req.params.id);
-  else db.prepare('UPDATE wallets SET gift_quota=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?').run(afterBalance, req.params.id);
-  db.prepare('INSERT INTO wallet_transactions (user_id,transaction_type,balance_type,amount,before_balance,after_balance,remark,operator_id) VALUES (?,?,?,?,?,?,?,?)').run(req.params.id, type, bt, changeAmount, beforeBalance, afterBalance, remark||'管理员调额', req.user.id);
+  db.transaction(() => {
+    if (balanceType === 'quota') db.prepare('UPDATE wallets SET quota_balance=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?').run(afterBalance, req.params.id);
+    else db.prepare('UPDATE wallets SET gift_quota=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?').run(afterBalance, req.params.id);
+    const transactionRemark = allowPendingOrderConflict === true ? `${remark||'管理员调额'}（已确认与待处理订单无关）` : (remark||'管理员调额');
+    db.prepare('INSERT INTO wallet_transactions (user_id,transaction_type,balance_type,amount,before_balance,after_balance,remark,operator_id) VALUES (?,?,?,?,?,?,?,?)').run(req.params.id, type, balanceType, changeAmount, beforeBalance, afterBalance, transactionRemark, req.user.id);
+  });
   res.json({ message: '调额成功', before_balance: beforeBalance, after_balance: afterBalance });
 });
 
@@ -121,7 +171,7 @@ router.get('/recharge-orders', authenticate, requireAdmin('admin','operator','fi
   let where = 'WHERE 1=1'; const p = [];
   if (status) {
     // Map frontend status to DB status
-    const dbStatus = status === 'granted' ? 'granted' : status;
+    const dbStatus = status === 'credited' ? 'granted' : status;
     where += ' AND qo.status=?'; p.push(dbStatus);
   }
   try {
@@ -162,30 +212,12 @@ router.get('/quota-orders', authenticate, requireAdmin('admin','operator','finan
 
 router.patch('/recharge-orders/:id/confirm', authenticate, requireAdmin('admin','finance'), (req, res) => {
   const db = getDatabase();
-  let order;
   try {
-    order = db.prepare('SELECT * FROM quota_orders WHERE id=?').get(req.params.id);
-    if (!order) {
-      order = db.prepare('SELECT * FROM recharge_orders WHERE id=?').get(req.params.id);
-      if (!order) return res.status(404).json({ error: '订单不存在' });
-    }
-  } catch(e) {
-    order = db.prepare('SELECT * FROM recharge_orders WHERE id=?').get(req.params.id);
-    if (!order) return res.status(404).json({ error: '订单不存在' });
+    grantQuotaOrder(db, req.params.id, req.user.id);
+    res.json({ message: '额度包已发放到账' });
+  } catch (error) {
+    return sendRouteError(res, error);
   }
-  if (order.status!=='pending' && order.status!=='paid') return res.status(400).json({ error: '订单状态不允许' });
-  // Update quota_orders with granted status
-  try {
-    db.prepare("UPDATE quota_orders SET status='granted', granted_at=CURRENT_TIMESTAMP WHERE id=?").run(req.params.id);
-  } catch(e) {
-    db.prepare("UPDATE recharge_orders SET status='credited', credited_at=CURRENT_TIMESTAMP WHERE id=?").run(req.params.id);
-  }
-  const wallet = db.prepare('SELECT * FROM wallets WHERE user_id=?').get(order.user_id);
-  const qb = wallet.quota_balance ?? wallet.recharge_balance ?? 0;
-  const afterBalance = qb + order.amount;
-  db.prepare('UPDATE wallets SET quota_balance=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?').run(afterBalance, order.user_id);
-  db.prepare("INSERT INTO wallet_transactions (user_id,transaction_type,balance_type,amount,before_balance,after_balance,related_order_id,remark) VALUES (?,'purchase','quota',?,?,?,?,'额度包发放到账')").run(order.user_id, order.amount, qb, afterBalance, req.params.id);
-  res.json({ message: '额度包已发放到账' });
 });
 
 router.patch('/recharge-orders/:id/reject', authenticate, requireAdmin('admin','finance'), (req, res) => {
@@ -201,16 +233,12 @@ router.patch('/recharge-orders/:id/reject', authenticate, requireAdmin('admin','
 
 router.patch('/quota-orders/:id/grant', authenticate, requireAdmin('admin','finance'), (req, res) => {
   const db = getDatabase();
-  const order = db.prepare('SELECT * FROM quota_orders WHERE id=?').get(req.params.id);
-  if (!order) return res.status(404).json({ error: '订单不存在' });
-  if (order.status!=='pending' && order.status!=='paid') return res.status(400).json({ error: '订单状态不允许' });
-  db.prepare("UPDATE quota_orders SET status='granted', granted_at=CURRENT_TIMESTAMP WHERE id=?").run(req.params.id);
-  const wallet = db.prepare('SELECT * FROM wallets WHERE user_id=?').get(order.user_id);
-  const qb = wallet.quota_balance ?? wallet.recharge_balance ?? 0;
-  const afterBalance = qb + order.amount;
-  db.prepare('UPDATE wallets SET quota_balance=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?').run(afterBalance, order.user_id);
-  db.prepare("INSERT INTO wallet_transactions (user_id,transaction_type,balance_type,amount,before_balance,after_balance,related_order_id,remark) VALUES (?,'purchase','quota',?,?,?,?,'额度包发放到账')").run(order.user_id, order.amount, qb, afterBalance, req.params.id);
-  res.json({ message: '额度包已发放到账' });
+  try {
+    grantQuotaOrder(db, req.params.id, req.user.id);
+    res.json({ message: '额度包已发放到账' });
+  } catch (error) {
+    return sendRouteError(res, error);
+  }
 });
 
 router.patch('/quota-orders/:id/reject', authenticate, requireAdmin('admin','finance'), (req, res) => {

@@ -118,7 +118,7 @@
   <el-dialog v-model="resultDialog" width="540px" :close-on-click-modal="false" :close-on-press-escape="false"><template #header><div style="display:flex;align-items:center;gap:8px"><CircleCheck :size="20" color="#22c55e"/> API Key 创建成功</div></template>
     <el-alert title="请立即复制保存此 Key！关闭后无法再次查看" type="error" show-icon :closable="false"/>
     <div style="background:#f5f5f5;padding:12px;border-radius:6px;margin-top:16px;word-break:break-all;font-family:monospace;font-size:14px">{{ newKeyRaw }}</div>
-    <el-button type="primary" style="margin-top:12px" @click="copyKey"><Clipboard :size="14" style="margin-right:4px"/> 复制到剪贴板</el-button>
+    <el-button type="primary" style="margin-top:12px" @click="copyKey"><Clipboard :size="14" style="margin-right:4px"/> {{ keyCopied ? '已复制 ✓' : '复制到剪贴板' }}</el-button>
     <template #footer><el-button @click="resultDialog=false">我已知晓，关闭</el-button></template>
   </el-dialog>
 
@@ -132,7 +132,7 @@
 
   <el-dialog v-model="exportResultDialog" width="540px" :close-on-click-modal="false" :close-on-press-escape="false"><template #header><span style="font-weight:700;font-size:16px"><CircleCheck :size="18" style="margin-right:6px;vertical-align:middle;color:#22c55e"/> 完整 API Key</span></template>
     <div style="background:#f5f5f5;padding:12px;border-radius:6px;word-break:break-all;font-family:monospace;font-size:14px">{{ exportedRaw }}</div>
-    <el-button type="primary" style="margin-top:12px" @click="copyExported"><Clipboard :size="14" style="margin-right:4px"/> 复制到剪贴板</el-button>
+    <el-button type="primary" style="margin-top:12px" @click="copyExported"><Clipboard :size="14" style="margin-right:4px"/> {{ exportedCopied ? '已复制 ✓' : '复制到剪贴板' }}</el-button>
     <template #footer><el-button @click="exportResultDialog=false">关闭</el-button></template>
   </el-dialog>
 
@@ -157,6 +157,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
 import { formatBeijingTime } from '@/utils/time'
+import { copyText } from '@/utils/clipboard'
 import { useMobile } from '@/composables/useMobile'
 import { Key, BookOpen, CircleCheck, Clipboard, Shield, RefreshCw, Loader2 } from '@lucide/vue'
 const keys=ref([]),loading=ref(false),createDialog=ref(false),resultDialog=ref(false),creating=ref(false),newKeyName=ref(''),newKeyRaw=ref('')
@@ -164,6 +165,7 @@ const channels=ref([]),selectedChannelId=ref(null),channelLoading=ref(false)
 const selectedChannel=computed(()=>channels.value.find(c=>c.id===selectedChannelId.value))
 const exportDialog=ref(false),exportResultDialog=ref(false),exportTarget=ref(null),exportLoading=ref(false),exportedRaw=ref('')
 const exportPwd=ref('')
+const keyCopied=ref(false),exportedCopied=ref(false)
 const docsDialog=ref(false),docsLoading=ref(false),docsTarget=ref(null),docsData=ref({}),docsChannelName=ref(''),docsCopied=ref(false)
 const tabs=[{key:'curl',label:'cURL'},{key:'python',label:'Python'},{key:'nodejs',label:'Node.js'}]
 const activeTab=ref('curl');const activeCode=computed(()=>docsData.value?.[activeTab.value]||'')
@@ -174,12 +176,13 @@ async function openCreate(){createDialog.value=true;selectedChannelId.value=null
 async function createKey(){if(!selectedChannelId.value){ElMessage.warning('请选择分组');return};creating.value=true;try{const r=await api.post('/api/user/keys',{key_name:newKeyName.value,routing_group_id:selectedChannelId.value});newKeyRaw.value=r.data.key.key_raw;createDialog.value=false;resultDialog.value=true;newKeyName.value='';fetchKeys()}catch(e){}creating.value=false}
 async function toggleKey(k){await api.patch('/api/user/keys/'+k.id+'/toggle');ElMessage.success('操作成功');fetchKeys()}
 async function deleteKey(id){await api.delete('/api/user/keys/'+id);ElMessage.success('已删除');fetchKeys()}
-async function copyKey(){await navigator.clipboard.writeText(newKeyRaw.value);ElMessage.success('已复制')}
+async function showCopied(state,text){try{await copyText(text);state.value=true;ElMessage.success('复制成功');setTimeout(()=>state.value=false,2000)}catch(e){ElMessage.error('复制失败，请长按内容手动复制')}}
+async function copyKey(){await showCopied(keyCopied,newKeyRaw.value)}
 function openExport(row){exportTarget.value=row;exportPwd.value='';exportDialog.value=true}
 async function doExport(){if(!exportPwd.value){ElMessage.warning('请输入登录密码');return};exportLoading.value=true;try{const r=await api.post('/api/user/keys/'+exportTarget.value.id+'/export',{password:exportPwd.value});exportedRaw.value=r.data.key_raw;exportDialog.value=false;exportResultDialog.value=true;exportPwd.value=''}catch(e){}exportLoading.value=false}
-async function copyExported(){await navigator.clipboard.writeText(exportedRaw.value);ElMessage.success('已复制')}
+async function copyExported(){await showCopied(exportedCopied,exportedRaw.value)}
 async function openDocs(row){docsTarget.value=row;docsDialog.value=true;docsLoading.value=true;docsData.value={};docsChannelName.value=row.channel_name;activeTab.value='curl';docsCopied.value=false;try{const r=await api.get('/api/user/docs/channel?channel_name='+encodeURIComponent(row.channel_name));docsData.value=r.data}catch(e){ElMessage.error('获取文档失败')};docsLoading.value=false}
-async function copyDocsCode(){try{await navigator.clipboard.writeText(activeCode.value);docsCopied.value=true;ElMessage.success('已复制');setTimeout(()=>docsCopied.value=false,2000)}catch(e){}}
+async function copyDocsCode(){try{await copyText(activeCode.value);docsCopied.value=true;ElMessage.success('复制成功');setTimeout(()=>docsCopied.value=false,2000)}catch(e){ElMessage.error('复制失败，请长按代码手动复制')}}
 </script>
 
 <style scoped>
