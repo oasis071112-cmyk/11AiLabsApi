@@ -12,6 +12,9 @@ const entryStyle = html.match(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/)?.
 if (!entryScript || !entryStyle) {
   throw new Error('生产构建缺少首屏 JS 或 CSS 入口')
 }
+if (!html.includes('data-app-boot')) {
+  throw new Error('生产 HTML 缺少网络较慢时的首屏加载界面')
+}
 
 const assetSize = (publicPath) => fs.statSync(path.join(distDir, publicPath.replace(/^\//, ''))).size
 const scriptBytes = assetSize(entryScript)

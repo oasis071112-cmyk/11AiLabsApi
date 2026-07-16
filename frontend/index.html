@@ -1,5 +1,24 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><link rel="icon" href="/logo-icon.svg" type="image/svg+xml"/><title>11AiLabs</title></head>
-<body><div id="app"></div><script type="module" src="/src/main.js"></script></body>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <link rel="icon" href="/logo-icon.svg" type="image/svg+xml"/>
+  <title>11AiLabs</title>
+  <style>
+    .app-boot{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#f8fafc;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.app-boot__logo{display:grid;width:52px;height:52px;place-items:center;border-radius:14px;background:#111827;color:#fff;font-size:20px;font-weight:800;box-shadow:0 8px 24px rgba(15,23,42,.15)}.app-boot strong{font-size:20px;letter-spacing:1px}.app-boot p{margin:0;color:#64748b;font-size:14px}.app-boot__spinner{width:22px;height:22px;margin-top:4px;border:3px solid #dbe4ee;border-top-color:#64748b;border-radius:50%;animation:app-boot-spin .8s linear infinite}@keyframes app-boot-spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="app-boot" data-app-boot role="status" aria-live="polite">
+      <div class="app-boot__logo">11</div>
+      <strong>11AiLabs</strong>
+      <div class="app-boot__spinner" aria-hidden="true"></div>
+      <p>正在加载，请稍候…</p>
+    </div>
+  </div>
+  <noscript>请启用 JavaScript 后使用 11AiLabs。</noscript>
+  <script type="module" src="/src/main.js"></script>
+</body>
 </html>
