@@ -19,7 +19,7 @@
   </div>
 
   <div class="table-card" v-loading="loading">
-    <el-table :data="activeModels" stripe empty-text="该分类暂无已上架模型">
+    <el-table class="desktop-model-table" :data="activeModels" stripe empty-text="该分类暂无已上架模型">
       <el-table-column label="模型" min-width="230"><template #default="{row}"><div class="model-name">{{ row.model_name }}</div><div class="model-code">{{ row.model_code }}</div></template></el-table-column>
       <el-table-column label="分类" width="110"><template #default="{row}"><el-tag size="small" effect="plain">{{ typeLabel(row.model_type) }}</el-tag></template></el-table-column>
       <el-table-column label="官方价格 / 1M Token" min-width="290"><template #default="{row}"><div v-if="row.official_input_price||row.official_output_price" class="price-pair"><el-tag size="small" :type="row.official_pricing_mode==='manual'?'warning':'success'">{{ row.official_pricing_mode==='manual'?'手动锁定':'自动同步' }}</el-tag><span>输入 {{ currency(row.official_currency) }}{{ row.official_input_price }}</span><span>缓存 {{ currency(row.official_currency) }}{{ row.official_cached_input_price }}</span><span>输出 {{ currency(row.official_currency) }}{{ row.official_output_price }}</span></div><span v-else class="pending">待同步</span></template></el-table-column>
@@ -27,7 +27,7 @@
       <el-table-column label="状态" width="90"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'info'" size="small">{{ row.status==='active'?'已上架':'已下架' }}</el-tag></template></el-table-column>
       <el-table-column label="操作" width="165" fixed="right"><template #default="{row}"><el-button size="small" @click="openDialog(row)">编辑</el-button><el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggleStatus(row)">{{ row.status==='active'?'下架':'上架' }}</el-button></template></el-table-column>
     </el-table>
-    <el-collapse v-if="inactiveModels.length" v-model="expandedSections" class="inactive-models">
+    <el-collapse v-if="inactiveModels.length" v-model="expandedSections" class="inactive-models desktop-inactive-models">
       <el-collapse-item name="inactive">
         <template #title><span>已下架模型（{{ inactiveModels.length }}）</span><span class="collapse-hint">点击展开查看</span></template>
         <el-table :data="inactiveModels" stripe>
@@ -38,6 +38,30 @@
           <el-table-column label="状态" width="90"><template #default="{row}"><el-tag type="info" size="small">已下架</el-tag></template></el-table-column>
           <el-table-column label="操作" width="165" fixed="right"><template #default="{row}"><el-button size="small" @click="openDialog(row)">编辑</el-button><el-button size="small" type="success" @click="toggleStatus(row)">上架</el-button></template></el-table-column>
         </el-table>
+      </el-collapse-item>
+    </el-collapse>
+
+    <div class="mobile-model-list">
+      <article v-for="row in activeModels" :key="row.id" class="mobile-model-card">
+        <div class="mobile-model-head"><div><div class="model-name">{{ row.model_name }}</div><div class="model-code">{{ row.model_code }}</div></div><el-tag type="success" size="small">已上架</el-tag></div>
+        <div class="mobile-model-meta"><div><small>分类</small><el-tag size="small" effect="plain">{{ typeLabel(row.model_type) }}</el-tag></div><div><small>多模态</small><span>{{ row.is_multimodal?'支持':'不支持' }}</span></div><div><small>输入倍率</small><span>×{{ row.billing_multiplier_input }}</span></div><div><small>输出倍率</small><span>×{{ row.billing_multiplier_output }}</span></div></div>
+        <div class="mobile-model-price"><small>官方价格 / 1M Token</small><template v-if="row.official_input_price||row.official_output_price"><div><el-tag size="small" :type="row.official_pricing_mode==='manual'?'warning':'success'">{{ row.official_pricing_mode==='manual'?'手动锁定':'自动同步' }}</el-tag><span>输入 {{ currency(row.official_currency) }}{{ row.official_input_price }}</span><span>缓存 {{ currency(row.official_currency) }}{{ row.official_cached_input_price }}</span><span>输出 {{ currency(row.official_currency) }}{{ row.official_output_price }}</span></div></template><span v-else class="pending">待同步</span></div>
+        <div class="mobile-model-actions"><el-button @click="openDialog(row)">编辑</el-button><el-button type="warning" plain @click="toggleStatus(row)">下架</el-button></div>
+      </article>
+      <el-empty v-if="!activeModels.length" description="该分类暂无已上架模型" :image-size="56"/>
+    </div>
+
+    <el-collapse v-if="inactiveModels.length" v-model="expandedSections" class="inactive-models mobile-inactive-models">
+      <el-collapse-item name="inactive">
+        <template #title><span>已下架模型（{{ inactiveModels.length }}）</span><span class="collapse-hint">点击展开查看</span></template>
+        <div class="mobile-model-list mobile-inactive-list">
+          <article v-for="row in inactiveModels" :key="row.id" class="mobile-model-card">
+            <div class="mobile-model-head"><div><div class="model-name">{{ row.model_name }}</div><div class="model-code">{{ row.model_code }}</div></div><el-tag type="info" size="small">已下架</el-tag></div>
+            <div class="mobile-model-meta"><div><small>分类</small><el-tag size="small" effect="plain">{{ typeLabel(row.model_type) }}</el-tag></div><div><small>多模态</small><span>{{ row.is_multimodal?'支持':'不支持' }}</span></div><div><small>输入倍率</small><span>×{{ row.billing_multiplier_input }}</span></div><div><small>输出倍率</small><span>×{{ row.billing_multiplier_output }}</span></div></div>
+            <div class="mobile-model-price"><small>官方价格 / 1M Token</small><template v-if="row.official_input_price||row.official_output_price"><div><el-tag size="small" :type="row.official_pricing_mode==='manual'?'warning':'success'">{{ row.official_pricing_mode==='manual'?'手动锁定':'自动同步' }}</el-tag><span>输入 {{ currency(row.official_currency) }}{{ row.official_input_price }}</span><span>缓存 {{ currency(row.official_currency) }}{{ row.official_cached_input_price }}</span><span>输出 {{ currency(row.official_currency) }}{{ row.official_output_price }}</span></div></template><span v-else class="pending">待同步</span></div>
+            <div class="mobile-model-actions"><el-button @click="openDialog(row)">编辑</el-button><el-button type="success" plain @click="toggleStatus(row)">上架</el-button></div>
+          </article>
+        </div>
       </el-collapse-item>
     </el-collapse>
   </div>
@@ -91,6 +115,6 @@ function typeLabel(value){return types.find(item=>item.value===value)?.label||va
 </script>
 
 <style scoped>
-.models-page{padding-bottom:24px}.page-hint,.form-help{font-size:12px;color:#94a3b8;margin-top:4px}.provider-tabs :deep(.el-tabs__item){display:flex;gap:8px;align-items:center}.type-filter{display:flex;justify-content:space-between;align-items:center;margin:4px 0 16px}.table-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}.inactive-models{border-top:1px solid #e5e7eb}.inactive-models :deep(.el-collapse-item__header){padding:0 18px;font-size:13px;font-weight:600;color:#64748b}.inactive-models :deep(.el-collapse-item__content){padding:0}.collapse-hint{margin-left:auto;margin-right:10px;font-size:12px;font-weight:400;color:#94a3b8}.model-name{font-weight:600;color:#0f172a}.model-code{font-size:12px;color:#94a3b8;margin-top:4px;font-family:monospace}.price-pair,.multiplier{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.price-pair span,.multiplier span{white-space:nowrap}.pending{color:#e6a23c}
-@media(max-width:768px){.provider-tabs :deep(.el-tabs__nav-scroll){overflow-x:auto}.provider-tabs :deep(.el-tabs__nav){float:none}.type-filter{overflow-x:auto;margin-bottom:12px}.table-card :deep(.el-table__inner-wrapper){min-width:880px}.inactive-models :deep(.el-collapse-item__header){padding:0 12px}.collapse-hint{display:none}.model-code{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.models-page{padding-bottom:24px}.page-hint,.form-help{font-size:12px;color:#94a3b8;margin-top:4px}.provider-tabs :deep(.el-tabs__item){display:flex;gap:8px;align-items:center}.type-filter{display:flex;justify-content:space-between;align-items:center;margin:4px 0 16px}.table-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}.inactive-models{border-top:1px solid #e5e7eb}.inactive-models :deep(.el-collapse-item__header){padding:0 18px;font-size:13px;font-weight:600;color:#64748b}.inactive-models :deep(.el-collapse-item__content){padding:0}.collapse-hint{margin-left:auto;margin-right:10px;font-size:12px;font-weight:400;color:#94a3b8}.model-name{font-weight:600;color:#0f172a}.model-code{font-size:12px;color:#94a3b8;margin-top:4px;font-family:monospace}.price-pair,.multiplier{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.price-pair span,.multiplier span{white-space:nowrap}.pending{color:#e6a23c}.mobile-model-list,.mobile-inactive-models{display:none}
+@media(max-width:768px){.provider-tabs :deep(.el-tabs__nav-scroll){overflow-x:auto}.provider-tabs :deep(.el-tabs__nav){float:none}.type-filter{overflow-x:auto;margin-bottom:12px}.desktop-model-table,.desktop-inactive-models{display:none}.mobile-model-list{display:grid;gap:10px;padding:10px}.mobile-model-card{border:1px solid #e5e7eb;border-radius:12px;padding:13px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.03)}.mobile-model-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.mobile-model-head>div{min-width:0}.mobile-model-head .model-code{max-width:245px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobile-model-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;padding:12px 0}.mobile-model-meta>div,.mobile-model-price{display:flex;flex-direction:column;gap:3px;min-width:0}.mobile-model-meta small,.mobile-model-price small{font-size:11px;color:#94a3b8}.mobile-model-meta span{font-size:13px;color:#334155}.mobile-model-price{border-top:1px solid #f1f5f9;padding-top:10px}.mobile-model-price>div{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12px;color:#475569}.mobile-model-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:13px}.mobile-model-actions .el-button{width:100%;min-height:44px;margin:0}.mobile-inactive-models{display:block}.mobile-inactive-list{padding-top:0}.inactive-models :deep(.el-collapse-item__header){padding:0 12px}.collapse-hint{display:block}.model-code{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 </style>
