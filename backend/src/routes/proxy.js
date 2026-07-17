@@ -92,18 +92,45 @@ function estimatedInputTokens(value) {
   return Math.max(1, Buffer.byteLength(String(value ?? ''), 'utf8') + 256);
 }
 
-function assertSupportedBillableInput(value, key = '') {
-  const unsupportedKeys = new Set(['image_url', 'input_image', 'input_audio', 'audio', 'file', 'file_id']);
-  if (unsupportedKeys.has(String(key).toLowerCase())) throw new Error('当前仅支持可精确计费的纯文本输入');
+function unsupportedContentError(message) {
+  const error = new Error(message);
+  error.status = 400;
+  error.type = 'unsupported_content';
+  return error;
+}
+
+function modelSupportsImages(model) {
+  return model?.is_multimodal === true || Number(model?.is_multimodal) === 1;
+}
+
+function assertSupportedBillableInput(value, model, key = '') {
+  const normalizedKey = String(key).toLowerCase();
+  const imageKeys = new Set(['image_url', 'input_image']);
+  const unsupportedKeys = new Set(['input_audio', 'audio', 'file', 'file_id']);
+  if (imageKeys.has(normalizedKey)) {
+    if (!modelSupportsImages(model)) {
+      throw unsupportedContentError(`模型 ${model?.model_code || ''} 不支持图片输入，请移除图片或改用已标记“支持多模态”的模型`);
+    }
+    return;
+  }
+  if (unsupportedKeys.has(normalizedKey)) throw unsupportedContentError('当前仅支持文本和已配置的图片输入');
   if (Array.isArray(value)) {
-    for (const item of value) assertSupportedBillableInput(item, key);
+    for (const item of value) assertSupportedBillableInput(item, model, key);
     return;
   }
   if (!value || typeof value !== 'object') return;
-  if (key === 'content' && value.type && !['text', 'input_text', 'output_text'].includes(value.type)) {
-    throw new Error('当前仅支持可精确计费的纯文本输入');
+  if (key === 'content' && value.type) {
+    if (['image_url', 'input_image'].includes(value.type)) {
+      if (!modelSupportsImages(model)) {
+        throw unsupportedContentError(`模型 ${model?.model_code || ''} 不支持图片输入，请移除图片或改用已标记“支持多模态”的模型`);
+      }
+      return;
+    }
+    if (!['text', 'input_text', 'output_text'].includes(value.type)) {
+      throw unsupportedContentError('当前仅支持文本和已配置的图片输入');
+    }
   }
-  for (const [childKey, childValue] of Object.entries(value)) assertSupportedBillableInput(childValue, childKey);
+  for (const [childKey, childValue] of Object.entries(value)) assertSupportedBillableInput(childValue, model, childKey);
 }
 
 function assertEmbeddingTextInput(input) {
@@ -222,15 +249,16 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
   let upstreamBody;
   try {
     const available = availableWalletBalance(db, req.userId);
-    assertSupportedBillableInput(req.body.messages ?? req.body.input ?? req.body);
+    assertSupportedBillableInput(req.body.messages ?? req.body.input ?? req.body, model);
     // 先按保守输入估算并限制最大输出，再冻结全额可用余额，避免流式返回完成后无余额可扣。
     upstreamBody = capChatRequestToReservedBalance(db, model, multipliers, req.body, available);
     reservedAmount = reserveWalletBalance(db, req.userId, available, requestId).reserved;
   } catch (error) {
-    const message = error.message || '额度不足，请购买额度包后重试';
+    const isInputError = Number(error.status) === 400 && error.type === 'unsupported_content';
+    const message = error.message || (isInputError ? '请求内容不受支持' : '额度不足，请购买额度包后重试');
     db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,'blocked',?,'insufficient_balance',?,?)")
-      .run(requestId, req.userId, req.apiKey.id, modelCode, message, req.ip, Date.now() - startTime);
-    return res.status(402).json({ error: { message, type: 'insufficient_balance' } });
+      .run(requestId, req.userId, req.apiKey.id, modelCode, message, isInputError ? 'unsupported_content' : 'insufficient_balance', req.ip, Date.now() - startTime);
+    return res.status(isInputError ? 400 : 402).json({ error: { message, type: isInputError ? 'unsupported_content' : 'insufficient_balance' } });
   }
 
   channel = selectChannel(db, modelCode, req.apiKey.routing_group_id);

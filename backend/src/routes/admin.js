@@ -259,7 +259,7 @@ router.get('/models', authenticate, requireAdmin('admin','operator'), (req, res)
     LEFT JOIN upstream_channels uc ON uc.id=cm.channel_id
     GROUP BY m.id ORDER BY CASE WHEN m.status='active' THEN 0 ELSE 1 END,m.sort_order ASC
   `).all();
-  res.json({ data: models });
+  res.json({ data: models.map(model => ({ ...model, is_multimodal: Number(model.is_multimodal) === 1 })) });
 });
 
 router.post('/models', authenticate, requireAdmin('admin'), (req, res) => {
@@ -299,7 +299,7 @@ router.put('/models/:id', authenticate, requireAdmin('admin'), (req, res) => {
     official_provider=?,official_model_id=?,official_currency=?,official_input_price=?,official_cached_input_price=?,
     official_output_price=?,official_unit_tokens=?,official_pricing_mode=?,official_price_source=?,
     official_price_updated_at=CURRENT_TIMESTAMP,status=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(
-    model_name, upstream_model_name, model_type, context_length, is_multimodal?1:0, description,
+    model_name, upstream_model_name, model_type, context_length, is_multimodal?1:0, description||'',
     inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier,
     pricing.provider, official_model_id||null, pricing.currency, pricing.input, pricing.cached, pricing.output,
     pricing.unitTokens, pricing.mode, pricing.mode === 'manual' ? '管理员手动录入' : null,

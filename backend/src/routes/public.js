@@ -13,7 +13,7 @@ router.get('/info', (req, res) => {
 router.get('/models', (req, res) => {
   const db = getDatabase();
   const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,billing_multiplier_input,billing_multiplier_output FROM models WHERE status='active' ORDER BY sort_order ASC").all();
-  res.json({ data: models });
+  res.json({ data: models.map(model => ({ ...model, is_multimodal: Number(model.is_multimodal) === 1 })) });
 });
 
 module.exports = router;

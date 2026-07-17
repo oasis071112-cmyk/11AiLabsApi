@@ -56,7 +56,8 @@ router.get('/models', authenticate, (req, res) => {
   const ruleForModel = db.prepare("SELECT * FROM pricing_rules WHERE (model_code=? OR model_code IS NULL) AND status='active' AND (start_time IS NULL OR start_time<=?) AND (end_time IS NULL OR end_time>=?) AND ((scope_type='user' AND scope_id=?) OR scope_type='platform') ORDER BY CASE scope_type WHEN 'user' THEN 2 WHEN 'platform' THEN 1 END DESC, priority DESC LIMIT 1");
   const data = models.map(model => {
     const rule = ruleForModel.get(model.model_code, now, now, req.user.id);
-    return rule ? { ...model, billing_multiplier_input: rule.billing_multiplier_input, billing_multiplier_output: rule.billing_multiplier_output } : model;
+    const normalizedModel = { ...model, is_multimodal: Number(model.is_multimodal) === 1 };
+    return rule ? { ...normalizedModel, billing_multiplier_input: rule.billing_multiplier_input, billing_multiplier_output: rule.billing_multiplier_output } : normalizedModel;
   });
   res.json({ data });
 });

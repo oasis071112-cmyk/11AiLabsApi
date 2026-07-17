@@ -80,8 +80,9 @@ watch([activeProvider,activeType],()=>{expandedSections.value=[]})
 const emptyForm=()=>({model_code:'',model_name:'',upstream_model_name:'',model_type:'llm',context_length:4096,is_multimodal:false,multiplier_input:1,multiplier_output:1,official_provider:activeProvider.value,official_model_id:'',official_pricing_mode:'auto',official_currency:activeProvider.value==='deepseek'?'CNY':'USD',official_input_price:0,official_cached_input_price:0,official_output_price:0,status:'active',sort_order:0})
 const form=ref(emptyForm())
 onMounted(fetchModels)
-async function fetchModels(){loading.value=true;try{models.value=(await api.get('/api/admin/models')).data.data||[]}catch(e){}loading.value=false}
-function openDialog(row){isEdit.value=!!row;form.value=row?{...row,official_pricing_mode:row.official_pricing_mode||'auto',multiplier_input:row.billing_multiplier_input,multiplier_output:row.billing_multiplier_output}:emptyForm();dialogVisible.value=true}
+const asMultimodal=value=>value===true||Number(value)===1
+async function fetchModels(){loading.value=true;try{models.value=((await api.get('/api/admin/models')).data.data||[]).map(model=>({...model,is_multimodal:asMultimodal(model.is_multimodal)}))}catch(e){}loading.value=false}
+function openDialog(row){isEdit.value=!!row;form.value=row?{...row,is_multimodal:asMultimodal(row.is_multimodal),official_pricing_mode:row.official_pricing_mode||'auto',multiplier_input:row.billing_multiplier_input,multiplier_output:row.billing_multiplier_output}:emptyForm();dialogVisible.value=true}
 async function save(){saving.value=true;try{if(isEdit.value)await api.put(`/api/admin/models/${form.value.id}`,form.value);else await api.post('/api/admin/models',form.value);ElMessage.success('保存成功');dialogVisible.value=false;fetchModels()}catch(e){}saving.value=false}
 async function toggleStatus(row){const status=row.status==='active'?'inactive':'active';await api.patch(`/api/admin/models/${row.id}/status`,{status});ElMessage.success('状态已更新');fetchModels()}
 async function syncPricing(){syncing.value=true;try{const r=await api.post('/api/admin/pricing-sync');ElMessage.success(`同步完成：更新 ${r.data.official_pricing.updated} 个模型，USD/CNY=${r.data.exchange_rate.rate}`);fetchModels()}catch(e){}syncing.value=false}
