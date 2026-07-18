@@ -3,11 +3,13 @@ const axios = require('axios');
 const router = express.Router();
 const { getDatabase } = require('../database/init');
 const { authenticate, requireAdmin } = require('../middleware/auth');
-const { desensitize } = require('../utils/crypto');
 const { normalizeUpstreamModels, inferModelType } = require('../utils/model-sync');
 const { syncOfficialPricing, syncUsdCnyRate, inferProvider } = require('../utils/pricing-sync');
 const { listModelsForApiKey, listRoutingGroupModels } = require('../utils/routing-group-models');
 const { parseChannelCapabilities, serializeChannelCapabilities } = require('../utils/channel-capabilities');
+const { encrypt, desensitize } = require('../utils/crypto');
+const { normalizedBaseUrl } = require('../utils/easypay');
+const { grantQuotaOrder } = require('../utils/quota-orders');
 
 const SUPPORTED_PROVIDERS = ['openai', 'deepseek', 'anthropic'];
 function supportedProvider(value) {
@@ -48,27 +50,6 @@ function routeError(status, code, message) {
   error.status = status;
   error.code = code;
   return error;
-}
-
-function grantQuotaOrder(db, orderId, operatorId) {
-  return db.transaction(() => {
-    const order = db.prepare('SELECT * FROM quota_orders WHERE id=?').get(orderId);
-    if (!order) throw routeError(404, 'ORDER_NOT_FOUND', '订单不存在');
-    if (!['pending', 'paid'].includes(order.status)) {
-      throw routeError(409, 'ORDER_ALREADY_PROCESSED', '订单已处理，请勿重复发放');
-    }
-    const existingGrant = db.prepare("SELECT id FROM wallet_transactions WHERE related_order_id=? AND transaction_type='purchase'").get(orderId);
-    if (existingGrant) throw routeError(409, 'ORDER_ALREADY_GRANTED', '该订单已有到账流水，请勿重复发放');
-    const updated = db.prepare("UPDATE quota_orders SET status='granted',granted_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('pending','paid')").run(orderId);
-    if (updated.changes !== 1) throw routeError(409, 'ORDER_ALREADY_PROCESSED', '订单状态已变化，请刷新后重试');
-    const wallet = db.prepare('SELECT * FROM wallets WHERE user_id=?').get(order.user_id);
-    if (!wallet) throw routeError(409, 'WALLET_NOT_FOUND', '用户钱包不存在，无法发放');
-    const beforeBalance = Number(wallet.quota_balance ?? wallet.recharge_balance ?? 0);
-    const afterBalance = beforeBalance + Number(order.amount);
-    db.prepare('UPDATE wallets SET quota_balance=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?').run(afterBalance, order.user_id);
-    db.prepare("INSERT INTO wallet_transactions (user_id,transaction_type,balance_type,amount,before_balance,after_balance,related_order_id,remark,operator_id) VALUES (?,'purchase','quota',?,?,?,?,'额度包发放到账',?)")
-      .run(order.user_id, Number(order.amount), beforeBalance, afterBalance, orderId, operatorId || null);
-  });
 }
 
 function sendRouteError(res, error) {
@@ -710,6 +691,68 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
       .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), priority||0, weight||100, protocol_type, serializedCapabilities, req.params.id);
   }
   res.json({ message: '渠道已更新' });
+});
+
+function publicPaymentProvider(provider) {
+  return {
+    id: provider.id, provider_type: provider.provider_type, provider_name: provider.provider_name,
+    api_base_url: provider.api_base_url, merchant_id: provider.merchant_id,
+    alipay_type: provider.alipay_type || '', wechat_type: provider.wechat_type || '', status: provider.status,
+    merchant_key_configured: Boolean(provider.merchant_key_encrypted), created_at: provider.created_at, updated_at: provider.updated_at,
+  };
+}
+
+function paymentProviderPayload(body, existing = null) {
+  const providerName = String(body.provider_name || existing?.provider_name || '').trim();
+  const merchantId = String(body.merchant_id || existing?.merchant_id || '').trim();
+  const merchantKey = String(body.merchant_key || '').trim();
+  let apiBaseUrl;
+  try { apiBaseUrl = normalizedBaseUrl(body.api_base_url || existing?.api_base_url); }
+  catch (error) { return { error: error.message }; }
+  if (!providerName || !merchantId) return { error: '服务商名称、API 地址和商户 PID 不能为空' };
+  if (!existing && !merchantKey) return { error: '商户 PKey 不能为空' };
+  if (process.env.NODE_ENV === 'production' && !process.env.ENCRYPTION_SECRET) return { error: '生产环境必须配置 ENCRYPTION_SECRET 后才能保存支付密钥' };
+  const status = ['active', 'inactive'].includes(body.status) ? body.status : (existing?.status || 'inactive');
+  return { providerName, merchantId, merchantKey, apiBaseUrl, status, alipayType: String(body.alipay_type || '').trim(), wechatType: String(body.wechat_type || '').trim() };
+}
+
+router.get('/payment/providers', authenticate, requireAdmin('admin'), (req, res) => {
+  const providers = getDatabase().prepare("SELECT * FROM payment_providers WHERE provider_type='easypay' ORDER BY id ASC").all();
+  res.json({ data: providers.map(publicPaymentProvider) });
+});
+
+router.post('/payment/providers', authenticate, requireAdmin('admin'), (req, res) => {
+  const payload = paymentProviderPayload(req.body);
+  if (payload.error) return res.status(400).json({ error: payload.error });
+  const db = getDatabase();
+  const result = db.prepare(`INSERT INTO payment_providers
+    (provider_type,provider_name,api_base_url,merchant_id,merchant_key_encrypted,alipay_type,wechat_type,status)
+    VALUES ('easypay',?,?,?,?,?,?,?)`).run(payload.providerName, payload.apiBaseUrl, payload.merchantId,
+    encrypt(payload.merchantKey), payload.alipayType || null, payload.wechatType || null, payload.status);
+  const provider = db.prepare('SELECT * FROM payment_providers WHERE id=?').get(result.lastInsertRowid);
+  res.status(201).json({ message: '易支付服务商已保存', data: publicPaymentProvider(provider) });
+});
+
+router.put('/payment/providers/:id', authenticate, requireAdmin('admin'), (req, res) => {
+  const db = getDatabase();
+  const existing = db.prepare("SELECT * FROM payment_providers WHERE id=? AND provider_type='easypay'").get(req.params.id);
+  if (!existing) return res.status(404).json({ error: '支付服务商不存在' });
+  const payload = paymentProviderPayload(req.body, existing);
+  if (payload.error) return res.status(400).json({ error: payload.error });
+  const encryptedKey = payload.merchantKey ? encrypt(payload.merchantKey) : existing.merchant_key_encrypted;
+  db.prepare(`UPDATE payment_providers SET provider_name=?,api_base_url=?,merchant_id=?,merchant_key_encrypted=?,alipay_type=?,wechat_type=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(payload.providerName, payload.apiBaseUrl, payload.merchantId, encryptedKey, payload.alipayType || null, payload.wechatType || null, payload.status, existing.id);
+  res.json({ message: '易支付服务商已更新', data: publicPaymentProvider(db.prepare('SELECT * FROM payment_providers WHERE id=?').get(existing.id)) });
+});
+
+router.delete('/payment/providers/:id', authenticate, requireAdmin('admin'), (req, res) => {
+  const db = getDatabase();
+  const provider = db.prepare("SELECT id FROM payment_providers WHERE id=? AND provider_type='easypay'").get(req.params.id);
+  if (!provider) return res.status(404).json({ error: '支付服务商不存在' });
+  const pending = db.prepare("SELECT COUNT(*) AS count FROM quota_orders WHERE payment_provider_id=? AND status IN ('pending','paid')").get(provider.id).count;
+  if (pending) return res.status(409).json({ error: '该服务商仍有待处理订单，请先停用并处理订单' });
+  db.prepare('DELETE FROM payment_providers WHERE id=?').run(provider.id);
+  res.json({ message: '易支付服务商已删除' });
 });
 
 router.get('/config', authenticate, requireAdmin('admin'), (req, res) => {

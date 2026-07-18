@@ -271,6 +271,13 @@ function createTables() {
   )`);
   sqlDb.run('CREATE INDEX IF NOT EXISTS idx_qo_user ON quota_orders(user_id)');
   sqlDb.run('CREATE INDEX IF NOT EXISTS idx_qo_status ON quota_orders(status)');
+  // 在线支付扩展字段：旧的人工审核订单继续保持兼容。
+  try { sqlDb.run('ALTER TABLE quota_orders ADD COLUMN payment_provider_id INTEGER'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE quota_orders ADD COLUMN provider_trade_no TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE quota_orders ADD COLUMN paid_amount REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE quota_orders ADD COLUMN payment_channel TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE quota_orders ADD COLUMN expires_at DATETIME'); } catch(e) {}
+  sqlDb.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_qo_provider_trade_no ON quota_orders(payment_provider_id,provider_trade_no) WHERE provider_trade_no IS NOT NULL');
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS models (
     id INTEGER PRIMARY KEY AUTOINCREMENT, model_code TEXT UNIQUE NOT NULL,
@@ -433,6 +440,21 @@ function createTables() {
     config_value TEXT, description TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS payment_providers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_type TEXT NOT NULL CHECK(provider_type IN ('easypay')),
+    provider_name TEXT NOT NULL,
+    api_base_url TEXT NOT NULL,
+    merchant_id TEXT NOT NULL,
+    merchant_key_encrypted TEXT NOT NULL,
+    alipay_type TEXT,
+    wechat_type TEXT,
+    status TEXT NOT NULL DEFAULT 'inactive' CHECK(status IN ('active','inactive')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_payment_providers_status ON payment_providers(status)');
+
   // 旧字段只做一次性废弃迁移。早期版本已经把余额复制到 quota/gift 字段；
   // 绝不能在每次重启时按“新余额为 0”回填，否则会把已扣完的点数恢复出来。
   const walletMigration = sqlDb.exec("SELECT config_value FROM system_config WHERE config_key='wallet_balance_columns_retired_v1'");
@@ -459,6 +481,12 @@ function createTables() {
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('usd_cny_rate_updated_at', '', '美元兑人民币汇率最近更新时间')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('official_pricing_last_sync_at', '', '官方价格最近同步时间')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('official_pricing_last_sync_status', 'never', '官方价格最近同步状态')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('payment_enabled', 'false', '是否启用在线支付')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('payment_site_url', '', '在线支付公开 HTTPS 地址')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('payment_min_amount', '1', '在线支付单笔最低金额')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('payment_max_amount', '10000', '在线支付单笔最高金额')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('payment_order_timeout_minutes', '30', '在线支付订单超时时间（分钟）')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('payment_max_pending_orders', '3', '每位用户最大待支付订单数')");
   // 确保公告始终为最新
   sqlDb.run("UPDATE system_config SET config_value='欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数' WHERE config_key='platform_announcement' AND config_value!='欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数'");
   // 历史上的“展示倍率”现在就是唯一的用户扣费倍率，确保规则保存后立即生效。

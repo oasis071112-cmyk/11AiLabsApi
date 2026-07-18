@@ -47,8 +47,8 @@
   <el-dialog v-model="rechargeDialog" width="480px"><template #header><span style="font-weight:700;font-size:16px"><ShoppingCart :size="18" style="margin-right:6px;vertical-align:middle"/> 购买额度包</span></template>
     <el-form :model="rf" label-width="100px">
       <el-form-item label="购买点数"><el-input-number v-model="rf.amount" :min="1" :max="99999" :step="10" style="width:100%"/></el-form-item>
-      <el-form-item label="支付方式"><el-radio-group v-model="rf.payment_method"><el-radio value="alipay">支付宝</el-radio><el-radio value="wechat">微信支付</el-radio><el-radio value="usdt">USDT</el-radio><el-radio value="manual_transfer">手动转账</el-radio></el-radio-group></el-form-item>
-      <el-alert title="额度包点数1:1兑换，不可转让，不可提现，不可兑换现金，不支持二次流通" type="info" show-icon :closable="false"/>
+      <el-form-item label="支付方式"><el-radio-group v-model="rf.payment_method"><el-radio v-if="paymentOptions.methods.includes('alipay')" value="alipay">支付宝</el-radio><el-radio v-if="paymentOptions.methods.includes('wechat')" value="wechat">微信支付</el-radio><el-radio v-if="!paymentOptions.enabled" value="manual_transfer">手动转账</el-radio></el-radio-group></el-form-item>
+      <el-alert :title="paymentOptions.enabled?'支付成功后系统将自动到账。1 元 = 1 额度点数。':'额度包点数1:1兑换，提交后请联系管理员确认发放。'" type="info" show-icon :closable="false"/>
     </el-form>
     <template #footer><el-button @click="rechargeDialog=false">取消</el-button><el-button type="primary" :loading="recharging" @click="submitRecharge">提交购买订单</el-button></template>
   </el-dialog>
@@ -62,11 +62,12 @@ const wallet=ref({quota_balance:0,gift_quota:0,frozen_balance:0})
 const availableBalance=computed(()=>((wallet.value.quota_balance||0)+(wallet.value.gift_quota||0)-(wallet.value.frozen_balance||0)).toFixed(2))
 const activeTab=ref('tx'),transactions=ref([]),orders=ref([]),ltx=ref(false),lo=ref(false)
 const txPage=ref(1),txTotal=ref(0),oPage=ref(1),oTotal=ref(0)
-const rechargeDialog=ref(false),recharging=ref(false),rf=ref({amount:10,payment_method:'alipay'})
-onMounted(async()=>{try{const r=await api.get('/api/user/wallet');wallet.value={quota_balance:r.data.quota_balance||r.data.recharge_balance||0,gift_quota:r.data.gift_quota||r.data.gift_balance||0,frozen_balance:r.data.frozen_balance||0}}catch(e){};fetchTx();fetchOrders()})
+const rechargeDialog=ref(false),recharging=ref(false),rf=ref({amount:10,payment_method:'alipay'}),paymentOptions=ref({enabled:false,methods:[]})
+onMounted(async()=>{try{const [walletResponse,paymentResponse]=await Promise.all([api.get('/api/user/wallet'),api.get('/api/user/payment-options')]);const r=walletResponse;wallet.value={quota_balance:r.data.quota_balance||r.data.recharge_balance||0,gift_quota:r.data.gift_quota||r.data.gift_balance||0,frozen_balance:r.data.frozen_balance||0};paymentOptions.value=paymentResponse.data;if(!paymentOptions.value.methods.includes(rf.value.payment_method))rf.value.payment_method=paymentOptions.value.methods[0]||'manual_transfer'}catch(e){};fetchTx();fetchOrders()})
 async function fetchTx(){ltx.value=true;try{const r=await api.get('/api/user/transactions',{params:{page:txPage.value}});transactions.value=r.data.data;txTotal.value=r.data.pagination.total}catch(e){}ltx.value=false}
 async function fetchOrders(){lo.value=true;try{const r=await api.get('/api/user/recharge-orders',{params:{page:oPage.value}});orders.value=r.data.data;oTotal.value=r.data.pagination.total}catch(e){}lo.value=false}
-async function submitRecharge(){recharging.value=true;try{await api.post('/api/user/recharge',rf.value);ElMessage.success('购买订单已创建');rechargeDialog.value=false;fetchOrders()}catch(e){}recharging.value=false}
+function submitPaymentForm(request){const form=document.createElement('form');form.method=request.method||'POST';form.action=request.action;for(const [name,value] of Object.entries(request.fields||{})){const input=document.createElement('input');input.type='hidden';input.name=name;input.value=String(value);form.appendChild(input)}document.body.appendChild(form);form.submit()}
+async function submitRecharge(){recharging.value=true;try{if(paymentOptions.value.enabled){const response=await api.post('/api/user/payment-orders',rf.value);ElMessage.success('正在跳转至支付页面');submitPaymentForm(response.data.payment_request)}else{await api.post('/api/user/recharge',rf.value);ElMessage.success('购买订单已创建');rechargeDialog.value=false;fetchOrders()}}catch(e){}recharging.value=false}
 function typeColor(t){const m={recharge:'',purchase:'',gift:'warning',consume:'danger',manual_add:'',manual_deduct:'danger',refund:'info'};return m[t]||'info'}
 function typeLabel(t){const m={recharge:'购买',purchase:'购买',gift:'赠送',consume:'消耗',manual_add:'增加',manual_deduct:'扣减',refund:'退回',freeze:'冻结',unfreeze:'解冻'};return m[t]||t}
 function osType(s){const m={pending:'warning',paid:'primary',granted:'success',credited:'success',cancelled:'info',abnormal:'danger'};return m[s]||'info'}

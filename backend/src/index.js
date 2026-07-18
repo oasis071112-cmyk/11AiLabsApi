@@ -13,6 +13,7 @@ const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
 const proxyRoutes = require('./routes/proxy');
 const publicRoutes = require('./routes/public');
+const paymentRoutes = require('./routes/payment');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,6 +42,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/payment', paymentRoutes);
 app.use('/v1', proxyRoutes);
 
 // ========== 健康检查（优化版） ==========

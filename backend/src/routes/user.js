@@ -8,6 +8,7 @@ const { encrypt, decrypt, desensitize } = require('../utils/crypto');
 const { generateDocs } = require('../utils/channel-docs');
 const { buildBillingDetail } = require('../utils/billing-detail');
 const { listModelsForApiKey, listRoutingGroupModels, listUserModelCapabilities } = require('../utils/routing-group-models');
+const { buildEasyPayRequest } = require('../utils/easypay');
 
 router.get('/wallet', authenticate, (req, res) => {
   const db = getDatabase();
@@ -29,6 +30,47 @@ router.get('/transactions', authenticate, (req, res) => {
   const data = db.prepare(q).all(...p);
   const total = db.prepare('SELECT COUNT(*) as count FROM wallet_transactions WHERE user_id=?').get(req.user.id);
   res.json({ data, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
+});
+
+function configValue(db, key, fallback = '') {
+  return db.prepare('SELECT config_value FROM system_config WHERE config_key=?').get(key)?.config_value ?? fallback;
+}
+
+router.get('/payment-options', authenticate, (req, res) => {
+  const db = getDatabase();
+  const enabled = configValue(db, 'payment_enabled', 'false') === 'true';
+  const provider = db.prepare("SELECT id,alipay_type,wechat_type FROM payment_providers WHERE provider_type='easypay' AND status='active' ORDER BY id ASC LIMIT 1").get();
+  res.json({ enabled: enabled && Boolean(provider), methods: enabled && provider ? ['alipay', 'wechat'] : [] });
+});
+
+router.post('/payment-orders', authenticate, (req, res) => {
+  const db = getDatabase();
+  const amount = Number(req.body?.amount);
+  const paymentMethod = String(req.body?.payment_method || '');
+  if (!['alipay', 'wechat'].includes(paymentMethod)) return res.status(400).json({ error: '请选择支付宝或微信支付' });
+  if (configValue(db, 'payment_enabled', 'false') !== 'true') return res.status(403).json({ error: '在线支付暂未开启' });
+  const minimum = Number(configValue(db, 'payment_min_amount', '1'));
+  const maximum = Number(configValue(db, 'payment_max_amount', '10000'));
+  if (!Number.isFinite(amount) || amount < minimum || amount > maximum) return res.status(400).json({ error: `充值金额需在 ${minimum} 至 ${maximum} 元之间` });
+  const siteUrl = String(configValue(db, 'payment_site_url', '')).replace(/\/+$/, '');
+  if (!/^https:\/\//i.test(siteUrl)) return res.status(409).json({ error: '在线支付尚未配置公开 HTTPS 地址' });
+  const maxPending = Number(configValue(db, 'payment_max_pending_orders', '3'));
+  const pendingOrders = db.prepare("SELECT COUNT(*) AS count FROM quota_orders WHERE user_id=? AND status='pending' AND payment_provider_id IS NOT NULL").get(req.user.id).count;
+  if (pendingOrders >= maxPending) return res.status(429).json({ error: '待支付订单过多，请先完成或等待已有订单过期' });
+  const provider = db.prepare("SELECT * FROM payment_providers WHERE provider_type='easypay' AND status='active' ORDER BY id ASC LIMIT 1").get();
+  if (!provider) return res.status(409).json({ error: '尚未配置可用的易支付服务商' });
+  const orderNo = `EP${Date.now()}${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  const timeout = Math.max(1, Number(configValue(db, 'payment_order_timeout_minutes', '30')) || 30);
+  try {
+    const paymentRequest = buildEasyPayRequest({ provider, orderNo, amount, paymentMethod, siteUrl });
+    db.prepare(`INSERT INTO quota_orders
+      (order_no,user_id,amount,payment_method,status,payment_provider_id,payment_channel,expires_at)
+      VALUES (?,?,?,?, 'pending',?,?,datetime('now', ?))`)
+      .run(orderNo, req.user.id, amount, 'easypay', provider.id, paymentMethod, `+${timeout} minutes`);
+    res.status(201).json({ order_no: orderNo, amount, payment_method: paymentMethod, expires_at: timeout, payment_request: paymentRequest });
+  } catch (error) {
+    res.status(400).json({ error: error.message || '创建支付订单失败' });
+  }
 });
 
 router.post('/quota-order', authenticate, (req, res) => {
