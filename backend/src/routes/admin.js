@@ -7,6 +7,7 @@ const { desensitize } = require('../utils/crypto');
 const { normalizeUpstreamModels, inferModelType } = require('../utils/model-sync');
 const { syncOfficialPricing, syncUsdCnyRate, inferProvider } = require('../utils/pricing-sync');
 const { listModelsForApiKey, listRoutingGroupModels } = require('../utils/routing-group-models');
+const { parseChannelCapabilities, serializeChannelCapabilities } = require('../utils/channel-capabilities');
 
 const SUPPORTED_PROVIDERS = ['openai', 'deepseek', 'anthropic'];
 function supportedProvider(value) {
@@ -447,19 +448,34 @@ router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) =
 router.get('/channels/:id/models', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
   const models = db.prepare('SELECT * FROM models ORDER BY sort_order ASC').all();
-  const mappings = db.prepare('SELECT model_code,upstream_model_name,status FROM channel_models WHERE channel_id=?').all(req.params.id);
+  const mappings = db.prepare('SELECT model_code,upstream_model_name,supports_image_input,status FROM channel_models WHERE channel_id=?').all(req.params.id);
   res.json({ data: models, channel_model_codes: mappings.filter(m=>m.status==='active').map(m=>m.model_code), mappings });
 });
 
 router.put('/channels/:id/models', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
-  const { model_codes, mappings = {} } = req.body;
+  const { model_codes, mappings = {}, models } = req.body;
+  const requestedModels = Array.isArray(models)
+    ? models.map(item => ({
+      model_code: item.model_code,
+      upstream_model_name: item.upstream_model_name || item.model_code,
+      supports_image_input: item.supports_image_input === true ? 1 : item.supports_image_input === false ? 0 : null,
+    }))
+    : (model_codes || []).map(modelCode => ({
+      model_code: modelCode,
+      upstream_model_name: mappings[modelCode] || modelCode,
+      supports_image_input: null,
+    }));
   db.transaction(() => {
     db.prepare('UPDATE channel_models SET status=\'inactive\',updated_at=CURRENT_TIMESTAMP WHERE channel_id=?').run(req.params.id);
-    const upsert = db.prepare(`INSERT INTO channel_models (channel_id,model_code,upstream_model_name,status)
-      VALUES (?,?,?,'active') ON CONFLICT(channel_id,model_code) DO UPDATE SET
-      upstream_model_name=excluded.upstream_model_name,status='active',updated_at=CURRENT_TIMESTAMP`);
-    for (const modelCode of (model_codes || [])) upsert.run(req.params.id, modelCode, mappings[modelCode] || modelCode);
+    const upsert = db.prepare(`INSERT INTO channel_models (channel_id,model_code,upstream_model_name,supports_image_input,status)
+      VALUES (?,?,?,?,'active') ON CONFLICT(channel_id,model_code) DO UPDATE SET
+      upstream_model_name=excluded.upstream_model_name,supports_image_input=excluded.supports_image_input,
+      status='active',updated_at=CURRENT_TIMESTAMP`);
+    for (const item of requestedModels) {
+      if (!item.model_code) continue;
+      upsert.run(req.params.id, item.model_code, item.upstream_model_name, item.supports_image_input);
+    }
   });
   res.json({ message: '渠道模型已更新' });
 });
@@ -615,14 +631,21 @@ router.get('/channels', authenticate, requireAdmin('admin'), (req, res) => {
     LEFT JOIN routing_groups rg ON rg.id=rgc.group_id
     LEFT JOIN channel_models cm ON cm.channel_id=uc.id AND cm.status='active'
     GROUP BY uc.id ORDER BY uc.priority DESC,uc.id ASC`).all();
-  res.json({ data: channels.map(c=>({...c, api_key: desensitize(c.api_key)})) });
+  res.json({ data: channels.map(c=>({
+    ...c,
+    api_key: desensitize(c.api_key),
+    capabilities: parseChannelCapabilities(c.capabilities),
+  })) });
 });
 
 router.post('/channels', authenticate, requireAdmin('admin'), (req, res) => {
-  const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible' } = req.body;
+  const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible', capabilities } = req.body;
   if (!String(channel_name||'').trim() || !String(base_url||'').trim() || !String(api_key||'').trim()) return res.status(400).json({ error: '渠道名称、上游地址和 API Key 不能为空' });
   if (protocol_type !== 'openai_compatible') return res.status(400).json({ error: '当前版本仅支持 OpenAI 兼容协议' });
-  getDatabase().prepare('INSERT INTO upstream_channels (channel_name,base_url,api_key,priority,weight,protocol_type) VALUES (?,?,?,?,?,?)').run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type);
+  let serializedCapabilities;
+  try { serializedCapabilities = serializeChannelCapabilities(capabilities); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
+  getDatabase().prepare('INSERT INTO upstream_channels (channel_name,base_url,api_key,priority,weight,protocol_type,capabilities) VALUES (?,?,?,?,?,?,?)').run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, serializedCapabilities);
   res.status(201).json({ message: '渠道创建成功' });
 });
 
@@ -633,16 +656,19 @@ router.patch('/channels/:id/status', authenticate, requireAdmin('admin'), (req, 
 
 // 更新渠道信息（名称/地址/Key/权重）
 router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
-  const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible' } = req.body;
+  const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible', capabilities } = req.body;
   const db = getDatabase();
   if (!String(channel_name||'').trim() || !String(base_url||'').trim()) return res.status(400).json({ error: '渠道名称和上游地址不能为空' });
   if (protocol_type !== 'openai_compatible') return res.status(400).json({ error: '当前版本仅支持 OpenAI 兼容协议' });
+  let serializedCapabilities;
+  try { serializedCapabilities = serializeChannelCapabilities(capabilities); }
+  catch (error) { return res.status(400).json({ error: error.message }); }
   if (api_key && api_key.trim()) {
-    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, api_key=?, priority=?, weight=?, protocol_type=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
-      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, req.params.id);
+    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, api_key=?, priority=?, weight=?, protocol_type=?, capabilities=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, serializedCapabilities, req.params.id);
   } else {
-    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, priority=?, weight=?, protocol_type=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
-      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), priority||0, weight||100, protocol_type, req.params.id);
+    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, priority=?, weight=?, protocol_type=?, capabilities=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), priority||0, weight||100, protocol_type, serializedCapabilities, req.params.id);
   }
   res.json({ message: '渠道已更新' });
 });

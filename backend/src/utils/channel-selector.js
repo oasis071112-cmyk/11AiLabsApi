@@ -2,6 +2,7 @@
  * 上游渠道选择器 — 加权轮询 + 熔断降级 + 健康检查
  */
 const axios = require('axios');
+const { channelModelSupportsImageInput, channelSupportsCapability } = require('./channel-capabilities');
 
 // 内置状态（内存中的轮询计数器、熔断状态）
 const state = {
@@ -99,7 +100,7 @@ async function healthCheck(db) {
  * @param {string} modelCode - 请求的模型编码
  * @returns {Object|null} 选中的渠道
  */
-function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new Set(), excludedChannelIds = new Set()) {
+function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new Set(), excludedChannelIds = new Set(), requirements = {}) {
   if (routingGroupId) {
     if (visitedGroups.has(routingGroupId)) return null;
     visitedGroups.add(routingGroupId);
@@ -114,13 +115,13 @@ function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new
         .get(routingGroupId, modelCode);
       if (!allowed) {
         return group.fallback_group_id
-          ? selectChannel(db, modelCode, group.fallback_group_id, visitedGroups, excludedChannelIds)
+          ? selectChannel(db, modelCode, group.fallback_group_id, visitedGroups, excludedChannelIds, requirements)
           : null;
       }
     }
 
     const channels = db.prepare(`
-      SELECT c.*,cm.upstream_model_name,
+      SELECT c.*,cm.upstream_model_name,cm.supports_image_input,m.is_multimodal,
              rgc.priority AS routing_priority,rgc.weight AS routing_weight
       FROM routing_group_channels rgc
       JOIN upstream_channels c ON c.id=rgc.channel_id
@@ -130,19 +131,31 @@ function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new
         AND c.status='active' AND cm.status='active'
         AND m.status='active' AND cm.model_code=?
     `).all(routingGroupId, modelCode);
-    const selected = weightedRoundRobin(channels.filter(channel => !excludedChannelIds.has(channel.id)), modelCode);
+    const eligible = channels.filter(channel => {
+      if (excludedChannelIds.has(channel.id)) return false;
+      if (requirements.endpointCapability && !channelSupportsCapability(channel, requirements.endpointCapability)) return false;
+      if (requirements.requiresImageInput && !channelModelSupportsImageInput(channel)) return false;
+      return true;
+    });
+    const selected = weightedRoundRobin(eligible, modelCode);
     if (selected) return selected;
     return group.fallback_group_id
-      ? selectChannel(db, modelCode, group.fallback_group_id, visitedGroups, excludedChannelIds)
+      ? selectChannel(db, modelCode, group.fallback_group_id, visitedGroups, excludedChannelIds, requirements)
       : null;
   }
 
   // 尚未迁移的调用方继续使用旧模型绑定，避免升级瞬间中断。
-  const model = db.prepare("SELECT channel_id,upstream_model_name FROM models WHERE model_code=? AND status='active'").get(modelCode);
+  const model = db.prepare("SELECT channel_id,upstream_model_name,is_multimodal FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model || !model.channel_id) return null;
   const channels = db.prepare("SELECT *,? AS upstream_model_name FROM upstream_channels WHERE id=? AND status='active'")
     .all(model.upstream_model_name || modelCode, model.channel_id);
-  return weightedRoundRobin(channels.filter(channel => !excludedChannelIds.has(channel.id)), modelCode);
+  const eligible = channels.filter(channel => {
+    if (excludedChannelIds.has(channel.id)) return false;
+    if (requirements.endpointCapability && !channelSupportsCapability(channel, requirements.endpointCapability)) return false;
+    if (requirements.requiresImageInput && !channelModelSupportsImageInput({ ...channel, is_multimodal: model.is_multimodal })) return false;
+    return true;
+  });
+  return weightedRoundRobin(eligible, modelCode);
 }
 
 /**

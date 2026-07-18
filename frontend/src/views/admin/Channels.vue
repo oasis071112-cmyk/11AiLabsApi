@@ -24,6 +24,7 @@
       <el-table-column prop="base_url" label="上游地址" min-width="250" show-overflow-tooltip/>
       <el-table-column label="所属分组" min-width="180"><template #default="{row}">{{ row.group_names||'未加入分组' }}</template></el-table-column>
       <el-table-column prop="model_count" label="模型" width="70"/>
+      <el-table-column label="接口能力" min-width="180"><template #default="{row}"><el-tag v-if="row.capabilities?.includes('chat_completions')" size="small" effect="plain" class="mr-tag">对话</el-tag><el-tag v-if="row.capabilities?.includes('embeddings')" size="small" effect="plain" type="success" class="mr-tag">向量</el-tag></template></el-table-column>
       <el-table-column label="健康" width="90"><template #default="{row}"><el-tag :type="healthType(row)" size="small">{{ healthLabel(row) }}</el-tag></template></el-table-column>
       <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'info'" size="small">{{ row.status==='active'?'启用':'停用' }}</el-tag></template></el-table-column>
       <el-table-column label="操作" width="370" fixed="right"><template #default="{row}"><el-button size="small" @click="openChannel(row)">编辑</el-button><el-button size="small" @click="openMappings(row)">模型映射</el-button><el-button size="small" type="primary" plain :loading="syncingId===row.id" @click="syncModels(row)">同步模型</el-button><el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggleChannel(row)">{{ row.status==='active'?'停用':'启用' }}</el-button></template></el-table-column>
@@ -56,6 +57,7 @@
       <el-form-item label="协议"><el-select v-model="channelForm.protocol_type" disabled><el-option value="openai_compatible" label="OpenAI 兼容协议"/></el-select></el-form-item>
       <el-form-item label="上游地址" required><el-input v-model="channelForm.base_url" placeholder="https://example.com/v1"/></el-form-item>
       <el-form-item label="API Key" required><el-input v-model="channelForm.api_key" type="password" show-password :placeholder="editingChannel?'已配置，留空表示不修改':'请输入上游 API Key'"/></el-form-item>
+      <el-form-item label="接口能力" required><div><el-checkbox-group v-model="channelForm.capabilities"><el-checkbox value="chat_completions">对话 / Chat Completions</el-checkbox><el-checkbox value="embeddings">向量 / Embeddings</el-checkbox></el-checkbox-group><div class="switch-help">只会把请求分配给已声明对应接口能力的渠道。</div></div></el-form-item>
       <el-form-item label="默认优先级"><el-input-number v-model="channelForm.priority" :min="0"/></el-form-item>
       <el-form-item label="默认权重"><el-input-number v-model="channelForm.weight" :min="1" :max="1000"/></el-form-item>
     </el-form>
@@ -63,12 +65,13 @@
   </el-dialog>
 
   <el-dialog v-model="mappingDialog" :title="`${mappingChannel?.channel_name||''} · 模型映射`" width="760px">
-    <el-alert title="公开模型名是用户调用时使用的名称；上游模型名可按每个渠道单独映射。" type="info" :closable="false" style="margin-bottom:12px"/>
+    <el-alert title="公开模型名供用户调用；上游模型名和图片输入能力按渠道分别配置。只有这里开启图片输入的映射才会接收图片请求。" type="info" :closable="false" style="margin-bottom:12px"/>
     <el-input v-model="mappingSearch" clearable placeholder="搜索模型" style="margin-bottom:12px"/>
     <el-table :data="filteredMappings" height="430" v-loading="mappingLoading">
       <el-table-column label="启用" width="70"><template #default="{row}"><el-switch v-model="row.selected"/></template></el-table-column>
       <el-table-column label="公开模型" min-width="230"><template #default="{row}"><strong>{{ row.model_name }}</strong><div class="muted">{{ row.model_code }}</div></template></el-table-column>
       <el-table-column label="该渠道上游模型名" min-width="280"><template #default="{row}"><el-input v-model="row.upstream_model_name" :disabled="!row.selected" placeholder="上游实际模型 ID"/></template></el-table-column>
+      <el-table-column label="图片输入" width="105"><template #default="{row}"><el-switch v-model="row.supports_image_input" :disabled="!row.selected"/></template></el-table-column>
     </el-table>
     <template #footer><el-button @click="mappingDialog=false">取消</el-button><el-button type="primary" :loading="savingMappings" @click="saveMappings">保存映射</el-button></template>
   </el-dialog>
@@ -98,13 +101,13 @@ async function saveGroup(){if(!groupForm.value.group_name.trim()){ElMessage.warn
 async function toggleGroup(row){await api.patch(`/api/admin/routing-groups/${row.id}/status`,{status:row.status==='active'?'inactive':'active'});await loadGroups()}
 async function deleteGroup(row){await api.delete(`/api/admin/routing-groups/${row.id}`);ElMessage.success('分组已删除');await loadGroups()}
 
-const emptyChannel=()=>({channel_name:'',base_url:'',api_key:'',priority:0,weight:100,protocol_type:'openai_compatible'})
+const emptyChannel=()=>({channel_name:'',base_url:'',api_key:'',priority:0,weight:100,protocol_type:'openai_compatible',capabilities:['chat_completions','embeddings']})
 function openChannel(row){editingChannel.value=row||null;channelForm.value=row?{...row}:emptyChannel();originalApiKey.value=row?.api_key||'';channelDialog.value=true}
-async function saveChannel(){if(!channelForm.value.channel_name.trim()||!channelForm.value.base_url.trim()){ElMessage.warning('请填写渠道名称和上游地址');return}savingChannel.value=true;try{const payload={...channelForm.value};if(editingChannel.value&&payload.api_key===originalApiKey.value)payload.api_key='';if(editingChannel.value)await api.put(`/api/admin/channels/${editingChannel.value.id}`,payload);else await api.post('/api/admin/channels',payload);ElMessage.success('渠道已保存');channelDialog.value=false;await loadAll()}finally{savingChannel.value=false}}
+async function saveChannel(){if(!channelForm.value.channel_name.trim()||!channelForm.value.base_url.trim()){ElMessage.warning('请填写渠道名称和上游地址');return}if(!channelForm.value.capabilities?.length){ElMessage.warning('请至少选择一种接口能力');return}savingChannel.value=true;try{const payload={...channelForm.value};if(editingChannel.value&&payload.api_key===originalApiKey.value)payload.api_key='';if(editingChannel.value)await api.put(`/api/admin/channels/${editingChannel.value.id}`,payload);else await api.post('/api/admin/channels',payload);ElMessage.success('渠道已保存');channelDialog.value=false;await loadAll()}finally{savingChannel.value=false}}
 async function toggleChannel(row){await api.patch(`/api/admin/channels/${row.id}/status`,{status:row.status==='active'?'inactive':'active'});await loadAll()}
 async function syncModels(row){syncingId.value=row.id;try{const result=await api.post(`/api/admin/channels/${row.id}/sync-models`);ElMessage.success(result.data.message);await loadAll()}finally{syncingId.value=null}}
-async function openMappings(row){mappingChannel.value=row;mappingDialog.value=true;mappingLoading.value=true;mappingSearch.value='';try{const result=(await api.get(`/api/admin/channels/${row.id}/models`)).data;const byCode=new Map((result.mappings||[]).map(item=>[item.model_code,item]));mappingRows.value=(result.data||[]).map(model=>{const mapping=byCode.get(model.model_code);return{...model,selected:mapping?.status==='active',upstream_model_name:mapping?.upstream_model_name||model.upstream_model_name||model.model_code}})}finally{mappingLoading.value=false}}
-async function saveMappings(){savingMappings.value=true;try{const selected=mappingRows.value.filter(item=>item.selected);const mappings=Object.fromEntries(selected.map(item=>[item.model_code,item.upstream_model_name||item.model_code]));await api.put(`/api/admin/channels/${mappingChannel.value.id}/models`,{model_codes:selected.map(item=>item.model_code),mappings});ElMessage.success('模型映射已保存');mappingDialog.value=false;await loadAll()}finally{savingMappings.value=false}}
+async function openMappings(row){mappingChannel.value=row;mappingDialog.value=true;mappingLoading.value=true;mappingSearch.value='';try{const result=(await api.get(`/api/admin/channels/${row.id}/models`)).data;const byCode=new Map((result.mappings||[]).map(item=>[item.model_code,item]));mappingRows.value=(result.data||[]).map(model=>{const mapping=byCode.get(model.model_code);return{...model,selected:mapping?.status==='active',upstream_model_name:mapping?.upstream_model_name||model.upstream_model_name||model.model_code,supports_image_input:mapping?.supports_image_input==null?Boolean(model.is_multimodal):Number(mapping.supports_image_input)===1}})}finally{mappingLoading.value=false}}
+async function saveMappings(){savingMappings.value=true;try{const models=mappingRows.value.filter(item=>item.selected).map(item=>({model_code:item.model_code,upstream_model_name:item.upstream_model_name||item.model_code,supports_image_input:Boolean(item.supports_image_input)}));await api.put(`/api/admin/channels/${mappingChannel.value.id}/models`,{models});ElMessage.success('模型映射已保存');mappingDialog.value=false;await loadAll()}finally{savingMappings.value=false}}
 function healthType(row){return row.status!=='active'?'info':Number(row.health_score||0)>=60?'success':'warning'}
 function healthLabel(row){return row.status!=='active'?'未启用':Number(row.health_score||0)>=60?'在线':'降级'}
 </script>

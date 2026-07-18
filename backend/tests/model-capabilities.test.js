@@ -22,6 +22,7 @@ describe('模型能力与图片请求边界', () => {
   let apiKey;
   let visionModelId;
   let visionModelCode;
+  let channelId;
   let upstreamMode = 'normal';
 
   beforeAll(async () => {
@@ -33,16 +34,19 @@ describe('模型能力与图片请求边界', () => {
       let rawBody = '';
       req.setEncoding('utf8');
       req.on('data', chunk => { rawBody += chunk; });
-      req.on('end', () => {
+      req.on('end', async () => {
         const requestBody = JSON.parse(rawBody || '{}');
         const hasImage = JSON.stringify(requestBody.messages || requestBody.input || '').includes('image_url');
+        if (upstreamMode === 'delayed') await new Promise(resolve => setTimeout(resolve, 120));
         if (upstreamMode === 'reject-image' && hasImage) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: { message: 'image payload rejected by upstream' } }));
           return;
         }
         if (requestBody.stream === true) {
-          const contentChunk = { choices: [{ delta: { content: '图片已识别' } }] };
+          const contentChunk = upstreamMode === 'reasoning-only'
+            ? { choices: [{ delta: { reasoning_content: '可见回答' } }] }
+            : { choices: [{ delta: { content: '图片已识别' } }] };
           const usageChunk = { choices: [], usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 } };
           res.writeHead(200, { 'Content-Type': 'text/event-stream' });
           // SSE 规范允许 data: 后不带空格；代理必须兼容这种合法格式。
@@ -80,7 +84,7 @@ describe('模型能力与图片请求边界', () => {
       visionModelCode, 'Vision model', 'vision-upstream', 'llm', 0,
       'openai', 'USD', 1, 2, 1000000, 'active',
     ).lastInsertRowid;
-    const channelId = db.prepare('INSERT INTO upstream_channels (channel_name,base_url,api_key,status) VALUES (?,?,?,?)')
+    channelId = db.prepare('INSERT INTO upstream_channels (channel_name,base_url,api_key,status) VALUES (?,?,?,?)')
       .run(`cap-channel-${suffix}`, upstreamBaseUrl, 'upstream-test-key', 'active').lastInsertRowid;
     const groupId = db.prepare('INSERT INTO routing_groups (group_name,status) VALUES (?,?)')
       .run(`cap-group-${suffix}`, 'active').lastInsertRowid;
@@ -135,7 +139,7 @@ describe('模型能力与图片请求边界', () => {
     });
 
     expect(imageResponse.status).toBe(400);
-    expect(await imageResponse.json()).toMatchObject({ error: { type: 'unsupported_content' } });
+    expect(await imageResponse.json()).toMatchObject({ error: { type: 'model_capability_unavailable' } });
 
     const textResponse = await request('/v1/chat/completions', {
       method: 'POST',
@@ -164,6 +168,44 @@ describe('模型能力与图片请求边界', () => {
     expect(adminModels.data.find(model => model.model_code === visionModelCode).is_multimodal).toBe(true);
     expect(userModels.data.find(model => model.model_code === visionModelCode).is_multimodal).toBe(true);
 
+    const disableChannelVision = await request(`/api/admin/channels/${channelId}/models`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ models: [{
+        model_code: visionModelCode,
+        upstream_model_name: 'vision-upstream',
+        supports_image_input: false,
+      }] }),
+    });
+    expect(disableChannelVision.status).toBe(200);
+    const disabledModelList = await request('/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } }).then(response => response.json());
+    expect(disabledModelList.data.find(item => item.id === visionModelCode).capabilities.image_input).toBe(false);
+
+    const rejectedByChannel = await request('/v1/chat/completions', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: visionModelCode,
+        messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'https://example.test/image.png' } }] }],
+      }),
+    });
+    expect(rejectedByChannel.status).toBe(400);
+    expect(await rejectedByChannel.json()).toMatchObject({ error: { type: 'model_capability_unavailable' } });
+
+    const enableChannelVision = await request(`/api/admin/channels/${channelId}/models`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ models: [{
+        model_code: visionModelCode,
+        upstream_model_name: 'vision-upstream',
+        supports_image_input: true,
+      }] }),
+    });
+    expect(enableChannelVision.status).toBe(200);
+    const enabledModelList = await request('/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } }).then(response => response.json());
+    expect(enabledModelList.data.find(item => item.id === visionModelCode).capabilities).toMatchObject({ chat_completions: true, image_input: true });
+    const enabledUserModels = await request('/api/user/models', { headers: { Authorization: `Bearer ${userToken}` } }).then(response => response.json());
+    expect(enabledUserModels.data.find(item => item.model_code === visionModelCode)).toMatchObject({ supports_image_input: true });
+
     const imageResponse = await request('/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -177,6 +219,67 @@ describe('模型能力与图片请求边界', () => {
     });
     expect(imageResponse.status).toBe(200);
     expect(await imageResponse.json()).toMatchObject({ choices: [{ message: { content: 'ok' } }] });
+  });
+
+  it('只把对话请求路由到声明支持 chat_completions 的渠道', async () => {
+    const channelPayload = capabilities => ({
+      channel_name: 'cap-channel-capability-test',
+      base_url: upstreamBaseUrl,
+      api_key: '',
+      priority: 0,
+      weight: 100,
+      protocol_type: 'openai_compatible',
+      capabilities,
+    });
+    const disableChat = await request(`/api/admin/channels/${channelId}`, {
+      method: 'PUT', headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify(channelPayload(['embeddings'])),
+    });
+    expect(disableChat.status).toBe(200);
+
+    const blocked = await request('/v1/chat/completions', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, messages: [{ role: 'user', content: '你好' }] }),
+    });
+    expect(blocked.status).toBe(503);
+    expect(await blocked.json()).toMatchObject({ error: { type: 'no_channel' } });
+
+    const enableChat = await request(`/api/admin/channels/${channelId}`, {
+      method: 'PUT', headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify(channelPayload(['chat_completions', 'embeddings'])),
+    });
+    expect(enableChat.status).toBe(200);
+    const channels = await request('/api/admin/channels', { headers: { Authorization: `Bearer ${adminToken}` } });
+    const saved = (await channels.json()).data.find(item => item.id === channelId);
+    expect(saved.capabilities).toEqual(['chat_completions', 'embeddings']);
+  });
+
+  it('并发请求只冻结各自预算，不会由首个请求占满钱包', async () => {
+    upstreamMode = 'delayed';
+    const payload = {
+      model: visionModelCode,
+      max_tokens: 32,
+      messages: [{ role: 'user', content: '并发测试' }],
+    };
+    const [first, second] = await Promise.all([
+      request('/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: JSON.stringify(payload) }),
+      request('/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: JSON.stringify(payload) }),
+    ]);
+    upstreamMode = 'normal';
+    expect([first.status, second.status]).toEqual([200, 200]);
+  });
+
+  it('把兼容上游的 reasoning-only 流归一为客户端可显示的 content', async () => {
+    upstreamMode = 'reasoning-only';
+    const response = await request('/v1/chat/completions', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, stream: true, messages: [{ role: 'user', content: '你好' }] }),
+    });
+    upstreamMode = 'normal';
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('"content":"可见回答"');
+    expect(body).toContain('data: [DONE]');
   });
 
   it('图片流支持合法 SSE 变体，并且完成后文字请求仍可用', async () => {

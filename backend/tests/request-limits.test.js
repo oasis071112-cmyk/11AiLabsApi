@@ -8,7 +8,7 @@ describe('聊天请求输出上限', () => {
       requestBody: { model: 'deepseek-v4-flash' },
       estimatedInputTokens: 300,
       maxAffordableOutput: 3_450_000,
-    })).toEqual({ limitField: 'max_tokens', maxTokens: 393216 });
+    })).toEqual({ limitField: 'max_tokens', maxTokens: 4096 });
   });
 
   it('所有模型均受配置的上下文长度约束', () => {

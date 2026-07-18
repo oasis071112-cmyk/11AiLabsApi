@@ -1,3 +1,5 @@
+const { channelModelSupportsImageInput, channelSupportsCapability } = require('./channel-capabilities');
+
 function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
   if (visitedGroups.has(groupId)) return [];
   visitedGroups.add(groupId);
@@ -6,28 +8,59 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
   const whitelistJoin = Number(group.restrict_models) === 1
     ? "JOIN routing_group_models rgm ON rgm.group_id=rgc.group_id AND rgm.model_code=cm.model_code AND rgm.status='active'"
     : '';
-  const models = db.prepare(`SELECT DISTINCT m.model_code,m.model_name,m.sort_order
+  const rows = db.prepare(`SELECT m.model_code,m.model_name,m.sort_order,m.is_multimodal,
+      cm.supports_image_input,uc.capabilities
     FROM routing_group_channels rgc
     JOIN upstream_channels uc ON uc.id=rgc.channel_id
     JOIN channel_models cm ON cm.channel_id=uc.id AND cm.status='active'
     JOIN models m ON m.model_code=cm.model_code AND m.status='active'
     ${whitelistJoin}
-    WHERE rgc.group_id=? AND rgc.status='active'
+    WHERE rgc.group_id=? AND rgc.status='active' AND uc.status='active'
     ORDER BY m.sort_order,m.model_code`).all(groupId);
+  const byModel = new Map();
+  for (const row of rows) {
+    const chatCompletions = channelSupportsCapability(row, 'chat_completions');
+    const existing = byModel.get(row.model_code) || {
+      model_code: row.model_code,
+      model_name: row.model_name,
+      sort_order: row.sort_order,
+      capabilities: { chat_completions: false, image_input: false },
+    };
+    existing.capabilities.chat_completions ||= chatCompletions;
+    existing.capabilities.image_input ||= chatCompletions && channelModelSupportsImageInput(row);
+    byModel.set(row.model_code, existing);
+  }
+  const models = [...byModel.values()];
   if (!group.fallback_group_id) return models;
   const fallbackModels = listRoutingGroupModels(db, group.fallback_group_id, visitedGroups);
   const byCode = new Map(models.map(model => [model.model_code, model]));
-  for (const model of fallbackModels) if (!byCode.has(model.model_code)) byCode.set(model.model_code, model);
+  for (const model of fallbackModels) {
+    const existing = byCode.get(model.model_code);
+    if (!existing) byCode.set(model.model_code, model);
+    else {
+      existing.capabilities.chat_completions ||= model.capabilities.chat_completions;
+      existing.capabilities.image_input ||= model.capabilities.image_input;
+    }
+  }
   return [...byCode.values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || a.model_code.localeCompare(b.model_code));
 }
 
 function listModelsForApiKey(db, apiKey) {
   if (!apiKey.routing_group_id) {
-    return db.prepare(`SELECT DISTINCT m.model_code,m.model_name,m.sort_order
+    return db.prepare(`SELECT DISTINCT m.model_code,m.model_name,m.sort_order,m.is_multimodal,uc.capabilities
       FROM api_key_permissions permission
       JOIN models m ON m.model_code=permission.model_code AND m.status='active'
+      LEFT JOIN upstream_channels uc ON uc.id=m.channel_id AND uc.status='active'
       WHERE permission.api_key_id=? AND permission.status='active'
-      ORDER BY m.sort_order,m.model_code`).all(apiKey.id);
+      ORDER BY m.sort_order,m.model_code`).all(apiKey.id).map(model => ({
+        model_code: model.model_code,
+        model_name: model.model_name,
+        sort_order: model.sort_order,
+        capabilities: {
+          chat_completions: channelSupportsCapability(model, 'chat_completions'),
+          image_input: channelSupportsCapability(model, 'chat_completions') && Number(model.is_multimodal) === 1,
+        },
+      }));
   }
   const groupModels = listRoutingGroupModels(db, apiKey.routing_group_id);
   if (apiKey.permission_mode === 'group_dynamic') return groupModels;
@@ -40,4 +73,21 @@ function apiKeyCanUseModel(db, apiKey, modelCode) {
   return listModelsForApiKey(db, apiKey).some(model => model.model_code === modelCode);
 }
 
-module.exports = { listRoutingGroupModels, listModelsForApiKey, apiKeyCanUseModel };
+function listSystemModelCapabilities(db) {
+  const rows = db.prepare(`SELECT cm.model_code,cm.supports_image_input,m.is_multimodal,uc.capabilities
+    FROM channel_models cm
+    JOIN models m ON m.model_code=cm.model_code AND m.status='active'
+    JOIN upstream_channels uc ON uc.id=cm.channel_id AND uc.status='active'
+    WHERE cm.status='active'`).all();
+  const capabilities = new Map();
+  for (const row of rows) {
+    const current = capabilities.get(row.model_code) || { chat_completions: false, image_input: false };
+    const supportsChat = channelSupportsCapability(row, 'chat_completions');
+    current.chat_completions ||= supportsChat;
+    current.image_input ||= supportsChat && channelModelSupportsImageInput(row);
+    capabilities.set(row.model_code, current);
+  }
+  return capabilities;
+}
+
+module.exports = { listRoutingGroupModels, listModelsForApiKey, apiKeyCanUseModel, listSystemModelCapabilities };

@@ -372,6 +372,7 @@ function createTables() {
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_requests INTEGER DEFAULT 0"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_successes INTEGER DEFAULT 0"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN protocol_type TEXT DEFAULT 'openai_compatible'"); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN capabilities TEXT DEFAULT '[\"chat_completions\",\"embeddings\"]'"); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS routing_groups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -406,11 +407,13 @@ function createTables() {
     channel_id INTEGER NOT NULL REFERENCES upstream_channels(id) ON DELETE CASCADE,
     model_code TEXT NOT NULL REFERENCES models(model_code) ON DELETE CASCADE,
     upstream_model_name TEXT NOT NULL,
+    supports_image_input INTEGER,
     status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(channel_id,model_code)
   )`);
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN supports_image_input INTEGER'); } catch(e) {}
   sqlDb.run('CREATE INDEX IF NOT EXISTS idx_cm_model ON channel_models(model_code)');
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS routing_group_models (

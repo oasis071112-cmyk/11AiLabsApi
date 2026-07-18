@@ -2,6 +2,7 @@ const PROVIDER_OUTPUT_LIMITS = {
   // DeepSeek 的上游明确拒绝大于此值的 max_tokens；低价模型不能只按余额反推输出上限。
   deepseek: 393216,
 };
+const DEFAULT_OUTPUT_BUDGET = 4096;
 
 function positiveInteger(value) {
   const number = Number(value);
@@ -26,7 +27,7 @@ function resolveChatOutputLimit({ model, requestBody, estimatedInputTokens, maxA
 
   return {
     limitField,
-    maxTokens: requested ? Math.min(requested, maxAllowed) : maxAllowed,
+    maxTokens: requested ? Math.min(requested, maxAllowed) : Math.min(DEFAULT_OUTPUT_BUDGET, maxAllowed),
   };
 }
 

@@ -84,7 +84,13 @@ function insertUpstreamFailureLog(db, { requestId, userId, apiKeyId, modelCode, 
 function listModels(req, res) {
   const db = getDatabase();
   const models = listModelsForApiKey(db, req.apiKey);
-  res.json({ object: 'list', data: models.map(m => ({ id: m.model_code, object: 'model', created: 0, owned_by: 'ai-proxy' })) });
+  res.json({ object: 'list', data: models.map(m => ({
+    id: m.model_code,
+    object: 'model',
+    created: 0,
+    owned_by: 'ai-proxy',
+    capabilities: m.capabilities || { chat_completions: true, image_input: false },
+  })) });
 }
 
 function estimatedInputTokens(value) {
@@ -99,8 +105,12 @@ function unsupportedContentError(message) {
   return error;
 }
 
-function modelSupportsImages(model) {
-  return model?.is_multimodal === true || Number(model?.is_multimodal) === 1;
+function requestContainsImage(value, key = '') {
+  const normalizedKey = String(key).toLowerCase();
+  if (normalizedKey === 'image_url' || normalizedKey === 'input_image') return true;
+  if (Array.isArray(value)) return value.some(item => requestContainsImage(item, key));
+  if (!value || typeof value !== 'object') return false;
+  return Object.entries(value).some(([childKey, childValue]) => requestContainsImage(childValue, childKey));
 }
 
 function assertSupportedBillableInput(value, model, key = '') {
@@ -108,9 +118,6 @@ function assertSupportedBillableInput(value, model, key = '') {
   const imageKeys = new Set(['image_url', 'input_image']);
   const unsupportedKeys = new Set(['input_audio', 'audio', 'file', 'file_id']);
   if (imageKeys.has(normalizedKey)) {
-    if (!modelSupportsImages(model)) {
-      throw unsupportedContentError(`模型 ${model?.model_code || ''} 不支持图片输入，请移除图片或改用已标记“支持多模态”的模型`);
-    }
     return;
   }
   if (unsupportedKeys.has(normalizedKey)) throw unsupportedContentError('当前仅支持文本和已配置的图片输入');
@@ -121,9 +128,6 @@ function assertSupportedBillableInput(value, model, key = '') {
   if (!value || typeof value !== 'object') return;
   if (key === 'content' && value.type) {
     if (['image_url', 'input_image'].includes(value.type)) {
-      if (!modelSupportsImages(model)) {
-        throw unsupportedContentError(`模型 ${model?.model_code || ''} 不支持图片输入，请移除图片或改用已标记“支持多模态”的模型`);
-      }
       return;
     }
     if (!['text', 'input_text', 'output_text'].includes(value.type)) {
@@ -143,6 +147,17 @@ function hasBillableUsage(payload) {
   if (!payload?.usage) return false;
   const usage = extractUsage(payload.usage);
   return usage.inputTokens > 0 || usage.outputTokens > 0 || usage.cachedInputTokens > 0;
+}
+
+function normalizeVisibleChatContent(payload, streaming = false) {
+  if (!payload || !Array.isArray(payload.choices)) return payload;
+  for (const choice of payload.choices) {
+    const target = streaming ? choice?.delta : choice?.message;
+    if (!target || (typeof target.content === 'string' && target.content.length > 0)) continue;
+    const fallback = target.output_text ?? target.text ?? target.reasoning_content ?? choice?.text;
+    if (typeof fallback === 'string' && fallback.length > 0) target.content = fallback;
+  }
+  return payload;
 }
 
 function fallbackChatUsage(requestBody, responseBody = {}) {
@@ -176,7 +191,15 @@ function capChatRequestToReservedBalance(db, model, multipliers, requestBody, av
     model, requestBody: body, estimatedInputTokens: inputTokens, maxAffordableOutput,
   });
   body[limitField] = maxTokens;
-  return body;
+  const reservationAmount = buildPricing(db, model, {
+    inputTokens,
+    cachedInputTokens: 0,
+    outputTokens: maxTokens,
+  }, multipliers).userCostPoints;
+  if (reservationAmount <= 0 || reservationAmount > availableBalance + 1e-9) {
+    throw new Error('额度不足以覆盖本次请求预算');
+  }
+  return { body, reservationAmount };
 }
 
 function availableWalletBalance(db, userId) {
@@ -188,7 +211,7 @@ function availableWalletBalance(db, userId) {
 
 const SAFE_FAILOVER_STATUSES = new Set([401, 403, 404, 429]);
 
-async function postWithSafeFailover({ db, modelCode, routingGroupId, initialChannel, endpoint, body, config }) {
+async function postWithSafeFailover({ db, modelCode, routingGroupId, initialChannel, endpoint, body, config, requirements = {} }) {
   let channel = initialChannel;
   const excludedChannelIds = new Set();
   while (channel) {
@@ -205,7 +228,7 @@ async function postWithSafeFailover({ db, modelCode, routingGroupId, initialChan
       reportResult(db, channel.id, false);
       error.failoverReported = true;
       excludedChannelIds.add(channel.id);
-      channel = selectChannel(db, modelCode, routingGroupId, new Set(), excludedChannelIds);
+      channel = selectChannel(db, modelCode, routingGroupId, new Set(), excludedChannelIds, requirements);
       if (!channel) {
         error.upstreamChannel = failedChannel;
         throw error;
@@ -248,6 +271,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
   let channel = null;
   let isStream = req.body.stream === true;
   let upstreamConfirmed = false;
+  const requiresImageInput = requestContainsImage(req.body.messages ?? req.body.input ?? req.body);
 
   if (!apiKeyCanUseModel(db, req.apiKey, modelCode)) {
     db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,'blocked',?,'unauthorized_model',?,?)")
@@ -266,13 +290,32 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     return res.status(503).json({ error: { message: '该模型的官方价格尚未同步完成，暂不能计费调用', type: 'official_price_unavailable' } });
   }
 
+  try {
+    assertSupportedBillableInput(req.body.messages ?? req.body.input ?? req.body, model);
+  } catch (error) {
+    const message = error.message || '请求内容不受支持';
+    db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,'blocked',?,'unsupported_content',?,?)")
+      .run(requestId, req.userId, req.apiKey.id, modelCode, message, req.ip, Date.now() - startTime);
+    return res.status(400).json({ error: { message, type: 'unsupported_content' } });
+  }
+
+  const channelRequirements = { endpointCapability: 'chat_completions', requiresImageInput };
+  channel = selectChannel(db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), channelRequirements);
+  if (!channel) {
+    const type = requiresImageInput ? 'model_capability_unavailable' : 'no_channel';
+    const message = requiresImageInput ? `模型 ${modelCode} 当前没有可用的图片输入渠道` : '暂无可用上游渠道';
+    db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,'blocked',?,?,?,?)")
+      .run(requestId, req.userId, req.apiKey.id, modelCode, message, type, req.ip, Date.now() - startTime);
+    return res.status(requiresImageInput ? 400 : 503).json({ error: { message, type } });
+  }
+
   let upstreamBody;
   try {
     const available = availableWalletBalance(db, req.userId);
-    assertSupportedBillableInput(req.body.messages ?? req.body.input ?? req.body, model);
-    // 先按保守输入估算并限制最大输出，再冻结全额可用余额，避免流式返回完成后无余额可扣。
-    upstreamBody = capChatRequestToReservedBalance(db, model, multipliers, req.body, available);
-    reservedAmount = reserveWalletBalance(db, req.userId, available, requestId).reserved;
+    // 先按保守输入估算并限制最大输出，再只冻结本次请求预算，兼顾扣费安全与并发调用。
+    const capped = capChatRequestToReservedBalance(db, model, multipliers, req.body, available);
+    upstreamBody = capped.body;
+    reservedAmount = reserveWalletBalance(db, req.userId, capped.reservationAmount, requestId).reserved;
   } catch (error) {
     const isInputError = Number(error.status) === 400 && error.type === 'unsupported_content';
     const message = error.message || (isInputError ? '请求内容不受支持' : '额度不足，请购买额度包后重试');
@@ -281,11 +324,6 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     return res.status(isInputError ? 400 : 402).json({ error: { message, type: isInputError ? 'unsupported_content' : 'insufficient_balance' } });
   }
 
-  channel = selectChannel(db, modelCode, req.apiKey.routing_group_id);
-  if (!channel) {
-    releaseWalletReservation(db, req.userId, reservedAmount, requestId, '无可用上游渠道，释放冻结额度');
-    return res.status(503).json({ error: { message: '暂无可用上游渠道', type: 'no_channel' } });
-  }
   upstreamBody.model = channel.upstream_model_name || model.upstream_model_name || modelCode;
 
   try {
@@ -294,6 +332,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       const upstreamResult = await postWithSafeFailover({
         db, modelCode, routingGroupId: req.apiKey.routing_group_id, initialChannel: channel,
         endpoint: 'chat/completions', body: upstreamBody,
+        requirements: channelRequirements,
         config: selected => ({
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${selected.api_key}` },
           responseType: 'stream', timeout: 300000,
@@ -389,6 +428,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
           if (data === '[DONE]') continue; // 仅在事务结算成功后再通知客户端完成。
           try {
             const parsed = JSON.parse(data);
+            normalizeVisibleChatContent(parsed, true);
             receivedSseEvent = true;
             if (parsed.usage) {
               const usage = extractUsage(parsed.usage);
@@ -398,7 +438,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
               receivedBillableUsage = usage.inputTokens > 0 || usage.outputTokens > 0 || usage.cachedInputTokens > 0;
             }
             if (parsed.choices?.[0]?.delta?.content) fullContent += parsed.choices[0].delta.content;
-            res.write(`data: ${data}\n\n`);
+            res.write(`data: ${JSON.stringify(parsed)}\n\n`);
           } catch (error) { /* 忽略上游格式错误的事件 */ }
         }
       });
@@ -427,11 +467,13 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     const upstreamResult = await postWithSafeFailover({
       db, modelCode, routingGroupId: req.apiKey.routing_group_id, initialChannel: channel,
       endpoint: 'chat/completions', body: upstreamBody,
+      requirements: channelRequirements,
       config: selected => ({
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${selected.api_key}` }, timeout: 120000,
       }),
     });
     const upstreamResponse = upstreamResult.response;
+    normalizeVisibleChatContent(upstreamResponse.data, false);
     channel = upstreamResult.channel;
     upstreamBody = upstreamResult.requestBody;
     upstreamConfirmed = true;
@@ -513,26 +555,25 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
     input: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_input : model.billing_multiplier_input),
     output: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_output : model.billing_multiplier_output),
   };
+  const channelRequirements = { endpointCapability: 'embeddings' };
+  let channel = selectChannel(db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), channelRequirements);
+  if (!channel) return res.status(503).json({ error: { message: '暂无支持向量接口的可用上游渠道', type: 'no_channel' } });
   try {
     const available = availableWalletBalance(db, req.userId);
     assertEmbeddingTextInput(req.body.input);
     const conservativeTokens = estimatedInputTokens(JSON.stringify(req.body.input ?? req.body));
     const estimate = buildPricing(db, model, { inputTokens: conservativeTokens, cachedInputTokens: 0, outputTokens: 0 }, multipliers).userCostPoints;
     if (estimate + 1e-9 > available) throw new Error('额度不足以覆盖本次向量请求');
-    reservedAmount = reserveWalletBalance(db, req.userId, available, requestId).reserved;
+    reservedAmount = reserveWalletBalance(db, req.userId, estimate, requestId).reserved;
   } catch (error) {
     return res.status(402).json({ error: { message: error.message || '额度不足，请购买额度包后重试', type: 'insufficient_balance' } });
   }
 
-  let channel = selectChannel(db, modelCode, req.apiKey.routing_group_id);
-  if (!channel) {
-    releaseWalletReservation(db, req.userId, reservedAmount, requestId, '无可用上游渠道，释放冻结额度');
-    return res.status(503).json({ error: { message: '暂无可用上游渠道', type: 'no_channel' } });
-  }
   try {
     const upstreamResult = await postWithSafeFailover({
       db, modelCode, routingGroupId: req.apiKey.routing_group_id, initialChannel: channel,
       endpoint: 'embeddings', body: { ...req.body, model: channel.upstream_model_name || model.upstream_model_name || modelCode },
+      requirements: channelRequirements,
       config: selected => ({
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${selected.api_key}` }, timeout: 60000,
       }),

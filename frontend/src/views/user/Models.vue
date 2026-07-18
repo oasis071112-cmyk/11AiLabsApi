@@ -9,7 +9,7 @@
   <div class="model-grid" v-loading="loading">
     <article v-for="model in filteredModels" :key="model.model_code" class="model-card">
       <div class="model-head"><div><h3>{{ model.model_name }}</h3><code>{{ model.model_code }}</code></div><el-tag size="small" effect="plain">{{ typeLabel(model.model_type) }}</el-tag></div>
-      <div class="model-facts"><span><small>上下文</small>{{ contextLabel(model.context_length) }}</span><span><small>多模态</small>{{ model.is_multimodal?'支持':'不支持' }}</span></div>
+      <div class="model-facts"><span><small>上下文</small>{{ contextLabel(model.context_length) }}</span><span><small>图片输入</small>{{ model.supports_image_input?'当前可用':'暂不可用' }}</span></div>
       <div class="price-box"><div class="price-title">官方价格 <span>/ 每 1M Token</span></div><div class="price-row"><span>输入</span><strong>{{ price(model.official_input_price,model.official_currency) }}</strong><em>×{{ model.billing_multiplier_input }}</em></div><div class="price-row"><span>输出</span><strong>{{ price(model.official_output_price,model.official_currency) }}</strong><em>×{{ model.billing_multiplier_output }}</em></div></div>
       <div class="cost-note">用户扣费 = 官方价格 × 当前倍率{{ model.official_currency==='USD'?' × 调用时汇率':'' }}</div>
     </article>

@@ -28,8 +28,8 @@ function insertTransaction(db, values) {
 }
 
 /**
- * 在转发上游前冻结本次调用可用额度。调用方应传入当前全部可用余额，
- * 这样同一个钱包的并发调用不会因为后结算而造成透支。
+ * 在转发上游前原子冻结本次调用的保守最大预算。
+ * 调用方必须按输入估算和最大输出上限计算预算；不能冻结整个钱包，否则会阻断合法并发请求。
  */
 function reserveWalletBalance(db, userId, amount, requestId) {
   const reserve = positiveAmount(amount, '冻结额度');
