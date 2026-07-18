@@ -6,6 +6,7 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed": "node src/database/seed.js",
+    "create-initial-admin": "node scripts/create-initial-admin.js",
     "test": "vitest run"
   },
   "dependencies": {
