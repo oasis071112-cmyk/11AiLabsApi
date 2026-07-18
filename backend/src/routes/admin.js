@@ -8,7 +8,7 @@ const { syncOfficialPricing, syncUsdCnyRate, inferProvider } = require('../utils
 const { listModelsForApiKey, listRoutingGroupModels } = require('../utils/routing-group-models');
 const { parseChannelCapabilities, serializeChannelCapabilities } = require('../utils/channel-capabilities');
 const { encrypt, desensitize } = require('../utils/crypto');
-const { normalizedBaseUrl } = require('../utils/easypay');
+const { normalizedBaseUrl, supportedPaymentMethods } = require('../utils/easypay');
 const { grantQuotaOrder } = require('../utils/quota-orders');
 
 const SUPPORTED_PROVIDERS = ['openai', 'deepseek', 'anthropic'];
@@ -697,7 +697,7 @@ function publicPaymentProvider(provider) {
   return {
     id: provider.id, provider_type: provider.provider_type, provider_name: provider.provider_name,
     api_base_url: provider.api_base_url, merchant_id: provider.merchant_id,
-    alipay_type: provider.alipay_type || '', wechat_type: provider.wechat_type || '', status: provider.status,
+    alipay_type: provider.alipay_type || '', wechat_type: provider.wechat_type || '', enabled_methods: supportedPaymentMethods(provider), status: provider.status,
     merchant_key_configured: Boolean(provider.merchant_key_encrypted), created_at: provider.created_at, updated_at: provider.updated_at,
   };
 }
@@ -713,7 +713,10 @@ function paymentProviderPayload(body, existing = null) {
   if (!existing && !merchantKey) return { error: '商户 PKey 不能为空' };
   if (process.env.NODE_ENV === 'production' && !process.env.ENCRYPTION_SECRET) return { error: '生产环境必须配置 ENCRYPTION_SECRET 后才能保存支付密钥' };
   const status = ['active', 'inactive'].includes(body.status) ? body.status : (existing?.status || 'inactive');
-  return { providerName, merchantId, merchantKey, apiBaseUrl, status, alipayType: String(body.alipay_type || '').trim(), wechatType: String(body.wechat_type || '').trim() };
+  const rawMethods = Array.isArray(body.enabled_methods) ? body.enabled_methods : supportedPaymentMethods(existing);
+  const enabledMethods = [...new Set(rawMethods.map((method) => String(method).trim().toLowerCase()).filter((method) => method === 'alipay' || method === 'wechat'))];
+  if (!enabledMethods.length) return { error: '请至少启用一种支付方式' };
+  return { providerName, merchantId, merchantKey, apiBaseUrl, status, alipayType: String(body.alipay_type || '').trim(), wechatType: String(body.wechat_type || '').trim(), enabledMethods };
 }
 
 router.get('/payment/providers', authenticate, requireAdmin('admin'), (req, res) => {
@@ -726,9 +729,9 @@ router.post('/payment/providers', authenticate, requireAdmin('admin'), (req, res
   if (payload.error) return res.status(400).json({ error: payload.error });
   const db = getDatabase();
   const result = db.prepare(`INSERT INTO payment_providers
-    (provider_type,provider_name,api_base_url,merchant_id,merchant_key_encrypted,alipay_type,wechat_type,status)
-    VALUES ('easypay',?,?,?,?,?,?,?)`).run(payload.providerName, payload.apiBaseUrl, payload.merchantId,
-    encrypt(payload.merchantKey), payload.alipayType || null, payload.wechatType || null, payload.status);
+    (provider_type,provider_name,api_base_url,merchant_id,merchant_key_encrypted,alipay_type,wechat_type,enabled_methods,status)
+    VALUES ('easypay',?,?,?,?,?,?,?,?)`).run(payload.providerName, payload.apiBaseUrl, payload.merchantId,
+    encrypt(payload.merchantKey), payload.alipayType || null, payload.wechatType || null, JSON.stringify(payload.enabledMethods), payload.status);
   const provider = db.prepare('SELECT * FROM payment_providers WHERE id=?').get(result.lastInsertRowid);
   res.status(201).json({ message: '易支付服务商已保存', data: publicPaymentProvider(provider) });
 });
@@ -740,8 +743,8 @@ router.put('/payment/providers/:id', authenticate, requireAdmin('admin'), (req, 
   const payload = paymentProviderPayload(req.body, existing);
   if (payload.error) return res.status(400).json({ error: payload.error });
   const encryptedKey = payload.merchantKey ? encrypt(payload.merchantKey) : existing.merchant_key_encrypted;
-  db.prepare(`UPDATE payment_providers SET provider_name=?,api_base_url=?,merchant_id=?,merchant_key_encrypted=?,alipay_type=?,wechat_type=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-    .run(payload.providerName, payload.apiBaseUrl, payload.merchantId, encryptedKey, payload.alipayType || null, payload.wechatType || null, payload.status, existing.id);
+  db.prepare(`UPDATE payment_providers SET provider_name=?,api_base_url=?,merchant_id=?,merchant_key_encrypted=?,alipay_type=?,wechat_type=?,enabled_methods=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(payload.providerName, payload.apiBaseUrl, payload.merchantId, encryptedKey, payload.alipayType || null, payload.wechatType || null, JSON.stringify(payload.enabledMethods), payload.status, existing.id);
   res.json({ message: '易支付服务商已更新', data: publicPaymentProvider(db.prepare('SELECT * FROM payment_providers WHERE id=?').get(existing.id)) });
 });
 

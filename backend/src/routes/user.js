@@ -8,7 +8,7 @@ const { encrypt, decrypt, desensitize } = require('../utils/crypto');
 const { generateDocs } = require('../utils/channel-docs');
 const { buildBillingDetail } = require('../utils/billing-detail');
 const { listModelsForApiKey, listRoutingGroupModels, listUserModelCapabilities } = require('../utils/routing-group-models');
-const { buildEasyPayRequest } = require('../utils/easypay');
+const { buildEasyPayRequest, supportedPaymentMethods } = require('../utils/easypay');
 
 router.get('/wallet', authenticate, (req, res) => {
   const db = getDatabase();
@@ -45,8 +45,10 @@ function expirePendingPaymentOrders(db, userId = null) {
 router.get('/payment-options', authenticate, (req, res) => {
   const db = getDatabase();
   const enabled = configValue(db, 'payment_enabled', 'false') === 'true';
-  const provider = db.prepare("SELECT id,alipay_type,wechat_type FROM payment_providers WHERE provider_type='easypay' AND status='active' ORDER BY id ASC LIMIT 1").get();
-  res.json({ enabled: enabled && Boolean(provider), methods: enabled && provider ? ['alipay', 'wechat'] : [] });
+  const provider = db.prepare("SELECT id,enabled_methods FROM payment_providers WHERE provider_type='easypay' AND status='active' ORDER BY id ASC LIMIT 1").get();
+  const minimum = Number(configValue(db, 'payment_min_amount', '1'));
+  const maximum = Number(configValue(db, 'payment_max_amount', '10000'));
+  res.json({ enabled: enabled && Boolean(provider), methods: enabled && provider ? supportedPaymentMethods(provider) : [], minimum, maximum });
 });
 
 router.get('/payment-orders/:orderNo', authenticate, (req, res) => {
@@ -76,6 +78,7 @@ router.post('/payment-orders', authenticate, (req, res) => {
   if (pendingOrders >= maxPending) return res.status(429).json({ error: '待支付订单过多，请先完成或等待已有订单过期' });
   const provider = db.prepare("SELECT * FROM payment_providers WHERE provider_type='easypay' AND status='active' ORDER BY id ASC LIMIT 1").get();
   if (!provider) return res.status(409).json({ error: '尚未配置可用的易支付服务商' });
+  if (!supportedPaymentMethods(provider).includes(paymentMethod)) return res.status(400).json({ error: '当前易支付未启用该支付方式' });
   const orderNo = `EP${Date.now()}${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
   const timeout = Math.max(1, Number(configValue(db, 'payment_order_timeout_minutes', '30')) || 30);
   try {

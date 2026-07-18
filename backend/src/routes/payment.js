@@ -8,8 +8,9 @@ function fail(res, status, message) {
   return res.status(status).type('text/plain').send(message || 'fail');
 }
 
-router.post('/easypay/notify', (req, res) => {
-  const fields = req.body || {};
+function easypayNotify(req, res) {
+  // 易支付的 GET 通知携带在 query，POST 通知携带在 body；统一进入同一条安全处理链。
+  const fields = { ...(req.query || {}), ...(req.body || {}) };
   const orderNo = String(fields.out_trade_no || '');
   const merchantId = String(fields.pid || '');
   const paidAmount = Number(fields.money);
@@ -52,6 +53,10 @@ router.post('/easypay/notify', (req, res) => {
     if (current?.status === 'granted' && current.provider_trade_no === providerTradeNo) return res.type('text/plain').send('success');
     return fail(res, 409);
   }
-});
+}
+
+// 不同易支付实现会使用 GET 或 POST 回调；两者必须走同一套验签、金额和幂等入账逻辑。
+router.get('/easypay/notify', easypayNotify);
+router.post('/easypay/notify', easypayNotify);
 
 module.exports = router;

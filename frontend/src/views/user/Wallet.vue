@@ -46,7 +46,7 @@
   <!-- 购买弹窗 -->
   <el-dialog v-model="rechargeDialog" width="480px"><template #header><span style="font-weight:700;font-size:16px"><ShoppingCart :size="18" style="margin-right:6px;vertical-align:middle"/> 购买额度包</span></template>
     <el-form :model="rf" label-width="100px">
-      <el-form-item label="购买点数"><el-input-number v-model="rf.amount" :min="1" :max="99999" :step="10" style="width:100%"/></el-form-item>
+      <el-form-item label="购买点数"><el-input-number v-model="rf.amount" :min="paymentOptions.minimum" :max="paymentOptions.maximum" :step="1" :precision="2" style="width:100%"/></el-form-item>
       <el-form-item label="支付方式"><el-radio-group v-model="rf.payment_method"><el-radio v-if="paymentOptions.methods.includes('alipay')" value="alipay">支付宝</el-radio><el-radio v-if="paymentOptions.methods.includes('wechat')" value="wechat">微信支付</el-radio><el-radio v-if="!paymentOptions.enabled" value="manual_transfer">手动转账</el-radio></el-radio-group></el-form-item>
       <el-alert :title="paymentOptions.enabled?'支付成功后系统将自动到账。1 元 = 1 额度点数。':'额度包点数1:1兑换，提交后请联系管理员确认发放。'" type="info" show-icon :closable="false"/>
     </el-form>
@@ -62,7 +62,7 @@ const wallet=ref({quota_balance:0,gift_quota:0,frozen_balance:0})
 const availableBalance=computed(()=>((wallet.value.quota_balance||0)+(wallet.value.gift_quota||0)-(wallet.value.frozen_balance||0)).toFixed(2))
 const activeTab=ref('tx'),transactions=ref([]),orders=ref([]),ltx=ref(false),lo=ref(false)
 const txPage=ref(1),txTotal=ref(0),oPage=ref(1),oTotal=ref(0)
-const rechargeDialog=ref(false),recharging=ref(false),rf=ref({amount:10,payment_method:'alipay'}),paymentOptions=ref({enabled:false,methods:[]})
+const rechargeDialog=ref(false),recharging=ref(false),rf=ref({amount:10,payment_method:'alipay'}),paymentOptions=ref({enabled:false,methods:[],minimum:1,maximum:10000})
 const route=useRoute()
 async function fetchWallet(){try{const r=await api.get('/api/user/wallet');wallet.value={quota_balance:r.data.quota_balance||r.data.recharge_balance||0,gift_quota:r.data.gift_quota||r.data.gift_balance||0,frozen_balance:r.data.frozen_balance||0}}catch(e){}}
 async function refreshReturnedPayment(){const orderNo=String(route.query.payment_order||'');if(!orderNo)return;activeTab.value='orders';for(let attempt=0;attempt<6;attempt+=1){try{const response=await api.get(`/api/user/payment-orders/${encodeURIComponent(orderNo)}`);const status=response.data.data?.status;if(status==='granted'){await Promise.all([fetchWallet(),fetchOrders(),fetchTx()]);ElMessage.success('支付已确认，额度已自动到账');return}if(status==='cancelled'){ElMessage.warning('该支付订单已超时或取消');return}if(attempt===0)ElMessage.info('支付完成后正在确认到账，请稍候…')}catch(e){return}await new Promise(resolve=>window.setTimeout(resolve,2000))}ElMessage.info('支付结果仍在确认中，请稍后在购买记录刷新查看')}
@@ -70,7 +70,7 @@ onMounted(async()=>{try{const paymentResponse=await api.get('/api/user/payment-o
 async function fetchTx(){ltx.value=true;try{const r=await api.get('/api/user/transactions',{params:{page:txPage.value}});transactions.value=r.data.data;txTotal.value=r.data.pagination.total}catch(e){}ltx.value=false}
 async function fetchOrders(){lo.value=true;try{const r=await api.get('/api/user/recharge-orders',{params:{page:oPage.value}});orders.value=r.data.data;oTotal.value=r.data.pagination.total}catch(e){}lo.value=false}
 function submitPaymentForm(request){const form=document.createElement('form');form.method=request.method||'POST';form.action=request.action;for(const [name,value] of Object.entries(request.fields||{})){const input=document.createElement('input');input.type='hidden';input.name=name;input.value=String(value);form.appendChild(input)}document.body.appendChild(form);form.submit()}
-async function submitRecharge(){recharging.value=true;try{if(paymentOptions.value.enabled){const response=await api.post('/api/user/payment-orders',rf.value);ElMessage.success('正在跳转至支付页面');submitPaymentForm(response.data.payment_request)}else{await api.post('/api/user/recharge',rf.value);ElMessage.success('购买订单已创建');rechargeDialog.value=false;fetchOrders()}}catch(e){}recharging.value=false}
+async function submitRecharge(){const amount=Number(rf.value.amount);if(!Number.isFinite(amount)||amount<paymentOptions.value.minimum||amount>paymentOptions.value.maximum){ElMessage.error(`购买金额需为 ${paymentOptions.value.minimum} 至 ${paymentOptions.value.maximum} 元之间`);return}recharging.value=true;try{if(paymentOptions.value.enabled){const response=await api.post('/api/user/payment-orders',rf.value);ElMessage.success('正在跳转至支付页面');submitPaymentForm(response.data.payment_request)}else{await api.post('/api/user/recharge',rf.value);ElMessage.success('购买订单已创建');rechargeDialog.value=false;fetchOrders()}}catch(e){ElMessage.error(e?.response?.data?.error||'创建支付订单失败，请稍后重试')}finally{recharging.value=false}}
 function typeColor(t){const m={recharge:'',purchase:'',gift:'warning',consume:'danger',manual_add:'',manual_deduct:'danger',refund:'info'};return m[t]||'info'}
 function typeLabel(t){const m={recharge:'购买',purchase:'购买',gift:'赠送',consume:'消耗',manual_add:'增加',manual_deduct:'扣减',refund:'退回',freeze:'冻结',unfreeze:'解冻'};return m[t]||t}
 function osType(s){const m={pending:'warning',paid:'primary',granted:'success',credited:'success',cancelled:'info',abnormal:'danger'};return m[s]||'info'}

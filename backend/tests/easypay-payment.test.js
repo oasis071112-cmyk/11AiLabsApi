@@ -85,6 +85,23 @@ describe('易支付自动到账', () => {
     expect(response.status).toBe(400);
   });
 
+  it('拒绝低于在线支付最低金额的 0.5 元，且不创建订单', async () => {
+    const before = getDatabase().prepare('SELECT COUNT(*) AS count FROM quota_orders').get().count;
+    const response = await fetch(`${baseUrl}/api/user/payment-orders`, {
+      method: 'POST', headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 0.5, payment_method: 'alipay' }),
+    });
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain('1 至');
+    expect(getDatabase().prepare('SELECT COUNT(*) AS count FROM quota_orders').get().count).toBe(before);
+  });
+
+  it('支付选项只返回实际上游已配置的支付宝方式', async () => {
+    const response = await fetch(`${baseUrl}/api/user/payment-options`, { headers: { Authorization: `Bearer ${userToken}` } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ enabled: true, methods: ['alipay'], minimum: 1, maximum: 10000 });
+  });
+
   it('接受存在二进制浮点误差的合法两位小数金额', async () => {
     const response = await fetch(`${baseUrl}/api/user/payment-orders`, {
       method: 'POST', headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
@@ -106,6 +123,17 @@ describe('易支付自动到账', () => {
     const db = getDatabase();
     expect(db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance).toBe(12);
     expect(db.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE related_order_id=(SELECT id FROM quota_orders WHERE order_no=?) AND transaction_type='purchase'").get(order.order_no).count).toBe(1);
+  });
+
+  it('验签成功的 GET 回调会自动入账，兼容易支付实际通知方式', async () => {
+    const order = await createOrder(13);
+    const fields = callbackFields(order);
+    const response = await fetch(`${baseUrl}/api/payment/easypay/notify?${new URLSearchParams(fields)}`);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('success');
+    const db = getDatabase();
+    expect(db.prepare('SELECT status FROM quota_orders WHERE order_no=?').get(order.order_no).status).toBe('granted');
+    expect(db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance).toBe(25);
   });
 
   it('回调金额被篡改时拒绝入账', async () => {

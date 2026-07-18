@@ -449,10 +449,13 @@ function createTables() {
     merchant_key_encrypted TEXT NOT NULL,
     alipay_type TEXT,
     wechat_type TEXT,
+    enabled_methods TEXT NOT NULL DEFAULT '["alipay"]',
     status TEXT NOT NULL DEFAULT 'inactive' CHECK(status IN ('active','inactive')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  try { sqlDb.run("ALTER TABLE payment_providers ADD COLUMN enabled_methods TEXT DEFAULT '[\"alipay\"]'"); } catch(e) {}
+  sqlDb.run("UPDATE payment_providers SET enabled_methods='[\"alipay\"]' WHERE enabled_methods IS NULL OR TRIM(enabled_methods)='' ");
   sqlDb.run('CREATE INDEX IF NOT EXISTS idx_payment_providers_status ON payment_providers(status)');
 
   // 旧字段只做一次性废弃迁移。早期版本已经把余额复制到 quota/gift 字段；

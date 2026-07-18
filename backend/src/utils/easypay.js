@@ -24,7 +24,20 @@ function signaturesMatch(actual, expected) {
   return crypto.timingSafeEqual(Buffer.from(String(actual).toLowerCase()), Buffer.from(String(expected).toLowerCase()));
 }
 
+function supportedPaymentMethods(provider) {
+  try {
+    const configured = JSON.parse(provider?.enabled_methods || '["alipay"]');
+    const unique = [...new Set((Array.isArray(configured) ? configured : [])
+      .map((method) => String(method).trim().toLowerCase())
+      .filter((method) => method === 'alipay' || method === 'wechat'))];
+    return unique.length ? unique : ['alipay'];
+  } catch (error) {
+    return ['alipay'];
+  }
+}
+
 function paymentTypeFor(provider, paymentMethod) {
+  if (!supportedPaymentMethods(provider).includes(paymentMethod)) throw new Error('当前易支付未启用该支付方式');
   if (paymentMethod === 'alipay') return provider.alipay_type || 'alipay';
   if (paymentMethod === 'wechat') return provider.wechat_type || 'wxpay';
   throw new Error('暂仅支持支付宝或微信支付');
@@ -53,4 +66,4 @@ function verifyEasyPayCallback(provider, fields) {
   return signaturesMatch(fields.sign, signEasyPay(fields, merchantKey));
 }
 
-module.exports = { buildEasyPayRequest, normalizedBaseUrl, signEasyPay, verifyEasyPayCallback };
+module.exports = { buildEasyPayRequest, normalizedBaseUrl, signEasyPay, verifyEasyPayCallback, supportedPaymentMethods };
