@@ -345,6 +345,30 @@ describe('模型能力与图片请求边界', () => {
     db.prepare('UPDATE upstream_channels SET health_score=100,consecutive_failures=0,circuit_breaker_until=NULL WHERE id=?').run(channelId);
   });
 
+  it('管理员可删除未引用的渠道和分组，但不能删除仍在服务中的配置', async () => {
+    const createChannel = await request('/api/admin/channels', {
+      method: 'POST', headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        channel_name: 'unused-delete-channel', base_url: upstreamBaseUrl, api_key: 'unused-key',
+        priority: 0, weight: 100, protocol_type: 'openai_compatible', capabilities: ['chat_completions'],
+      }),
+    });
+    expect(createChannel.status).toBe(201);
+    const channels = await request('/api/admin/channels', { headers: { Authorization: `Bearer ${adminToken}` } }).then(response => response.json());
+    const unusedChannel = channels.data.find(item => item.channel_name === 'unused-delete-channel');
+    expect((await request(`/api/admin/channels/${unusedChannel.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } })).status).toBe(200);
+
+    const createGroup = await request('/api/admin/routing-groups', {
+      method: 'POST', headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ group_name: 'unused-delete-group', status: 'inactive', channels: [], model_codes: [] }),
+    });
+    expect(createGroup.status).toBe(201);
+    const unusedGroupId = (await createGroup.json()).id;
+    expect((await request(`/api/admin/routing-groups/${unusedGroupId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } })).status).toBe(200);
+
+    expect((await request(`/api/admin/channels/${channelId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } })).status).toBe(409);
+  });
+
   it('把兼容上游的 reasoning-only 流归一为客户端可显示的 content', async () => {
     upstreamMode = 'reasoning-only';
     const response = await request('/v1/chat/completions', {

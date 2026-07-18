@@ -654,6 +654,22 @@ router.patch('/channels/:id/status', authenticate, requireAdmin('admin'), (req, 
   res.json({ message: '状态已更新' });
 });
 
+router.delete('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
+  const db = getDatabase();
+  const channel = db.prepare('SELECT id FROM upstream_channels WHERE id=?').get(req.params.id);
+  if (!channel) return res.status(404).json({ error: '渠道不存在' });
+  const linkedGroups = db.prepare('SELECT COUNT(*) AS count FROM routing_group_channels WHERE channel_id=?').get(req.params.id);
+  if (linkedGroups.count > 0) {
+    return res.status(409).json({ error: `该渠道仍被 ${linkedGroups.count} 个路由分组使用，请先在分组中移除后再删除` });
+  }
+  db.transaction(() => {
+    db.prepare('UPDATE models SET channel_id=NULL WHERE channel_id=?').run(req.params.id);
+    db.prepare('DELETE FROM channel_models WHERE channel_id=?').run(req.params.id);
+    db.prepare('DELETE FROM upstream_channels WHERE id=?').run(req.params.id);
+  });
+  res.json({ message: '渠道已删除' });
+});
+
 // 更新渠道信息（名称/地址/Key/权重）
 router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible', capabilities } = req.body;
