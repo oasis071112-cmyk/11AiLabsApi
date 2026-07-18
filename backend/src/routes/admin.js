@@ -617,10 +617,9 @@ router.delete('/routing-groups/:id', authenticate, requireAdmin('admin'), (req, 
   if (!group) return res.status(404).json({ error: '路由分组不存在' });
   const used = db.prepare("SELECT COUNT(*) AS count FROM api_keys WHERE routing_group_id=? AND status!='revoked'").get(req.params.id);
   if (used.count > 0) return res.status(409).json({ error: '该分组仍有 API Key 使用，不能删除' });
-  const fallbackUsed = db.prepare(`SELECT COUNT(*) AS count FROM routing_groups rg
-    JOIN api_keys ak ON ak.routing_group_id=rg.id AND ak.status!='revoked'
-    WHERE rg.fallback_group_id=? AND rg.status='active'`).get(req.params.id);
-  if (fallbackUsed.count > 0) return res.status(409).json({ error: '该分组仍被有有效 API Key 的分组设为备用，不能删除' });
+  const fallbackUsed = db.prepare(`SELECT COUNT(*) AS count FROM routing_groups
+    WHERE fallback_group_id=? AND status='active'`).get(req.params.id);
+  if (fallbackUsed.count > 0) return res.status(409).json({ error: '该分组仍被启用分组设为备用，请先解除备用关系后再删除' });
   db.transaction(() => {
     db.prepare('UPDATE api_keys SET routing_group_id=NULL WHERE routing_group_id=?').run(req.params.id);
     db.prepare('UPDATE routing_groups SET fallback_group_id=NULL WHERE fallback_group_id=?').run(req.params.id);
