@@ -85,6 +85,17 @@ describe('易支付自动到账', () => {
     expect(response.status).toBe(400);
   });
 
+  it('接受存在二进制浮点误差的合法两位小数金额', async () => {
+    const response = await fetch(`${baseUrl}/api/user/payment-orders`, {
+      method: 'POST', headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 4.35, payment_method: 'alipay' }),
+    });
+    expect(response.status).toBe(201);
+    const order = await response.json();
+    expect(order.payment_request.fields.money).toBe('4.35');
+    getDatabase().prepare("UPDATE quota_orders SET status='cancelled' WHERE order_no=?").run(order.order_no);
+  });
+
   it('验签成功的回调只会自动入账一次', async () => {
     const order = await createOrder(12);
     const fields = callbackFields(order);

@@ -59,13 +59,15 @@ router.get('/payment-orders/:orderNo', authenticate, (req, res) => {
 
 router.post('/payment-orders', authenticate, (req, res) => {
   const db = getDatabase();
-  const amount = Number(req.body?.amount);
+  const requestedAmount = Number(req.body?.amount);
+  const amountInCents = Math.round(requestedAmount * 100);
+  const amount = amountInCents / 100;
   const paymentMethod = String(req.body?.payment_method || '');
   if (!['alipay', 'wechat'].includes(paymentMethod)) return res.status(400).json({ error: '请选择支付宝或微信支付' });
   if (configValue(db, 'payment_enabled', 'false') !== 'true') return res.status(403).json({ error: '在线支付暂未开启' });
   const minimum = Number(configValue(db, 'payment_min_amount', '1'));
   const maximum = Number(configValue(db, 'payment_max_amount', '10000'));
-  if (!Number.isFinite(amount) || Math.round(amount * 100) !== amount * 100 || amount < minimum || amount > maximum) return res.status(400).json({ error: `充值金额需为 ${minimum} 至 ${maximum} 元之间、最多两位小数的金额` });
+  if (!Number.isFinite(requestedAmount) || Math.abs(requestedAmount * 100 - amountInCents) > 0.000001 || amount < minimum || amount > maximum) return res.status(400).json({ error: `充值金额需为 ${minimum} 至 ${maximum} 元之间、最多两位小数的金额` });
   const siteUrl = String(configValue(db, 'payment_site_url', '')).replace(/\/+$/, '');
   if (!/^https:\/\//i.test(siteUrl)) return res.status(409).json({ error: '在线支付尚未配置公开 HTTPS 地址' });
   expirePendingPaymentOrders(db, req.user.id);
