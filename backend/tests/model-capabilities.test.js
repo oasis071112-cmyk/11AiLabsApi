@@ -23,6 +23,7 @@ describe('模型能力与图片请求边界', () => {
   let visionModelId;
   let visionModelCode;
   let channelId;
+  let groupId;
   let upstreamMode = 'normal';
 
   beforeAll(async () => {
@@ -37,6 +38,11 @@ describe('模型能力与图片请求边界', () => {
       req.on('end', async () => {
         const requestBody = JSON.parse(rawBody || '{}');
         if (req.url === '/v1/embeddings') {
+          if (upstreamMode === 'reject-primary-embedding' && req.headers.authorization === 'Bearer upstream-test-key') {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: { message: 'primary embedding rejected' } }));
+            return;
+          }
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ data: [{ object: 'embedding', index: 0, embedding: [0.1] }], usage: { prompt_tokens: 3, total_tokens: 3 } }));
           return;
@@ -91,7 +97,7 @@ describe('模型能力与图片请求边界', () => {
     ).lastInsertRowid;
     channelId = db.prepare('INSERT INTO upstream_channels (channel_name,base_url,api_key,status) VALUES (?,?,?,?)')
       .run(`cap-channel-${suffix}`, upstreamBaseUrl, 'upstream-test-key', 'active').lastInsertRowid;
-    const groupId = db.prepare('INSERT INTO routing_groups (group_name,status) VALUES (?,?)')
+    groupId = db.prepare('INSERT INTO routing_groups (group_name,status) VALUES (?,?)')
       .run(`cap-group-${suffix}`, 'active').lastInsertRowid;
     db.prepare('INSERT INTO routing_group_channels (group_id,channel_id,status) VALUES (?,?,?)').run(groupId, channelId, 'active');
     db.prepare('INSERT INTO channel_models (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,?)')
@@ -318,6 +324,25 @@ describe('模型能力与图片请求边界', () => {
       body: JSON.stringify({ model: visionModelCode, input: '你好' }),
     });
     expect(allowed.status).toBe(200);
+
+    const db = getDatabase();
+    const fallbackChannelId = db.prepare(`INSERT INTO upstream_channels
+      (channel_name,base_url,api_key,status,capabilities) VALUES (?,?,?,'active',?)`)
+      .run('chat-only-fallback', upstreamBaseUrl, 'fallback-test-key', JSON.stringify(['chat_completions'])).lastInsertRowid;
+    db.prepare("INSERT INTO routing_group_channels (group_id,channel_id,priority,weight,status) VALUES (?,?,1,100,'active')")
+      .run(groupId, fallbackChannelId);
+    db.prepare("INSERT INTO channel_models (channel_id,model_code,upstream_model_name,supports_image_input,status) VALUES (?,?,?,?, 'active')")
+      .run(fallbackChannelId, visionModelCode, 'vision-upstream', 0);
+
+    upstreamMode = 'reject-primary-embedding';
+    const failedWithoutInvalidFallback = await request('/v1/embeddings', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, input: '不得切到对话渠道' }),
+    });
+    upstreamMode = 'normal';
+    expect(failedWithoutInvalidFallback.status).toBe(401);
+    expect(await failedWithoutInvalidFallback.json()).toMatchObject({ error: { type: 'upstream_error' } });
+    db.prepare('UPDATE upstream_channels SET health_score=100,consecutive_failures=0,circuit_breaker_until=NULL WHERE id=?').run(channelId);
   });
 
   it('把兼容上游的 reasoning-only 流归一为客户端可显示的 content', async () => {
