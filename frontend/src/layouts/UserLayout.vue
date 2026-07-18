@@ -22,7 +22,7 @@
     </div>
 
     <nav class="sidebar-nav">
-      <router-link v-for="item in navItems" :key="item.path" :to="item.path" class="sidebar-link" :class="{active:route.path===item.path}" @click="closeDrawer">
+      <router-link v-for="item in navItems" :key="item.path" :to="item.path" class="sidebar-link" :class="{active:route.path===item.path}" :title="item.label" @click="closeDrawer">
         <component :is="item.icon" :size="18"/>
         <span>{{ item.label }}</span>
       </router-link>

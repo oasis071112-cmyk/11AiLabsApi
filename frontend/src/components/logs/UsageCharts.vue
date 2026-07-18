@@ -1,5 +1,13 @@
 <template>
-  <el-row :gutter="20" class="charts-row">
+  <section v-if="showDesktopEmptyState" class="analysis-empty-state">
+    <div class="analysis-empty-icon"><BarChart3 :size="24"/></div>
+    <div>
+      <h3>暂无调用数据</h3>
+      <p>创建 API Key 并完成一次调用后，这里将展示消费趋势、Token 消耗、费用分布和模型排行。</p>
+    </div>
+    <router-link to="/keys" class="analysis-empty-action">前往创建 API Key</router-link>
+  </section>
+  <el-row v-else :gutter="20" class="charts-row">
     <el-col :xs="24" :sm="12" :lg="6"><ChartShell title="消费趋势" :icon="TrendingUp" color="#409eff" :has-data="dailyData.length>0"><v-chart :option="costGaugeOption" autoresize class="chart"/></ChartShell></el-col>
     <el-col :xs="24" :sm="12" :lg="6"><ChartShell title="Token 消耗" :icon="Hash" color="#22c55e" :has-data="dailyData.length>0"><v-chart :option="tokenGaugeOption" autoresize class="chart"/></ChartShell></el-col>
     <el-col :xs="24" :sm="12" :lg="6"><ChartShell title="费用分布" :icon="ChartPie" color="#f59e0b" :has-data="Boolean(stats.model_usage?.length)"><v-chart :option="modelPieOption" autoresize class="chart"/></ChartShell></el-col>
@@ -15,9 +23,12 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { GaugeChart, PieChart } from 'echarts/charts'
 import { TooltipComponent } from 'echarts/components'
 import { TrendingUp, Hash, ChartPie, BarChart3 } from '@lucide/vue'
+import { useMobile } from '@/composables/useMobile'
 
 use([CanvasRenderer, GaugeChart, PieChart, TooltipComponent])
 const props=defineProps({stats:{type:Object,default:()=>({})},dailyData:{type:Array,default:()=>[]}})
+const isMobile=useMobile()
+const showDesktopEmptyState=computed(()=>!isMobile.value&&!props.dailyData.length&&!props.stats.model_usage?.length&&!Number(props.stats.today_calls||0))
 const ChartShell=(shellProps,{slots})=>h('div',{class:'chart-card'},[
   h('div',{class:'chart-header'},[h(shellProps.icon,{size:14,color:shellProps.color}),h('span',shellProps.title)]),
   h('div',{class:'chart-body'},shellProps.hasData?slots.default?.():h('div',{class:'empty'},'暂无数据')),
@@ -41,6 +52,6 @@ const modelRankOption=computed(()=>{
 </script>
 
 <style scoped>
-.charts-row{margin-bottom:16px}.chart-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.chart-header{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #f1f5f9;font-size:14px;font-weight:600;color:#0f172a}.chart-body{display:flex;align-items:center;justify-content:center;min-height:240px;padding:8px 12px}.chart{height:240px;width:100%}.empty{color:#94a3b8;font-size:13px}
+.charts-row{margin-bottom:16px}.chart-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.chart-header{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #f1f5f9;font-size:14px;font-weight:600;color:#0f172a}.chart-body{display:flex;align-items:center;justify-content:center;min-height:240px;padding:8px 12px}.chart{height:240px;width:100%}.empty{color:#94a3b8;font-size:13px}.analysis-empty-state{min-height:188px;margin-bottom:16px;padding:30px 34px;display:flex;align-items:center;gap:18px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.analysis-empty-icon{width:52px;height:52px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:14px;background:#eff6ff;color:#409eff}.analysis-empty-state h3{margin:0 0 5px;color:#0f172a;font-size:16px}.analysis-empty-state p{margin:0;color:#64748b;font-size:13px;line-height:1.65}.analysis-empty-action{margin-left:auto;flex:0 0 auto;padding:8px 12px;border-radius:8px;background:#409eff;color:#fff;font-size:13px;font-weight:600;text-decoration:none}
 @media(max-width:768px){.charts-row{margin-bottom:4px}.chart-card{margin-bottom:12px}.chart-body{min-height:210px}.chart{height:210px}.chart-header{padding:12px}}
 </style>

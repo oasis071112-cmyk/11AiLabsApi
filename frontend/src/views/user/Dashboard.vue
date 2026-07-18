@@ -2,7 +2,7 @@
 <div class="page-container">
 <el-alert v-if="appStore.platformInfo.announcement" :title="appStore.platformInfo.announcement" type="info" show-icon :closable="false" style="margin-bottom:24px"/>
 
-<el-row :gutter="20" style="margin-bottom:28px">
+<el-row :gutter="20" class="dashboard-balance-row" style="margin-bottom:28px">
 <el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#409eff"><DollarSign :size="20" color="#fff"/></div><div><div class="label">可用额度</div><div class="value">{{ wallet?.total_balance?.toFixed(4)||'0.00' }} 点</div></div></div></div></el-col>
 <el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#409eff"><Wallet :size="20" color="#fff"/></div><div><div class="label">额度点数</div><div class="value">{{ wallet?.quota_balance?.toFixed(4)||'0.00' }} 点</div></div></div></div></el-col>
 <el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#f59e0b"><Gift :size="20" color="#fff"/></div><div><div class="label">赠送点数</div><div class="value">{{ wallet?.gift_quota?.toFixed(4)||'0.00' }} 点</div></div></div></div></el-col>
@@ -49,4 +49,5 @@ onMounted(async()=>{appStore.fetchPlatformInfo();try{const[w,s,m]=await Promise.
 .action-icon{width:48px;height:48px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center}
 .mobile-stats-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}.mobile-stats-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.mobile-stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.mobile-stats-grid>div{background:#f8fafc;border-radius:10px;padding:10px}.mobile-stats-grid span,.mobile-rank>span{display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px}.mobile-stats-grid strong{font-size:13px}.success-value{color:#16a34a}.mobile-rank{border-top:1px solid var(--border);margin-top:13px;padding-top:11px}.mobile-rank>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0}.mobile-rank code{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobile-rank strong{font-size:12px;white-space:nowrap}
 @media(max-width:768px){.kpi-row-inner{gap:12px}.kpi-icon-bg{width:38px;height:38px}.action-icon{width:42px;height:42px}.mobile-stats-grid{grid-template-columns:1fr}.page-container>.el-row{margin-bottom:14px!important}.page-container>.el-card{margin-top:14px!important}}
+@media(min-width:769px) and (max-width:1180px){.dashboard-balance-row>[class*="el-col-"]{flex:0 0 50%;max-width:50%}.dashboard-balance-row .stat-card{padding:20px}.dashboard-balance-row .stat-card .value{font-size:26px}}
 </style>
