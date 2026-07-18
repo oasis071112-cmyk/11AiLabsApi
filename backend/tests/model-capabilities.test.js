@@ -22,6 +22,7 @@ describe('模型能力与图片请求边界', () => {
   let apiKey;
   let visionModelId;
   let visionModelCode;
+  let upstreamMode = 'normal';
 
   beforeAll(async () => {
     upstreamServer = http.createServer((req, res) => {
@@ -29,8 +30,25 @@ describe('模型能力与图片请求边界', () => {
         res.writeHead(404).end();
         return;
       }
-      req.resume();
+      let rawBody = '';
+      req.setEncoding('utf8');
+      req.on('data', chunk => { rawBody += chunk; });
       req.on('end', () => {
+        const requestBody = JSON.parse(rawBody || '{}');
+        const hasImage = JSON.stringify(requestBody.messages || requestBody.input || '').includes('image_url');
+        if (upstreamMode === 'reject-image' && hasImage) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: 'image payload rejected by upstream' } }));
+          return;
+        }
+        if (requestBody.stream === true) {
+          const contentChunk = { choices: [{ delta: { content: '图片已识别' } }] };
+          const usageChunk = { choices: [], usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 } };
+          res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+          // SSE 规范允许 data: 后不带空格；代理必须兼容这种合法格式。
+          res.end(`data:${JSON.stringify(contentChunk)}\r\n\r\ndata:${JSON.stringify(usageChunk)}\r\n\r\ndata:[DONE]\r\n\r\n`);
+          return;
+        }
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({
           id: 'upstream-test-response',
@@ -156,5 +174,53 @@ describe('模型能力与图片请求边界', () => {
     });
     expect(imageResponse.status).toBe(200);
     expect(await imageResponse.json()).toMatchObject({ choices: [{ message: { content: 'ok' } }] });
+  });
+
+  it('图片流支持合法 SSE 变体，并且完成后文字请求仍可用', async () => {
+    const imageStream = await request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: visionModelCode,
+        stream: true,
+        messages: [{ role: 'user', content: [
+          { type: 'text', text: '请描述图片' },
+          { type: 'image_url', image_url: { url: 'https://example.test/image.png' } },
+        ] }],
+      }),
+    });
+    expect(imageStream.status).toBe(200);
+    const streamBody = await imageStream.text();
+    expect(streamBody).toContain('图片已识别');
+    expect(streamBody).toContain('data: [DONE]');
+
+    const textResponse = await request('/v1/chat/completions', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, messages: [{ role: 'user', content: 'hello again' }] }),
+    });
+    expect(textResponse.status).toBe(200);
+  });
+
+  it('上游拒绝图片流时返回明确错误，且不熔断后续文字请求', async () => {
+    upstreamMode = 'reject-image';
+    const response = await request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(1200),
+      body: JSON.stringify({
+        model: visionModelCode,
+        stream: true,
+        messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'https://example.test/image.png' } }] }],
+      }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { type: 'upstream_error' } });
+
+    upstreamMode = 'normal';
+    const textResponse = await request('/v1/chat/completions', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, messages: [{ role: 'user', content: 'text must still work' }] }),
+    });
+    expect(textResponse.status).toBe(200);
   });
 });

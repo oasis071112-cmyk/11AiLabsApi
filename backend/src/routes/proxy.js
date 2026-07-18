@@ -256,7 +256,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
   } catch (error) {
     const isInputError = Number(error.status) === 400 && error.type === 'unsupported_content';
     const message = error.message || (isInputError ? '请求内容不受支持' : '额度不足，请购买额度包后重试');
-    db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,'blocked',?,'insufficient_balance',?,?)")
+    db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,'blocked',?,?,?,?)")
       .run(requestId, req.userId, req.apiKey.id, modelCode, message, isInputError ? 'unsupported_content' : 'insufficient_balance', req.ip, Date.now() - startTime);
     return res.status(isInputError ? 400 : 402).json({ error: { message, type: isInputError ? 'unsupported_content' : 'insufficient_balance' } });
   }
@@ -348,11 +348,15 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
 
       upstreamResp.data.on('data', (chunk) => {
         buffer += chunk.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6);
+        const events = buffer.split(/\r?\n\r?\n/);
+        buffer = events.pop();
+        for (const event of events) {
+          // SSE 的 data: 后空格可选，且事件可使用 CRLF；不能因为格式差异丢弃上游内容。
+          const data = event.split(/\r?\n/)
+            .filter(line => line.startsWith('data:'))
+            .map(line => line.slice(5).replace(/^ /, ''))
+            .join('\n');
+          if (!data) continue;
           if (data === '[DONE]') continue; // 仅在事务结算成功后再通知客户端完成。
           try {
             const parsed = JSON.parse(data);
@@ -437,7 +441,11 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     if (reservedAmount > 0 && !upstreamConfirmed && !executionUncertain) {
       try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放冻结额度失败]', releaseError); }
     }
-    if (channel?.id && !error.failoverReported) reportResult(db, channel.id, false);
+    const upstreamValidationError = Number(error.response?.status) >= 400
+      && Number(error.response?.status) < 500
+      && !SAFE_FAILOVER_STATUSES.has(Number(error.response?.status));
+    // 请求格式/内容被上游拒绝并不代表渠道不可用，不能因此熔断后续文字请求。
+    if (channel?.id && !error.failoverReported && !upstreamValidationError) reportResult(db, channel.id, false);
     if (upstreamConfirmed || executionUncertain) {
       insertSettlementFailureLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel?.id,
@@ -452,7 +460,8 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel?.id,
       requestIp: req.ip, latencyMs: Date.now() - startTime, error: error.response?.data?.error?.message || error.message,
     });
-    if (!isStream) return res.status(error.response?.status || 500).json({ error: { message: `上游请求失败: ${error.response?.data?.error?.message || error.message}`, type: 'upstream_error' } });
+    // 上游尚未建立 SSE 响应时，无论客户端是否请求 stream 都必须返回明确 HTTP 错误，不能空连接结束。
+    return res.status(error.response?.status || 500).json({ error: { message: `上游请求失败: ${error.response?.data?.error?.message || error.message}`, type: 'upstream_error' } });
   }
 });
 
