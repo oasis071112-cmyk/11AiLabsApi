@@ -613,9 +613,16 @@ router.patch('/routing-groups/:id/status', authenticate, requireAdmin('admin'), 
 
 router.delete('/routing-groups/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
+  const group = db.prepare('SELECT id FROM routing_groups WHERE id=?').get(req.params.id);
+  if (!group) return res.status(404).json({ error: '路由分组不存在' });
   const used = db.prepare("SELECT COUNT(*) AS count FROM api_keys WHERE routing_group_id=? AND status!='revoked'").get(req.params.id);
   if (used.count > 0) return res.status(409).json({ error: '该分组仍有 API Key 使用，不能删除' });
+  const fallbackUsed = db.prepare(`SELECT COUNT(*) AS count FROM routing_groups rg
+    JOIN api_keys ak ON ak.routing_group_id=rg.id AND ak.status!='revoked'
+    WHERE rg.fallback_group_id=? AND rg.status='active'`).get(req.params.id);
+  if (fallbackUsed.count > 0) return res.status(409).json({ error: '该分组仍被有有效 API Key 的分组设为备用，不能删除' });
   db.transaction(() => {
+    db.prepare('UPDATE api_keys SET routing_group_id=NULL WHERE routing_group_id=?').run(req.params.id);
     db.prepare('UPDATE routing_groups SET fallback_group_id=NULL WHERE fallback_group_id=?').run(req.params.id);
     db.prepare('DELETE FROM routing_group_channels WHERE group_id=?').run(req.params.id);
     db.prepare('DELETE FROM routing_group_models WHERE group_id=?').run(req.params.id);
@@ -661,6 +668,17 @@ router.delete('/channels/:id', authenticate, requireAdmin('admin'), (req, res) =
   const linkedGroups = db.prepare('SELECT COUNT(*) AS count FROM routing_group_channels WHERE channel_id=?').get(req.params.id);
   if (linkedGroups.count > 0) {
     return res.status(409).json({ error: `该渠道仍被 ${linkedGroups.count} 个路由分组使用，请先在分组中移除后再删除` });
+  }
+  const legacyGroups = db.prepare('SELECT COUNT(*) AS count FROM routing_groups WHERE legacy_channel_id=?').get(req.params.id);
+  if (legacyGroups.count > 0) {
+    return res.status(409).json({ error: `该渠道仍被 ${legacyGroups.count} 个历史路由分组引用，请先解除引用后再删除` });
+  }
+  const legacyKeys = db.prepare(`SELECT COUNT(*) AS count FROM models m
+    JOIN api_key_permissions permission ON permission.model_code=m.model_code AND permission.status='active'
+    JOIN api_keys ak ON ak.id=permission.api_key_id AND ak.status!='revoked'
+    WHERE m.channel_id=? AND m.status='active' AND ak.routing_group_id IS NULL`).get(req.params.id);
+  if (legacyKeys.count > 0) {
+    return res.status(409).json({ error: '该渠道仍被旧版直连 API Key 使用，不能删除' });
   }
   db.transaction(() => {
     db.prepare('UPDATE models SET channel_id=NULL WHERE channel_id=?').run(req.params.id);

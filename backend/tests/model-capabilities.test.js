@@ -365,6 +365,18 @@ describe('模型能力与图片请求边界', () => {
     expect(createGroup.status).toBe(201);
     const unusedGroupId = (await createGroup.json()).id;
     expect((await request(`/api/admin/routing-groups/${unusedGroupId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } })).status).toBe(200);
+    expect((await request(`/api/admin/routing-groups/${unusedGroupId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } })).status).toBe(404);
+
+    const fallbackGroup = await request('/api/admin/routing-groups', {
+      method: 'POST', headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ group_name: 'protected-fallback-group', status: 'active', channels: [], model_codes: [] }),
+    });
+    const fallbackGroupId = (await fallbackGroup.json()).id;
+    const db = getDatabase();
+    db.prepare('UPDATE routing_groups SET fallback_group_id=? WHERE id=(SELECT routing_group_id FROM api_keys WHERE key_prefix=? LIMIT 1)')
+      .run(fallbackGroupId, apiKey.substring(0, 12));
+    expect((await request(`/api/admin/routing-groups/${fallbackGroupId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } })).status).toBe(409);
+    db.prepare('UPDATE routing_groups SET fallback_group_id=NULL WHERE fallback_group_id=?').run(fallbackGroupId);
 
     expect((await request(`/api/admin/channels/${channelId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } })).status).toBe(409);
   });
