@@ -215,6 +215,26 @@ async function postWithSafeFailover({ db, modelCode, routingGroupId, initialChan
   throw new Error('暂无可用上游渠道');
 }
 
+async function upstreamErrorMessage(error) {
+  const upstreamBody = error.response?.data;
+  if (upstreamBody?.error?.message) return upstreamBody.error.message;
+  if (typeof upstreamBody === 'string') return upstreamBody;
+  if (!upstreamBody || typeof upstreamBody.on !== 'function') return error.message;
+
+  const raw = await new Promise(resolve => {
+    let content = '';
+    upstreamBody.on('data', chunk => { content += chunk.toString(); });
+    upstreamBody.on('end', () => resolve(content));
+    upstreamBody.on('error', () => resolve(content));
+  });
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed?.error?.message || raw || error.message;
+  } catch (parseError) {
+    return raw || error.message;
+  }
+}
+
 // 兼容部分客户端直接 GET Base URL 来刷新模型列表。
 router.get('/', authenticateApiKey, listModels);
 router.get('/models', authenticateApiKey, listModels);
@@ -300,6 +320,15 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       const settleStream = () => {
         if (finalized) return;
         finalized = true;
+        // 部分兼容上游不会在流尾回传 usage。只要已有有效内容，就按保守字节上界估算并结算，
+        // 不能因为计量字段缺失冻结用户全部余额或把健康渠道错误熔断。
+        if (!receivedBillableUsage && fullContent) {
+          const fallbackUsage = fallbackChatUsage(upstreamBody, { choices: [{ message: { content: fullContent } }] });
+          inputTokens = fallbackUsage.inputTokens;
+          outputTokens = fallbackUsage.outputTokens;
+          cachedInputTokens = fallbackUsage.cachedInputTokens;
+          receivedBillableUsage = true;
+        }
         if (!receivedBillableUsage) {
           const usage = fallbackChatUsage(upstreamBody, { choices: [{ message: { content: fullContent } }] });
           const pricing = buildPricing(db, model, usage, multipliers);
@@ -461,7 +490,8 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       requestIp: req.ip, latencyMs: Date.now() - startTime, error: error.response?.data?.error?.message || error.message,
     });
     // 上游尚未建立 SSE 响应时，无论客户端是否请求 stream 都必须返回明确 HTTP 错误，不能空连接结束。
-    return res.status(error.response?.status || 500).json({ error: { message: `上游请求失败: ${error.response?.data?.error?.message || error.message}`, type: 'upstream_error' } });
+    const message = await upstreamErrorMessage(error);
+    return res.status(error.response?.status || 500).json({ error: { message: `上游请求失败: ${message}`, type: 'upstream_error' } });
   }
 });
 

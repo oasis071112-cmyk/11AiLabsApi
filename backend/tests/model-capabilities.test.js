@@ -46,7 +46,10 @@ describe('模型能力与图片请求边界', () => {
           const usageChunk = { choices: [], usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 } };
           res.writeHead(200, { 'Content-Type': 'text/event-stream' });
           // SSE 规范允许 data: 后不带空格；代理必须兼容这种合法格式。
-          res.end(`data:${JSON.stringify(contentChunk)}\r\n\r\ndata:${JSON.stringify(usageChunk)}\r\n\r\ndata:[DONE]\r\n\r\n`);
+          const events = upstreamMode === 'stream-without-usage'
+            ? [contentChunk]
+            : [contentChunk, usageChunk];
+          res.end(`${events.map(event => `data:${JSON.stringify(event)}\r\n\r\n`).join('')}data:[DONE]\r\n\r\n`);
           return;
         }
         res.setHeader('Content-Type', 'application/json');
@@ -214,12 +217,34 @@ describe('模型能力与图片请求边界', () => {
       }),
     });
     expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ error: { type: 'upstream_error' } });
+    expect(await response.json()).toMatchObject({ error: { type: 'upstream_error', message: expect.stringContaining('image payload rejected by upstream') } });
 
     upstreamMode = 'normal';
     const textResponse = await request('/v1/chat/completions', {
       method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ model: visionModelCode, messages: [{ role: 'user', content: 'text must still work' }] }),
+    });
+    expect(textResponse.status).toBe(200);
+  });
+
+  it('上游流未给 usage 但已给出图片内容时，使用保守估算结算且不影响后续文字调用', async () => {
+    upstreamMode = 'stream-without-usage';
+    const imageStream = await request('/v1/chat/completions', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: visionModelCode, stream: true,
+        messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'https://example.test/image.png' } }] }],
+      }),
+    });
+    expect(imageStream.status).toBe(200);
+    const streamBody = await imageStream.text();
+    expect(streamBody).toContain('图片已识别');
+    expect(streamBody).toContain('data: [DONE]');
+
+    upstreamMode = 'normal';
+    const textResponse = await request('/v1/chat/completions', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, messages: [{ role: 'user', content: 'text remains usable' }] }),
     });
     expect(textResponse.status).toBe(200);
   });
