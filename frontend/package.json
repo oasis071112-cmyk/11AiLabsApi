@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:mobile-bundle": "node scripts/check-mobile-bundle.mjs"
+    "test:mobile-bundle": "node scripts/check-mobile-bundle.mjs",
+    "test:login-error-ui": "node scripts/check-login-error-ui.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
