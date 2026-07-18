@@ -1,5 +1,10 @@
 <template>
-<el-row :gutter="20">
+<section v-if="showDesktopEmptyState" class="dashboard-empty-state">
+  <div class="dashboard-empty-icon"><BarChart3 :size="24"/></div>
+  <div><h3>暂无调用数据</h3><p>创建 API Key 并完成一次调用后，这里将展示今日统计和模型使用排行。</p></div>
+  <router-link to="/keys" class="dashboard-empty-action">创建 API Key</router-link>
+</section>
+<el-row v-else :gutter="20">
   <el-col :span="12">
     <el-card class="chart-card"><template #header><div class="chart-heading"><BarChart3 :size="18" color="#409eff"/> 今日统计<el-button size="small" text :loading="loading" @click="$emit('refresh')"><RefreshCw :size="14"/></el-button></div></template>
       <v-chart v-if="stats.today_calls" :option="todayStatsOption" autoresize style="height:300px"/>
@@ -23,8 +28,11 @@ import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart, PieChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
+import { useMobile } from '@/composables/useMobile'
 
 const props=defineProps({stats:{type:Object,default:()=>({})},loading:Boolean})
+const isMobile=useMobile()
+const showDesktopEmptyState=computed(()=>!isMobile.value&&!Number(props.stats.today_calls||0)&&!props.stats.model_usage?.length)
 defineEmits(['refresh'])
 use([CanvasRenderer,BarChart,PieChart,GridComponent,TooltipComponent,LegendComponent])
 
@@ -46,4 +54,5 @@ const modelRankOption=computed(()=>{
 <style scoped>
 .chart-heading{display:flex;align-items:center;gap:8px;width:100%}.chart-heading .el-button{margin-left:auto}
 .chart-card :deep(.el-card__body){padding:12px 16px}
+.dashboard-empty-state{min-height:188px;display:flex;align-items:center;gap:18px;padding:30px 34px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;box-shadow:var(--shadow-sm)}.dashboard-empty-icon{width:52px;height:52px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:14px;background:#eff6ff;color:#409eff}.dashboard-empty-state h3{margin:0 0 5px;font-size:16px;color:var(--text-primary)}.dashboard-empty-state p{margin:0;color:var(--text-muted);font-size:13px;line-height:1.65}.dashboard-empty-action{margin-left:auto;flex:0 0 auto;padding:8px 12px;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;text-decoration:none}
 </style>

@@ -67,16 +67,10 @@ button { -webkit-tap-highlight-color: transparent; }
   .user-shell .sidebar-logo a { justify-content: center; }
   .user-shell .sidebar-logo img { height: 30px; }
   .user-shell .sidebar-logo span,
-  .user-shell .sidebar-link span,
-  .user-shell .account-name > div { display: none; }
+  .user-shell .sidebar-link span { display: none; }
   .user-shell .sidebar-nav { padding: 0 8px 8px; }
   .user-shell .sidebar-link { justify-content: center; padding: 11px 8px; }
-  .user-shell .sidebar-account { padding: 0 8px 10px; }
-  .user-shell .account-card { padding: 10px 6px; }
-  .user-shell .account-name { justify-content: center; margin-bottom: 7px; }
-  .user-shell .account-actions { gap: 3px; }
-  .user-shell .account-actions .el-button { min-width: 0; padding: 5px 4px; font-size: 0; }
-  .user-shell .account-actions .el-button svg { margin: 0; width: 13px; height: 13px; }
+  .user-shell .compact-account-trigger { margin: 0 auto 10px; }
 
   .user-shell .app-main .kpi-row > [class*="el-col-"] { flex: 0 0 50%; max-width: 50%; }
   .user-shell .app-main .dashboard { padding: 18px 20px; }

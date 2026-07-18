@@ -1,4 +1,4 @@
-<template><div ref="chartElement" class="admin-trend-chart"></div></template>
+<template><el-empty v-if="!props.data.length" class="admin-trend-empty" description="暂无数据" :image-size="52"/><div v-else ref="chartElement" class="admin-trend-chart"></div></template>
 
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -15,4 +15,4 @@ onMounted(()=>{draw();window.addEventListener('resize',resize)})
 onBeforeUnmount(()=>{window.removeEventListener('resize',resize);chart?.dispose()})
 </script>
 
-<style scoped>.admin-trend-chart{height:300px;width:100%}</style>
+<style scoped>.admin-trend-chart{height:300px;width:100%}.admin-trend-empty{height:300px;display:flex;align-items:center;justify-content:center}</style>
