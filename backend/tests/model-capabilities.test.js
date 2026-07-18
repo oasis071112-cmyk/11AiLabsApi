@@ -234,6 +234,33 @@ describe('模型能力与图片请求边界', () => {
     expect(await imageResponse.json()).toMatchObject({ choices: [{ message: { content: 'ok' } }] });
   });
 
+  it('大 Base64 图片不应按传输文本预估额度，最终按上游真实 usage 结算', async () => {
+    const db = getDatabase();
+    const userId = db.prepare('SELECT user_id FROM api_keys WHERE key_prefix=?').get(apiKey.substring(0, 12)).user_id;
+    db.prepare('UPDATE wallets SET quota_balance=?, gift_quota=0, frozen_balance=0 WHERE user_id=?').run(0.1, userId);
+
+    const response = await request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: visionModelCode,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: [
+          { type: 'text', text: '请描述图片' },
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${'A'.repeat(60000)}`, detail: 'low' } },
+        ] }],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ usage: { prompt_tokens: 5, completion_tokens: 2 } });
+    const wallet = db.prepare('SELECT quota_balance, frozen_balance, total_spent FROM wallets WHERE user_id=?').get(userId);
+    expect(wallet.frozen_balance).toBe(0);
+    expect(wallet.quota_balance).toBeLessThan(0.1);
+    expect(wallet.total_spent).toBeGreaterThan(0);
+    db.prepare('UPDATE wallets SET quota_balance=100, gift_quota=0, frozen_balance=0 WHERE user_id=?').run(userId);
+  });
+
   it('只把对话请求路由到声明支持 chat_completions 的渠道', async () => {
     const channelPayload = capabilities => ({
       channel_name: 'cap-channel-capability-test',

@@ -98,6 +98,80 @@ function estimatedInputTokens(value) {
   return Math.max(1, Buffer.byteLength(String(value ?? ''), 'utf8') + 256);
 }
 
+function billableTextProjection(value, key = '') {
+  const normalizedKey = String(key).toLowerCase();
+  // 图片 URL（包括 data: Base64）只是传输载体，绝不能作为文本 Token 计入。
+  if (normalizedKey === 'image_url' || normalizedKey === 'input_image') return '[image]';
+  if (Array.isArray(value)) return value.map(item => billableTextProjection(item, key));
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value)
+    .map(([childKey, childValue]) => [childKey, billableTextProjection(childValue, childKey)]));
+}
+
+function imageDimensionsFromDataUrl(url) {
+  if (typeof url !== 'string' || !url.startsWith('data:image/')) return null;
+  const comma = url.indexOf(',');
+  if (comma < 0 || !/;base64/i.test(url.slice(0, comma))) return null;
+  let bytes;
+  try { bytes = Buffer.from(url.slice(comma + 1), 'base64'); } catch (error) { return null; }
+  if (bytes.length < 10) return null;
+  // PNG / GIF / JPEG / WebP 的尺寸读取只用于请求前保守冻结；最终金额一律以上游 usage 为准。
+  if (bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) && bytes.length >= 24) {
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+  if ((bytes.subarray(0, 6).toString() === 'GIF87a' || bytes.subarray(0, 6).toString() === 'GIF89a') && bytes.length >= 10) {
+    return { width: bytes.readUInt16LE(6), height: bytes.readUInt16LE(8) };
+  }
+  if (bytes.subarray(0, 2).equals(Buffer.from([0xff, 0xd8]))) {
+    for (let offset = 2; offset + 9 < bytes.length;) {
+      if (bytes[offset] !== 0xff) { offset += 1; continue; }
+      const marker = bytes[offset + 1];
+      const length = bytes.readUInt16BE(offset + 2);
+      if (marker >= 0xc0 && marker <= 0xc3 && length >= 7) {
+        return { width: bytes.readUInt16BE(offset + 7), height: bytes.readUInt16BE(offset + 5) };
+      }
+      if (!length) break;
+      offset += 2 + length;
+    }
+  }
+  if (bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP' && bytes.subarray(12, 16).toString() === 'VP8X' && bytes.length >= 30) {
+    return { width: 1 + bytes.readUIntLE(24, 3), height: 1 + bytes.readUIntLE(27, 3) };
+  }
+  return null;
+}
+
+function listImageInputs(value, key = '') {
+  const normalizedKey = String(key).toLowerCase();
+  if (normalizedKey === 'image_url' || normalizedKey === 'input_image') {
+    const image = value && typeof value === 'object' ? value : {};
+    return [{ url: image.url || image.image_url || image.source?.url || '', detail: image.detail || 'auto' }];
+  }
+  if (Array.isArray(value)) return value.flatMap(item => listImageInputs(item, key));
+  if (!value || typeof value !== 'object') return [];
+  return Object.entries(value).flatMap(([childKey, childValue]) => listImageInputs(childValue, childKey));
+}
+
+function estimatedImageReservationTokens(requestBody) {
+  return listImageInputs(requestBody.messages ?? requestBody.input ?? requestBody)
+    .reduce((total, image) => {
+      if (String(image.detail).toLowerCase() === 'low') return total + 512;
+      // URL 图片在请求前无法安全取得分辨率，按上游通常会缩放到的 2048px 上限预留。
+      const dimensions = imageDimensionsFromDataUrl(image.url) || { width: 2048, height: 2048 };
+      const width = Math.max(1, Number(dimensions.width) || 2048);
+      const height = Math.max(1, Number(dimensions.height) || 2048);
+      const scale = Math.min(1, 2048 / Math.max(width, height));
+      const tiles = Math.ceil(width * scale / 512) * Math.ceil(height * scale / 512);
+      // 高/自动模式每个 512px 视觉块预留 1,024 Token，并加基础视觉开销。
+      return total + 1024 + tiles * 1024;
+    }, 0);
+}
+
+function estimatedChatInputTokens(requestBody) {
+  const requestInput = requestBody.messages ?? requestBody.input ?? requestBody;
+  return estimatedInputTokens(JSON.stringify(billableTextProjection(requestInput)))
+    + estimatedImageReservationTokens(requestBody);
+}
+
 function unsupportedContentError(message) {
   const error = new Error(message);
   error.status = 400;
@@ -164,7 +238,7 @@ function normalizeVisibleChatContent(payload, streaming = false, allowReasoningF
 function fallbackChatUsage(requestBody, responseBody = {}) {
   const content = responseBody?.choices?.map(choice => choice?.message?.content || '').join('') || '';
   return {
-    inputTokens: estimatedInputTokens(JSON.stringify(requestBody.messages ?? requestBody.input ?? requestBody)),
+    inputTokens: estimatedChatInputTokens(requestBody),
     outputTokens: content ? estimatedInputTokens(content) : 0,
     cachedInputTokens: 0,
   };
@@ -179,7 +253,7 @@ function fallbackEmbeddingUsage(requestBody) {
 }
 
 function capChatRequestToReservedBalance(db, model, multipliers, requestBody, availableBalance) {
-  const inputTokens = estimatedInputTokens(JSON.stringify(requestBody.messages ?? requestBody.input ?? requestBody));
+  const inputTokens = estimatedChatInputTokens(requestBody);
   const inputCost = buildPricing(db, model, { inputTokens, cachedInputTokens: 0, outputTokens: 0 }, multipliers).userCostPoints;
   const outputOneToken = buildPricing(db, model, { inputTokens: 0, cachedInputTokens: 0, outputTokens: 1 }, multipliers).userCostPoints;
   if (inputCost + 1e-9 >= availableBalance || outputOneToken <= 0) throw new Error('额度不足以覆盖本次请求的输入与最小输出');
@@ -390,7 +464,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
           return;
         }
         if (outputTokens === 0 && fullContent) outputTokens = Math.max(1, Math.ceil(fullContent.length / 4));
-        if (inputTokens === 0) inputTokens = estimatedInputTokens(JSON.stringify(upstreamBody.messages ?? upstreamBody.input ?? upstreamBody));
+        if (inputTokens === 0) inputTokens = estimatedChatInputTokens(upstreamBody);
         const usage = { inputTokens, outputTokens, cachedInputTokens };
         const pricing = buildPricing(db, model, usage, multipliers);
         try {
@@ -457,7 +531,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
         finalized = true;
         // 已拿到流响应头后，连接中断也不能证明上游未执行；必须保留冻结额度。
         const usage = {
-          inputTokens: inputTokens || estimatedInputTokens(JSON.stringify(upstreamBody.messages ?? upstreamBody.input ?? upstreamBody)),
+          inputTokens: inputTokens || estimatedChatInputTokens(upstreamBody),
           outputTokens: outputTokens || (fullContent ? Math.max(1, Math.ceil(fullContent.length / 4)) : 0),
           cachedInputTokens,
         };
