@@ -149,12 +149,13 @@ function hasBillableUsage(payload) {
   return usage.inputTokens > 0 || usage.outputTokens > 0 || usage.cachedInputTokens > 0;
 }
 
-function normalizeVisibleChatContent(payload, streaming = false) {
+function normalizeVisibleChatContent(payload, streaming = false, allowReasoningFallback = false) {
   if (!payload || !Array.isArray(payload.choices)) return payload;
   for (const choice of payload.choices) {
     const target = streaming ? choice?.delta : choice?.message;
     if (!target || (typeof target.content === 'string' && target.content.length > 0)) continue;
-    const fallback = target.output_text ?? target.text ?? target.reasoning_content ?? choice?.text;
+    const fallback = target.output_text ?? target.text ?? choice?.text
+      ?? (allowReasoningFallback ? target.reasoning_content : undefined);
     if (typeof fallback === 'string' && fallback.length > 0) target.content = fallback;
   }
   return payload;
@@ -351,6 +352,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       let outputTokens = 0;
       let cachedInputTokens = 0;
       let fullContent = '';
+      let reasoningContent = '';
       let buffer = '';
       let finalized = false;
       let receivedSseEvent = false;
@@ -359,6 +361,12 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       const settleStream = () => {
         if (finalized) return;
         finalized = true;
+        // 兼容少数上游整条流只有 reasoning_content 的情况。等待流结束确认确实没有普通 content 后，
+        // 才补发一次标准 content，避免把推理片段和随后到达的正式回答混在一起。
+        if (!fullContent && reasoningContent) {
+          fullContent = reasoningContent;
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: reasoningContent } }] })}\n\n`);
+        }
         // 部分兼容上游不会在流尾回传 usage。只要已有有效内容，就按保守字节上界估算并结算，
         // 不能因为计量字段缺失冻结用户全部余额或把健康渠道错误熔断。
         if (!receivedBillableUsage && fullContent) {
@@ -437,6 +445,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
               cachedInputTokens = usage.cachedInputTokens;
               receivedBillableUsage = usage.inputTokens > 0 || usage.outputTokens > 0 || usage.cachedInputTokens > 0;
             }
+            if (parsed.choices?.[0]?.delta?.reasoning_content) reasoningContent += parsed.choices[0].delta.reasoning_content;
             if (parsed.choices?.[0]?.delta?.content) fullContent += parsed.choices[0].delta.content;
             res.write(`data: ${JSON.stringify(parsed)}\n\n`);
           } catch (error) { /* 忽略上游格式错误的事件 */ }
@@ -473,7 +482,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       }),
     });
     const upstreamResponse = upstreamResult.response;
-    normalizeVisibleChatContent(upstreamResponse.data, false);
+    normalizeVisibleChatContent(upstreamResponse.data, false, true);
     channel = upstreamResult.channel;
     upstreamBody = upstreamResult.requestBody;
     upstreamConfirmed = true;

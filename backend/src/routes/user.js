@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 const { encrypt, decrypt, desensitize } = require('../utils/crypto');
 const { generateDocs } = require('../utils/channel-docs');
 const { buildBillingDetail } = require('../utils/billing-detail');
-const { listModelsForApiKey, listRoutingGroupModels, listSystemModelCapabilities } = require('../utils/routing-group-models');
+const { listModelsForApiKey, listRoutingGroupModels, listUserModelCapabilities } = require('../utils/routing-group-models');
 
 router.get('/wallet', authenticate, (req, res) => {
   const db = getDatabase();
@@ -53,7 +53,7 @@ router.get('/models', authenticate, (req, res) => {
   const db = getDatabase();
   const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,billing_multiplier_input,billing_multiplier_output,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,official_price_updated_at,status FROM models WHERE status='active' ORDER BY sort_order ASC").all();
   const now = new Date().toISOString();
-  const capabilityByModel = listSystemModelCapabilities(db);
+  const capabilityByModel = listUserModelCapabilities(db, req.user.id);
   const ruleForModel = db.prepare("SELECT * FROM pricing_rules WHERE (model_code=? OR model_code IS NULL) AND status='active' AND (start_time IS NULL OR start_time<=?) AND (end_time IS NULL OR end_time>=?) AND ((scope_type='user' AND scope_id=?) OR scope_type='platform') ORDER BY CASE scope_type WHEN 'user' THEN 2 WHEN 'platform' THEN 1 END DESC, priority DESC LIMIT 1");
   const data = models.map(model => {
     const rule = ruleForModel.get(model.model_code, now, now, req.user.id);

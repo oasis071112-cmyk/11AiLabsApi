@@ -660,8 +660,14 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
   if (!String(channel_name||'').trim() || !String(base_url||'').trim()) return res.status(400).json({ error: '渠道名称和上游地址不能为空' });
   if (protocol_type !== 'openai_compatible') return res.status(400).json({ error: '当前版本仅支持 OpenAI 兼容协议' });
+  const existingChannel = db.prepare('SELECT capabilities FROM upstream_channels WHERE id=?').get(req.params.id);
+  if (!existingChannel) return res.status(404).json({ error: '渠道不存在' });
   let serializedCapabilities;
-  try { serializedCapabilities = serializeChannelCapabilities(capabilities); }
+  try {
+    serializedCapabilities = capabilities === undefined
+      ? (existingChannel.capabilities || JSON.stringify(['chat_completions']))
+      : serializeChannelCapabilities(capabilities);
+  }
   catch (error) { return res.status(400).json({ error: error.message }); }
   if (api_key && api_key.trim()) {
     db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, api_key=?, priority=?, weight=?, protocol_type=?, capabilities=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')

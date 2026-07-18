@@ -27,7 +27,7 @@ describe('模型能力与图片请求边界', () => {
 
   beforeAll(async () => {
     upstreamServer = http.createServer((req, res) => {
-      if (req.method !== 'POST' || req.url !== '/v1/chat/completions') {
+      if (req.method !== 'POST' || !['/v1/chat/completions', '/v1/embeddings'].includes(req.url)) {
         res.writeHead(404).end();
         return;
       }
@@ -36,6 +36,11 @@ describe('模型能力与图片请求边界', () => {
       req.on('data', chunk => { rawBody += chunk; });
       req.on('end', async () => {
         const requestBody = JSON.parse(rawBody || '{}');
+        if (req.url === '/v1/embeddings') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ data: [{ object: 'embedding', index: 0, embedding: [0.1] }], usage: { prompt_tokens: 3, total_tokens: 3 } }));
+          return;
+        }
         const hasImage = JSON.stringify(requestBody.messages || requestBody.input || '').includes('image_url');
         if (upstreamMode === 'delayed') await new Promise(resolve => setTimeout(resolve, 120));
         if (upstreamMode === 'reject-image' && hasImage) {
@@ -180,6 +185,8 @@ describe('模型能力与图片请求边界', () => {
     expect(disableChannelVision.status).toBe(200);
     const disabledModelList = await request('/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } }).then(response => response.json());
     expect(disabledModelList.data.find(item => item.id === visionModelCode).capabilities.image_input).toBe(false);
+    const disabledUserModels = await request('/api/user/models', { headers: { Authorization: `Bearer ${userToken}` } }).then(response => response.json());
+    expect(disabledUserModels.data.find(item => item.model_code === visionModelCode)).toMatchObject({ supports_image_input: false });
 
     const rejectedByChannel = await request('/v1/chat/completions', {
       method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
@@ -252,6 +259,26 @@ describe('模型能力与图片请求边界', () => {
     const channels = await request('/api/admin/channels', { headers: { Authorization: `Bearer ${adminToken}` } });
     const saved = (await channels.json()).data.find(item => item.id === channelId);
     expect(saved.capabilities).toEqual(['chat_completions', 'embeddings']);
+
+    const legacyUpdate = await request(`/api/admin/channels/${channelId}`, {
+      method: 'PUT', headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        channel_name: 'cap-channel-legacy-update', base_url: upstreamBaseUrl, api_key: '',
+        priority: 0, weight: 100, protocol_type: 'openai_compatible',
+      }),
+    });
+    expect(legacyUpdate.status).toBe(200);
+    const afterLegacyUpdate = await request('/api/admin/channels', { headers: { Authorization: `Bearer ${adminToken}` } }).then(response => response.json());
+    expect(afterLegacyUpdate.data.find(item => item.id === channelId).capabilities).toEqual(['chat_completions', 'embeddings']);
+
+    const invalidUpdate = await request(`/api/admin/channels/${channelId}`, {
+      method: 'PUT', headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        channel_name: 'cap-channel-invalid-update', base_url: upstreamBaseUrl, api_key: '',
+        priority: 0, weight: 100, protocol_type: 'openai_compatible', capabilities: ['unknown'],
+      }),
+    });
+    expect(invalidUpdate.status).toBe(400);
   });
 
   it('并发请求只冻结各自预算，不会由首个请求占满钱包', async () => {
@@ -267,6 +294,30 @@ describe('模型能力与图片请求边界', () => {
     ]);
     upstreamMode = 'normal';
     expect([first.status, second.status]).toEqual([200, 200]);
+  });
+
+  it('向量请求和故障转移都不会选择仅支持对话的渠道', async () => {
+    const updateCapabilities = capabilities => request(`/api/admin/channels/${channelId}`, {
+      method: 'PUT', headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        channel_name: 'cap-channel-embedding-test', base_url: upstreamBaseUrl, api_key: '',
+        priority: 0, weight: 100, protocol_type: 'openai_compatible', capabilities,
+      }),
+    });
+    expect((await updateCapabilities(['chat_completions'])).status).toBe(200);
+    const blocked = await request('/v1/embeddings', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, input: '你好' }),
+    });
+    expect(blocked.status).toBe(503);
+    expect(await blocked.json()).toMatchObject({ error: { type: 'no_channel' } });
+
+    expect((await updateCapabilities(['chat_completions', 'embeddings'])).status).toBe(200);
+    const allowed = await request('/v1/embeddings', {
+      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, input: '你好' }),
+    });
+    expect(allowed.status).toBe(200);
   });
 
   it('把兼容上游的 reasoning-only 流归一为客户端可显示的 content', async () => {

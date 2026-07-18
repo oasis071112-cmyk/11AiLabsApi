@@ -1,5 +1,5 @@
-const DEFAULT_CHANNEL_CAPABILITIES = Object.freeze(['chat_completions', 'embeddings']);
-const ALLOWED_CHANNEL_CAPABILITIES = new Set(DEFAULT_CHANNEL_CAPABILITIES);
+const DEFAULT_CHANNEL_CAPABILITIES = Object.freeze(['chat_completions']);
+const ALLOWED_CHANNEL_CAPABILITIES = new Set(['chat_completions', 'embeddings']);
 
 function parseChannelCapabilities(value) {
   if (Array.isArray(value)) return value.filter(item => ALLOWED_CHANNEL_CAPABILITIES.has(item));
@@ -8,13 +8,16 @@ function parseChannelCapabilities(value) {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed)
       ? parsed.filter(item => ALLOWED_CHANNEL_CAPABILITIES.has(item))
-      : [...DEFAULT_CHANNEL_CAPABILITIES];
+      : [];
   } catch (error) {
-    return [...DEFAULT_CHANNEL_CAPABILITIES];
+    return [];
   }
 }
 
 function serializeChannelCapabilities(value) {
+  if (value === undefined || value === null) return JSON.stringify(DEFAULT_CHANNEL_CAPABILITIES);
+  if (!Array.isArray(value)) throw new Error('渠道接口能力必须是数组');
+  if (value.some(item => !ALLOWED_CHANNEL_CAPABILITIES.has(item))) throw new Error('包含不支持的渠道接口能力');
   const capabilities = parseChannelCapabilities(value);
   if (capabilities.length === 0) throw new Error('渠道至少需要启用一种接口能力');
   return JSON.stringify([...new Set(capabilities)]);

@@ -101,7 +101,7 @@ async function saveGroup(){if(!groupForm.value.group_name.trim()){ElMessage.warn
 async function toggleGroup(row){await api.patch(`/api/admin/routing-groups/${row.id}/status`,{status:row.status==='active'?'inactive':'active'});await loadGroups()}
 async function deleteGroup(row){await api.delete(`/api/admin/routing-groups/${row.id}`);ElMessage.success('分组已删除');await loadGroups()}
 
-const emptyChannel=()=>({channel_name:'',base_url:'',api_key:'',priority:0,weight:100,protocol_type:'openai_compatible',capabilities:['chat_completions','embeddings']})
+const emptyChannel=()=>({channel_name:'',base_url:'',api_key:'',priority:0,weight:100,protocol_type:'openai_compatible',capabilities:['chat_completions']})
 function openChannel(row){editingChannel.value=row||null;channelForm.value=row?{...row}:emptyChannel();originalApiKey.value=row?.api_key||'';channelDialog.value=true}
 async function saveChannel(){if(!channelForm.value.channel_name.trim()||!channelForm.value.base_url.trim()){ElMessage.warning('请填写渠道名称和上游地址');return}if(!channelForm.value.capabilities?.length){ElMessage.warning('请至少选择一种接口能力');return}savingChannel.value=true;try{const payload={...channelForm.value};if(editingChannel.value&&payload.api_key===originalApiKey.value)payload.api_key='';if(editingChannel.value)await api.put(`/api/admin/channels/${editingChannel.value.id}`,payload);else await api.post('/api/admin/channels',payload);ElMessage.success('渠道已保存');channelDialog.value=false;await loadAll()}finally{savingChannel.value=false}}
 async function toggleChannel(row){await api.patch(`/api/admin/channels/${row.id}/status`,{status:row.status==='active'?'inactive':'active'});await loadAll()}

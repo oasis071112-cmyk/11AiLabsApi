@@ -90,4 +90,25 @@ function listSystemModelCapabilities(db) {
   return capabilities;
 }
 
-module.exports = { listRoutingGroupModels, listModelsForApiKey, apiKeyCanUseModel, listSystemModelCapabilities };
+function listUserModelCapabilities(db, userId) {
+  const apiKeys = db.prepare(`SELECT id,routing_group_id,permission_mode FROM api_keys
+    WHERE user_id=? AND status='active'`).all(userId);
+  const capabilities = new Map();
+  for (const apiKey of apiKeys) {
+    for (const model of listModelsForApiKey(db, apiKey)) {
+      const current = capabilities.get(model.model_code) || { chat_completions: false, image_input: false };
+      current.chat_completions ||= Boolean(model.capabilities?.chat_completions);
+      current.image_input ||= Boolean(model.capabilities?.image_input);
+      capabilities.set(model.model_code, current);
+    }
+  }
+  return capabilities;
+}
+
+module.exports = {
+  listRoutingGroupModels,
+  listModelsForApiKey,
+  apiKeyCanUseModel,
+  listSystemModelCapabilities,
+  listUserModelCapabilities,
+};

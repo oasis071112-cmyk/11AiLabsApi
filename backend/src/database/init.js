@@ -372,7 +372,7 @@ function createTables() {
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_requests INTEGER DEFAULT 0"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_successes INTEGER DEFAULT 0"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN protocol_type TEXT DEFAULT 'openai_compatible'"); } catch(e) {}
-  try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN capabilities TEXT DEFAULT '[\"chat_completions\",\"embeddings\"]'"); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN capabilities TEXT DEFAULT '[\"chat_completions\"]'"); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS routing_groups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
