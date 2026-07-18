@@ -1,5 +1,5 @@
 <template>
-<div class="models-page">
+<div class="models-page admin-page">
   <div class="flex-between mb-16">
     <div><h3>模型管理</h3><div class="page-hint">按官方厂商和模型类型分类查看</div></div>
     <div><el-button :loading="syncing" @click="syncPricing">同步官方价格与汇率</el-button><el-button type="primary" @click="openDialog()">+ 新增模型</el-button></div>

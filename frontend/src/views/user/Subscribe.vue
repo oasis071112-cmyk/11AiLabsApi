@@ -1,5 +1,5 @@
 <template>
-<div class="page-container" style="max-width:600px">
+<div class="page-container subscription-page" style="max-width:600px">
 <h2 class="card-title"><ShoppingCart :size="22"/> 订阅额度包</h2>
 
 <el-card>

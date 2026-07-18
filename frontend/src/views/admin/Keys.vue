@@ -1,5 +1,5 @@
 <template>
-<div class="keys-page">
+<div class="keys-page admin-page">
   <div class="flex-between mb-16"><div><h3>API Key 管理</h3><div class="page-hint">按用户展开查看 Key、状态和模型权限</div></div></div>
   <el-collapse v-model="expandedUsers" accordion v-loading="loading" class="user-groups">
     <el-collapse-item v-for="group in groups" :key="group.user_id" :name="group.user_id">

@@ -1,5 +1,5 @@
 <template>
-<div class="routing-page">
+<div class="routing-page admin-page">
   <div class="flex-between mb-16">
     <div><h3>路由与渠道</h3><div class="page-hint">API Key 绑定路由分组；每个分组可配置多个上游渠道并自动择优。</div></div>
   </div>

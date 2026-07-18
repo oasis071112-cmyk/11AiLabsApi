@@ -1,5 +1,5 @@
 <template>
-<div><div class="flex-between mb-16"><h3>用户管理</h3><el-input v-model="search" placeholder="搜索用户名/邮箱" style="width:260px" clearable @change="fetch"/></div>
+<div class="admin-page users-page"><div class="flex-between mb-16"><h3>用户管理</h3><el-input v-model="search" class="admin-search" placeholder="搜索用户名/邮箱" style="width:260px" clearable @change="fetch"/></div>
 <el-table :data="users" stripe v-loading="loading">
 <el-table-column prop="id" label="ID" width="60"/><el-table-column prop="username" label="用户名"/><el-table-column prop="email" label="邮箱"/>
 <el-table-column label="角色" width="100"><template #default="{row}"><el-tag :type="row.role==='admin'?'danger':'info'" size="small">{{ rl(row.role) }}</el-tag></template></el-table-column>

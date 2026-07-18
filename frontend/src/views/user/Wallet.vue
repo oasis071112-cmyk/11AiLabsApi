@@ -91,4 +91,21 @@ function payLabel(m){const map={alipay:'支付宝',wechat:'微信支付',usdt:'U
 .chart-card{background:rgba(255,255,255,0.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(232,235,229,0.7);border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.04)}
 .wallet-tabs :deep(.el-tabs__header){margin:0;padding:0 18px;border-bottom:1px solid rgba(0,0,0,0.06)}
 .wallet-tabs :deep(.el-tabs__content){padding:12px 18px 4px}
+@media(max-width:768px){
+  .kpi-row{margin-left:0!important;margin-right:0!important;row-gap:0!important;overflow:hidden;border-radius:12px;margin-bottom:10px}
+  .kpi-row>[class*="el-col-"]{flex:0 0 50%;max-width:50%;padding:0!important}
+  .kpi-card{min-height:66px;padding:9px 10px;gap:8px;border-radius:0;box-shadow:none}
+  .kpi-row>[class*="el-col-"]:nth-child(1) .kpi-card{border-radius:12px 0 0 0}
+  .kpi-row>[class*="el-col-"]:nth-child(2) .kpi-card{border-radius:0 12px 0 0;margin-left:-1px}
+  .kpi-row>[class*="el-col-"]:nth-child(3) .kpi-card{border-radius:0 0 0 12px;margin-top:-1px}
+  .kpi-row>[class*="el-col-"]:nth-child(4) .kpi-card{border-radius:0 0 12px 0;margin-top:-1px;margin-left:-1px}
+  .kpi-icon{width:32px;height:32px;border-radius:9px}
+  .kpi-label{font-size:11px;margin-bottom:1px;text-transform:none}
+  .kpi-value{font-size:15px}
+  .filter-bar{padding:8px 10px!important;margin-bottom:10px!important;box-shadow:none}
+  .filter-bar .el-button{min-height:40px;margin-left:auto!important}
+  .chart-card{border-radius:12px;box-shadow:none}
+  .wallet-tabs :deep(.el-tabs__header){padding:0 10px}
+  .wallet-tabs :deep(.el-tabs__content){padding:8px 10px 2px}
+}
 </style>

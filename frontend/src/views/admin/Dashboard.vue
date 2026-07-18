@@ -1,6 +1,6 @@
 <template>
-<div class="admin-dashboard">
-  <section class="admin-metrics" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+<div class="admin-dashboard admin-page">
+  <section class="admin-metrics">
     <article v-for="item in metrics" :key="item.label" class="stat-card"><div class="label">{{ item.label }}</div><div class="value" :class="item.tone">{{ item.value }}</div></article>
   </section>
   <section class="admin-insights">
@@ -22,7 +22,7 @@ onMounted(async()=>{try{data.value=(await api.get('/api/admin/dashboard')).data}
 </script>
 
 <style scoped>
-.admin-dashboard{padding:0 8px 24px;min-width:0}.admin-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:20px}.admin-metrics .stat-card{min-width:0;min-height:126px;padding:20px}.admin-metrics .value{white-space:nowrap;font-size:25px;overflow:hidden;text-overflow:ellipsis}.admin-insights{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(320px,1fr);gap:16px}.admin-insights :deep(.el-card){height:100%}.insight-heading{display:flex;align-items:center;gap:8px}.admin-ranking-card :deep(.el-card__body){padding:12px 18px}.mobile-trend-list{display:grid;gap:6px}.mobile-trend-list>div{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;background:#f8fafc;border-radius:8px;padding:9px 10px;font-size:12px}.mobile-trend-list strong{color:#16a34a}.mobile-trend-list em{color:#dc2626;font-style:normal}
-@media(min-width:769px) and (max-width:1180px){.admin-dashboard{padding:0 4px 20px}.admin-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.admin-metrics .stat-card{min-height:116px;padding:17px 16px}.admin-metrics .value{font-size:22px}.admin-insights{grid-template-columns:minmax(0,1fr) minmax(300px,.9fr);gap:12px}}
+.admin-dashboard{min-width:0}.admin-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.admin-metrics .stat-card{min-width:0;min-height:104px;padding:17px 18px}.admin-metrics .value{white-space:nowrap;font-size:24px;overflow:hidden;text-overflow:ellipsis}.admin-insights{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);gap:12px}.admin-insights :deep(.el-card){height:100%}.insight-heading{display:flex;align-items:center;gap:8px}.admin-ranking-card :deep(.el-card__body){padding:12px 16px}.mobile-trend-list{display:grid;gap:6px}.mobile-trend-list>div{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;background:#f8fafc;border-radius:8px;padding:9px 10px;font-size:12px}.mobile-trend-list strong{color:#16a34a}.mobile-trend-list em{color:#dc2626;font-style:normal}
+@media(min-width:769px) and (max-width:1180px){.admin-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.admin-metrics .stat-card{min-height:100px;padding:15px 16px}.admin-metrics .value{font-size:22px}.admin-insights{grid-template-columns:minmax(0,1fr) minmax(300px,.9fr);gap:10px}}
 @media(max-width:768px){.admin-dashboard{padding:0}.admin-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px}.admin-metrics .stat-card{min-height:102px;padding:14px 13px}.admin-metrics .label{margin-bottom:7px;letter-spacing:0}.admin-metrics .value{font-size:20px;line-height:1.25;overflow-wrap:anywhere;white-space:normal}.admin-insights{grid-template-columns:1fr;gap:12px}.admin-ranking-card :deep(.el-card__body){padding:12px}}
 </style>

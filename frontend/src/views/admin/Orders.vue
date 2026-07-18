@@ -1,5 +1,5 @@
 <template>
-<div><div class="flex-between mb-16"><h3>额度购买订单管理</h3></div>
+<div class="admin-page orders-page"><div class="flex-between mb-16"><h3>额度购买订单管理</h3></div>
 <el-radio-group v-model="statusFilter" @change="fetch" style="margin-bottom:16px"><el-radio-button value="">全部</el-radio-button><el-radio-button value="pending">待支付</el-radio-button><el-radio-button value="paid">已支付</el-radio-button><el-radio-button value="granted">已发放</el-radio-button><el-radio-button value="cancelled">已取消</el-radio-button></el-radio-group>
 <el-table :data="orders" stripe v-loading="loading">
 <el-table-column prop="order_no" label="订单号" width="220"/><el-table-column prop="username" label="用户" width="120"/>
