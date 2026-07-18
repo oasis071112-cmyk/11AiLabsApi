@@ -3,7 +3,6 @@ const bcrypt = require('bcryptjs');
 const router = express.Router();
 const { getDatabase } = require('../database/init');
 const { authenticate, generateToken } = require('../middleware/auth');
-const { v4: uuidv4 } = require('uuid');
 
 router.post('/register', (req, res) => {
   const { username, password, email } = req.body;
@@ -37,16 +36,8 @@ router.post('/register', (req, res) => {
     }
   }
 
-  const keyRaw = 'sk-' + uuidv4().replace(/-/g, '');
-  const keyHash = bcrypt.hashSync(keyRaw, 10);
-  const keyPrefix = keyRaw.substring(0, 12);
-  const keyResult = db.prepare("INSERT INTO api_keys (user_id,key_name,key_hash,key_prefix,status) VALUES (?,'默认密钥',?,?,'active')").run(userId, keyHash, keyPrefix);
-  const activeModels = db.prepare("SELECT model_code FROM models WHERE status='active'").all();
-  const insertPerm = db.prepare('INSERT OR IGNORE INTO api_key_permissions (api_key_id,model_code) VALUES (?,?)');
-  for (const m of activeModels) insertPerm.run(keyResult.lastInsertRowid, m.model_code);
-
   const token = generateToken({ id: userId, username, role: 'user' });
-  res.status(201).json({ message: '注册成功', token, gift_amount: giftGiven, api_key: keyRaw, user: { id: userId, username, email: email||null, role: 'user' } });
+  res.status(201).json({ message: '注册成功，登录中...', token, gift_amount: giftGiven, user: { id: userId, username, email: email||null, role: 'user' } });
 });
 
 router.post('/login', (req, res) => {
