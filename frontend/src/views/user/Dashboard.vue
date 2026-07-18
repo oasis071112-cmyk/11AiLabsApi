@@ -10,7 +10,7 @@
 </el-row>
 
 <el-row :gutter="20" style="margin-bottom:28px">
-<el-col :span="8"><el-card shadow="hover" @click="$router.push('/wallet')" style="cursor:pointer"><div style="text-align:center;padding:12px"><div class="action-icon" style="background:#409eff"><ShoppingCart :size="24" color="#fff"/></div><div style="margin-top:12px;font-weight:600;font-size:15px">购买额度包</div><div style="font-size:12px;color:var(--text-muted);margin-top:4px">支付宝 / 微信 / USDT</div></div></el-card></el-col>
+<el-col :span="8"><el-card shadow="hover" @click="$router.push('/wallet')" style="cursor:pointer"><div style="text-align:center;padding:12px"><div class="action-icon" style="background:#409eff"><ShoppingCart :size="24" color="#fff"/></div><div style="margin-top:12px;font-weight:600;font-size:15px">购买额度包</div><div style="font-size:12px;color:var(--text-muted);margin-top:4px">支付宝 / 微信支付</div></div></el-card></el-col>
 <el-col :span="8"><el-card shadow="hover" @click="$router.push('/keys')" style="cursor:pointer"><div style="text-align:center;padding:12px"><div class="action-icon" style="background:#409eff"><Key :size="24" color="#fff"/></div><div style="margin-top:12px;font-weight:600;font-size:15px">创建 API Key</div><div style="font-size:12px;color:var(--text-muted);margin-top:4px">管理 API 密钥</div></div></el-card></el-col>
 <el-col :span="8"><el-card shadow="hover" @click="$router.push('/keys')" style="cursor:pointer"><div style="text-align:center;padding:12px"><div class="action-icon" style="background:#f59e0b"><BookOpen :size="24" color="#fff"/></div><div style="margin-top:12px;font-weight:600;font-size:15px">API 使用说明</div><div style="font-size:12px;color:var(--text-muted);margin-top:4px">各渠道接入指南</div></div></el-card></el-col>
 </el-row>

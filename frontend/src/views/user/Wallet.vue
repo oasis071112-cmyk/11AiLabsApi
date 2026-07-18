@@ -56,14 +56,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';import api from '@/api';import { ElMessage } from 'element-plus'
+import { ref, computed, onMounted } from 'vue';import { useRoute } from 'vue-router';import api from '@/api';import { ElMessage } from 'element-plus'
 import { Wallet, ShoppingCart, Coins, Gift, Lock } from '@lucide/vue'
 const wallet=ref({quota_balance:0,gift_quota:0,frozen_balance:0})
 const availableBalance=computed(()=>((wallet.value.quota_balance||0)+(wallet.value.gift_quota||0)-(wallet.value.frozen_balance||0)).toFixed(2))
 const activeTab=ref('tx'),transactions=ref([]),orders=ref([]),ltx=ref(false),lo=ref(false)
 const txPage=ref(1),txTotal=ref(0),oPage=ref(1),oTotal=ref(0)
 const rechargeDialog=ref(false),recharging=ref(false),rf=ref({amount:10,payment_method:'alipay'}),paymentOptions=ref({enabled:false,methods:[]})
-onMounted(async()=>{try{const [walletResponse,paymentResponse]=await Promise.all([api.get('/api/user/wallet'),api.get('/api/user/payment-options')]);const r=walletResponse;wallet.value={quota_balance:r.data.quota_balance||r.data.recharge_balance||0,gift_quota:r.data.gift_quota||r.data.gift_balance||0,frozen_balance:r.data.frozen_balance||0};paymentOptions.value=paymentResponse.data;if(!paymentOptions.value.methods.includes(rf.value.payment_method))rf.value.payment_method=paymentOptions.value.methods[0]||'manual_transfer'}catch(e){};fetchTx();fetchOrders()})
+const route=useRoute()
+async function fetchWallet(){try{const r=await api.get('/api/user/wallet');wallet.value={quota_balance:r.data.quota_balance||r.data.recharge_balance||0,gift_quota:r.data.gift_quota||r.data.gift_balance||0,frozen_balance:r.data.frozen_balance||0}}catch(e){}}
+async function refreshReturnedPayment(){const orderNo=String(route.query.payment_order||'');if(!orderNo)return;activeTab.value='orders';for(let attempt=0;attempt<6;attempt+=1){try{const response=await api.get(`/api/user/payment-orders/${encodeURIComponent(orderNo)}`);const status=response.data.data?.status;if(status==='granted'){await Promise.all([fetchWallet(),fetchOrders(),fetchTx()]);ElMessage.success('支付已确认，额度已自动到账');return}if(status==='cancelled'){ElMessage.warning('该支付订单已超时或取消');return}if(attempt===0)ElMessage.info('支付完成后正在确认到账，请稍候…')}catch(e){return}await new Promise(resolve=>window.setTimeout(resolve,2000))}ElMessage.info('支付结果仍在确认中，请稍后在购买记录刷新查看')}
+onMounted(async()=>{try{const paymentResponse=await api.get('/api/user/payment-options');paymentOptions.value=paymentResponse.data;if(!paymentOptions.value.methods.includes(rf.value.payment_method))rf.value.payment_method=paymentOptions.value.methods[0]||'manual_transfer'}catch(e){};await Promise.all([fetchWallet(),fetchTx(),fetchOrders()]);await refreshReturnedPayment()})
 async function fetchTx(){ltx.value=true;try{const r=await api.get('/api/user/transactions',{params:{page:txPage.value}});transactions.value=r.data.data;txTotal.value=r.data.pagination.total}catch(e){}ltx.value=false}
 async function fetchOrders(){lo.value=true;try{const r=await api.get('/api/user/recharge-orders',{params:{page:oPage.value}});orders.value=r.data.data;oTotal.value=r.data.pagination.total}catch(e){}lo.value=false}
 function submitPaymentForm(request){const form=document.createElement('form');form.method=request.method||'POST';form.action=request.action;for(const [name,value] of Object.entries(request.fields||{})){const input=document.createElement('input');input.type='hidden';input.name=name;input.value=String(value);form.appendChild(input)}document.body.appendChild(form);form.submit()}

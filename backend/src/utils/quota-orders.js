@@ -5,10 +5,11 @@ function quotaOrderError(status, code, message) {
   return error;
 }
 
-function grantQuotaOrder(db, orderId, operatorId = null, remark = '额度包发放到账') {
+function grantQuotaOrder(db, orderId, operatorId = null, remark = '额度包发放到账', options = {}) {
   return db.transaction(() => {
     const order = db.prepare('SELECT * FROM quota_orders WHERE id=?').get(orderId);
     if (!order) throw quotaOrderError(404, 'ORDER_NOT_FOUND', '订单不存在');
+    if (order.payment_provider_id && !options.allowOnlinePaymentOrder) throw quotaOrderError(409, 'ONLINE_ORDER_CALLBACK_REQUIRED', '在线支付订单只能由验签回调自动发放');
     if (!['pending', 'paid'].includes(order.status)) throw quotaOrderError(409, 'ORDER_ALREADY_PROCESSED', '订单已处理，请勿重复发放');
     const existingGrant = db.prepare("SELECT id FROM wallet_transactions WHERE related_order_id=? AND transaction_type='purchase'").get(orderId);
     if (existingGrant) throw quotaOrderError(409, 'ORDER_ALREADY_GRANTED', '该订单已有到账流水，请勿重复发放');

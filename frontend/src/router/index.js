@@ -5,7 +5,7 @@ const routes=[
   {path:'/',component:()=>import('@/layouts/UserLayout.vue'),meta:{requiresAuth:true},children:[
     {path:'',name:'Dashboard',component:()=>import('@/views/user/Dashboard.vue')},
     {path:'wallet',name:'Wallet',component:()=>import('@/views/user/Wallet.vue')},
-    {path:'subscribe',name:'Subscribe',component:()=>import('@/views/user/Subscribe.vue')},
+    {path:'subscribe',redirect:'/wallet'},
     {path:'keys',name:'ApiKeys',component:()=>import('@/views/user/ApiKeys.vue')},
     {path:'models',name:'Models',component:()=>import('@/views/user/Models.vue')},
     {path:'logs',name:'Logs',component:()=>import('@/views/user/Logs.vue')},

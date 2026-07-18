@@ -32,6 +32,8 @@ router.post('/easypay/notify', (req, res) => {
   if (order.status !== 'pending' && order.status !== 'paid') return fail(res, 409);
   const providerTradeNo = String(fields.trade_no || '');
   if (!providerTradeNo) return fail(res, 400);
+  const expired = db.prepare("UPDATE quota_orders SET status='cancelled',admin_remark='在线支付订单超时' WHERE id=? AND status='pending' AND expires_at IS NOT NULL AND expires_at<CURRENT_TIMESTAMP").run(order.id);
+  if (expired.changes === 1) return fail(res, 409);
 
   try {
     db.transaction(() => {
@@ -42,7 +44,7 @@ router.post('/easypay/notify', (req, res) => {
         if (current?.status === 'granted' && current.provider_trade_no === providerTradeNo) return;
         throw new Error('订单状态已变化');
       }
-      grantQuotaOrder(db, order.id, null, '易支付自动到账');
+      grantQuotaOrder(db, order.id, null, '易支付自动到账', { allowOnlinePaymentOrder: true });
     });
     return res.type('text/plain').send('success');
   } catch (error) {

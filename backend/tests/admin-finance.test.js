@@ -121,4 +121,19 @@ describe('管理端余额与订单安全边界', () => {
     expect(db.prepare(`SELECT COUNT(*) AS count FROM wallet_transactions
       WHERE related_order_id=? AND transaction_type='purchase'`).get(orderId).count).toBe(1);
   });
+
+  it('人工确认不会发放尚未验签的在线支付订单', async () => {
+    const db = getDatabase();
+    const providerId = db.prepare(`INSERT INTO payment_providers
+      (provider_type,provider_name,api_base_url,merchant_id,merchant_key_encrypted,status)
+      VALUES ('easypay','guard','https://pay.example.test','guard-pid','encrypted','active')`).run().lastInsertRowid;
+    const orderId = db.prepare(`INSERT INTO quota_orders
+      (order_no,user_id,amount,payment_method,status,payment_provider_id) VALUES (?,?,?,'easypay','pending',?)`)
+      .run(`ONLINE-${Date.now()}-${Math.random()}`, userId, 33, providerId).lastInsertRowid;
+    const before = db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance;
+    const response = await request(`/api/admin/recharge-orders/${orderId}/confirm`, { method: 'PATCH' });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'ONLINE_ORDER_CALLBACK_REQUIRED' });
+    expect(db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance).toBe(before);
+  });
 });

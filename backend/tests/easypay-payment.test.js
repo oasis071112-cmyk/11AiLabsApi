@@ -77,6 +77,14 @@ describe('易支付自动到账', () => {
     expect(order.payment_request.fields.notify_url).toBe('https://11ailabs.example/api/payment/easypay/notify');
   });
 
+  it('拒绝无法按分精确结算的金额', async () => {
+    const response = await fetch(`${baseUrl}/api/user/payment-orders`, {
+      method: 'POST', headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 10.001, payment_method: 'alipay' }),
+    });
+    expect(response.status).toBe(400);
+  });
+
   it('验签成功的回调只会自动入账一次', async () => {
     const order = await createOrder(12);
     const fields = callbackFields(order);
@@ -109,5 +117,17 @@ describe('易支付自动到账', () => {
     expect(response.status).toBe(400);
     expect(await response.text()).toBe('fail');
     expect(getDatabase().prepare('SELECT status FROM quota_orders WHERE order_no=?').get(order.order_no).status).toBe('pending');
+  });
+
+  it('已过期订单不能再通过回调入账', async () => {
+    getDatabase().prepare("UPDATE quota_orders SET expires_at=datetime('now','-1 minute') WHERE status='pending'").run();
+    const order = await createOrder(21);
+    getDatabase().prepare("UPDATE quota_orders SET expires_at=datetime('now','-1 minute') WHERE order_no=?").run(order.order_no);
+    const response = await fetch(`${baseUrl}/api/payment/easypay/notify`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(callbackFields(order)),
+    });
+    expect(response.status).toBe(409);
+    expect(await response.text()).toBe('fail');
+    expect(getDatabase().prepare('SELECT status FROM quota_orders WHERE order_no=?').get(order.order_no).status).toBe('cancelled');
   });
 });

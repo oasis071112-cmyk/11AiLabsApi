@@ -36,11 +36,25 @@ function configValue(db, key, fallback = '') {
   return db.prepare('SELECT config_value FROM system_config WHERE config_key=?').get(key)?.config_value ?? fallback;
 }
 
+function expirePendingPaymentOrders(db, userId = null) {
+  const where = userId === null ? '' : ' AND user_id=?';
+  const params = userId === null ? [] : [userId];
+  db.prepare(`UPDATE quota_orders SET status='cancelled',admin_remark='在线支付订单超时' WHERE status='pending' AND payment_provider_id IS NOT NULL AND expires_at IS NOT NULL AND expires_at<CURRENT_TIMESTAMP${where}`).run(...params);
+}
+
 router.get('/payment-options', authenticate, (req, res) => {
   const db = getDatabase();
   const enabled = configValue(db, 'payment_enabled', 'false') === 'true';
   const provider = db.prepare("SELECT id,alipay_type,wechat_type FROM payment_providers WHERE provider_type='easypay' AND status='active' ORDER BY id ASC LIMIT 1").get();
   res.json({ enabled: enabled && Boolean(provider), methods: enabled && provider ? ['alipay', 'wechat'] : [] });
+});
+
+router.get('/payment-orders/:orderNo', authenticate, (req, res) => {
+  const order = getDatabase().prepare(`SELECT order_no,amount,payment_method,status,created_at,paid_at,granted_at,expires_at
+    FROM quota_orders WHERE order_no=? AND user_id=? AND payment_provider_id IS NOT NULL`).get(req.params.orderNo, req.user.id);
+  if (!order) return res.status(404).json({ error: '支付订单不存在' });
+  expirePendingPaymentOrders(getDatabase(), req.user.id);
+  res.json({ data: getDatabase().prepare('SELECT order_no,amount,payment_method,status,created_at,paid_at,granted_at,expires_at FROM quota_orders WHERE order_no=?').get(order.order_no) });
 });
 
 router.post('/payment-orders', authenticate, (req, res) => {
@@ -51,9 +65,10 @@ router.post('/payment-orders', authenticate, (req, res) => {
   if (configValue(db, 'payment_enabled', 'false') !== 'true') return res.status(403).json({ error: '在线支付暂未开启' });
   const minimum = Number(configValue(db, 'payment_min_amount', '1'));
   const maximum = Number(configValue(db, 'payment_max_amount', '10000'));
-  if (!Number.isFinite(amount) || amount < minimum || amount > maximum) return res.status(400).json({ error: `充值金额需在 ${minimum} 至 ${maximum} 元之间` });
+  if (!Number.isFinite(amount) || Math.round(amount * 100) !== amount * 100 || amount < minimum || amount > maximum) return res.status(400).json({ error: `充值金额需为 ${minimum} 至 ${maximum} 元之间、最多两位小数的金额` });
   const siteUrl = String(configValue(db, 'payment_site_url', '')).replace(/\/+$/, '');
   if (!/^https:\/\//i.test(siteUrl)) return res.status(409).json({ error: '在线支付尚未配置公开 HTTPS 地址' });
+  expirePendingPaymentOrders(db, req.user.id);
   const maxPending = Number(configValue(db, 'payment_max_pending_orders', '3'));
   const pendingOrders = db.prepare("SELECT COUNT(*) AS count FROM quota_orders WHERE user_id=? AND status='pending' AND payment_provider_id IS NOT NULL").get(req.user.id).count;
   if (pendingOrders >= maxPending) return res.status(429).json({ error: '待支付订单过多，请先完成或等待已有订单过期' });
