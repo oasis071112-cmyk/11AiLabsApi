@@ -66,10 +66,29 @@
     <template #footer><el-button @click="channelDialog=false">取消</el-button><el-button type="primary" :loading="savingChannel" @click="saveChannel">保存</el-button></template>
   </el-dialog>
 
-  <el-dialog v-model="mappingDialog" :title="`${mappingChannel?.channel_name||''} · 模型映射`" width="760px">
-    <el-alert title="公开模型名供用户调用；上游模型名和图片输入能力按渠道分别配置。只有这里开启图片输入的映射才会接收图片请求。" type="info" :closable="false" style="margin-bottom:12px"/>
+  <el-dialog v-model="mappingDialog" :title="`${mappingChannel?.channel_name||''} · 模型映射与计费`" width="960px">
+    <el-alert title="计费模式与 Sub2API 一致：留空时对话按 Token、生图按图片；可显式切换 Token、每请求或图片分档。所有价格均为美元，钱包仍按原点数逻辑扣费。" type="info" :closable="false" style="margin-bottom:12px"/>
     <el-input v-model="mappingSearch" clearable placeholder="搜索模型" style="margin-bottom:12px"/>
     <el-table :data="filteredMappings" height="430" v-loading="mappingLoading">
+      <el-table-column type="expand" width="44"><template #default="{row}"><div class="billing-editor">
+        <label>计费模式<el-select v-model="row.billing_mode" :disabled="!row.selected"><el-option label="自动（推荐）" value=""/><el-option label="Token" value="token"/><el-option label="每请求" value="per_request"/><el-option label="图片分档" value="image"/></el-select></label>
+        <label>账单模型来源<el-select v-model="row.billing_model_source" :disabled="!row.selected"><el-option label="渠道映射模型" value="channel_mapped"/><el-option label="用户请求模型" value="requested"/><el-option label="上游返回模型" value="upstream"/></el-select></label>
+        <template v-if="row.billing_mode==='token'">
+          <label>输入 / Token<el-input-number v-model="row.input_price" :min="0" :precision="10" :controls="false"/></label>
+          <label>输出 / Token<el-input-number v-model="row.output_price" :min="0" :precision="10" :controls="false"/></label>
+          <label>缓存写入 / Token<el-input-number v-model="row.cache_write_price" :min="0" :precision="10" :controls="false"/></label>
+          <label>缓存读取 / Token<el-input-number v-model="row.cache_read_price" :min="0" :precision="10" :controls="false"/></label>
+          <label>图片输入 / Token<el-input-number v-model="row.image_input_price" :min="0" :precision="10" :controls="false"/></label>
+          <label>图片输出 / Token<el-input-number v-model="row.image_output_price" :min="0" :precision="10" :controls="false"/></label>
+        </template>
+        <label v-if="row.billing_mode==='per_request'">每请求价格<el-input-number v-model="row.per_request_price" :min="0" :precision="8" :controls="false"/></label>
+        <template v-if="row.billing_mode==='image'">
+          <label>1K 图片<el-input-number v-model="row.image_price_1k" :min="0" :precision="8" :controls="false"/></label>
+          <label>2K 图片<el-input-number v-model="row.image_price_2k" :min="0" :precision="8" :controls="false"/></label>
+          <label>4K 图片<el-input-number v-model="row.image_price_4k" :min="0" :precision="8" :controls="false"/></label>
+          <label>图片通用价<el-input-number v-model="row.per_request_price" :min="0" :precision="8" :controls="false"/></label>
+        </template>
+      </div></template></el-table-column>
       <el-table-column label="启用" width="70"><template #default="{row}"><el-switch v-model="row.selected"/></template></el-table-column>
       <el-table-column label="公开模型" min-width="230"><template #default="{row}"><strong>{{ row.model_name }}</strong><div class="muted">{{ row.model_code }}</div></template></el-table-column>
       <el-table-column label="该渠道上游模型名" min-width="280"><template #default="{row}"><el-input v-model="row.upstream_model_name" :disabled="!row.selected" placeholder="上游实际模型 ID"/></template></el-table-column>
@@ -113,13 +132,14 @@ async function saveChannel(){if(!channelForm.value.channel_name.trim()||!channel
 async function toggleChannel(row){const nextStatus=row.status==='active'?'inactive':'active';await api.patch(`/api/admin/channels/${row.id}/status`,{status:nextStatus});if(nextStatus==='inactive')collapsedSections.value=collapsedSections.value.filter(item=>item!=='channels');await loadAll()}
 async function deleteChannel(row){await api.delete(`/api/admin/channels/${row.id}`);ElMessage.success('渠道已删除');await loadAll()}
 async function syncModels(row){syncingId.value=row.id;try{const result=await api.post(`/api/admin/channels/${row.id}/sync-models`);ElMessage.success(result.data.message);await loadAll()}finally{syncingId.value=null}}
-async function openMappings(row){mappingChannel.value=row;mappingDialog.value=true;mappingLoading.value=true;mappingSearch.value='';try{const result=(await api.get(`/api/admin/channels/${row.id}/models`)).data;const byCode=new Map((result.mappings||[]).map(item=>[item.model_code,item]));mappingRows.value=(result.data||[]).map(model=>{const mapping=byCode.get(model.model_code);return{...model,selected:mapping?.status==='active',upstream_model_name:mapping?.upstream_model_name||model.upstream_model_name||model.model_code,supports_image_input:mapping?.supports_image_input==null?Boolean(model.is_multimodal):Number(mapping.supports_image_input)===1}})}finally{mappingLoading.value=false}}
-async function saveMappings(){savingMappings.value=true;try{const models=mappingRows.value.filter(item=>item.selected).map(item=>({model_code:item.model_code,upstream_model_name:item.upstream_model_name||item.model_code,supports_image_input:Boolean(item.supports_image_input)}));await api.put(`/api/admin/channels/${mappingChannel.value.id}/models`,{models});ElMessage.success('模型映射已保存');mappingDialog.value=false;await loadAll()}finally{savingMappings.value=false}}
+const billingFields=['billing_mode','billing_model_source','input_price','output_price','cache_write_price','cache_read_price','image_input_price','image_output_price','per_request_price','image_price_1k','image_price_2k','image_price_4k']
+async function openMappings(row){mappingChannel.value=row;mappingDialog.value=true;mappingLoading.value=true;mappingSearch.value='';try{const result=(await api.get(`/api/admin/channels/${row.id}/models`)).data;const byCode=new Map((result.mappings||[]).map(item=>[item.model_code,item]));mappingRows.value=(result.data||[]).map(model=>{const mapping=byCode.get(model.model_code);return{...model,...Object.fromEntries(billingFields.map(field=>[field,mapping?.[field]??(field==='billing_model_source'?'channel_mapped':field==='billing_mode'?'':null)])),selected:mapping?.status==='active',upstream_model_name:mapping?.upstream_model_name||model.upstream_model_name||model.model_code,supports_image_input:mapping?.supports_image_input==null?Boolean(model.is_multimodal):Number(mapping.supports_image_input)===1}})}finally{mappingLoading.value=false}}
+async function saveMappings(){savingMappings.value=true;try{const models=mappingRows.value.filter(item=>item.selected).map(item=>({model_code:item.model_code,upstream_model_name:item.upstream_model_name||item.model_code,supports_image_input:Boolean(item.supports_image_input),...Object.fromEntries(billingFields.map(field=>[field,item[field]]))}));await api.put(`/api/admin/channels/${mappingChannel.value.id}/models`,{models});ElMessage.success('模型映射与计费已保存');mappingDialog.value=false;await loadAll()}finally{savingMappings.value=false}}
 function healthType(row){return row.status!=='active'?'info':Number(row.health_score||0)>=60?'success':'warning'}
 function healthLabel(row){return row.status!=='active'?'未启用':Number(row.health_score||0)>=60?'在线':'降级'}
 </script>
 
 <style scoped>
-.routing-page{padding-bottom:24px}.page-hint,.section-head p{font-size:12px;color:#94a3b8;margin:4px 0 0}.section-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:18px;overflow:hidden}.section-head{padding:16px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eef2f7}.section-head h4{margin:0;color:#0f172a}.mr-tag{margin:2px 4px 2px 0}.muted,.switch-help{color:#94a3b8;font-size:12px}.switch-help{margin-left:10px}.inactive-section{border-top:1px solid #eef2f7}.inactive-section :deep(.el-collapse-item__header){padding:0 18px;font-size:13px;font-weight:600;color:#64748b}.inactive-section :deep(.el-collapse-item__content){padding:0}.collapse-hint{margin-left:auto;margin-right:12px;font-size:12px;font-weight:400;color:#94a3b8}
+.routing-page{padding-bottom:24px}.page-hint,.section-head p{font-size:12px;color:#94a3b8;margin:4px 0 0}.section-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:18px;overflow:hidden}.section-head{padding:16px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eef2f7}.section-head h4{margin:0;color:#0f172a}.mr-tag{margin:2px 4px 2px 0}.muted,.switch-help{color:#94a3b8;font-size:12px}.switch-help{margin-left:10px}.inactive-section{border-top:1px solid #eef2f7}.inactive-section :deep(.el-collapse-item__header){padding:0 18px;font-size:13px;font-weight:600;color:#64748b}.inactive-section :deep(.el-collapse-item__content){padding:0}.collapse-hint{margin-left:auto;margin-right:12px;font-size:12px;font-weight:400;color:#94a3b8}.billing-editor{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px 18px;background:#f8fafc}.billing-editor label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:#64748b}.billing-editor :deep(.el-input-number),.billing-editor :deep(.el-select){width:100%}
 @media(max-width:768px){.section-card{margin-bottom:12px}.section-head{padding:14px;align-items:flex-start;gap:12px;flex-wrap:wrap}.section-head .el-button{width:100%;margin:0}.switch-help{display:block;margin:6px 0 0}.routing-page :deep(.el-table__inner-wrapper){min-width:680px}.routing-page :deep(.el-dialog .el-table__inner-wrapper){min-width:620px}}
 </style>

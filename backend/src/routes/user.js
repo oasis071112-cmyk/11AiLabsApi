@@ -232,17 +232,26 @@ router.get('/logs', authenticate, (req, res) => {
   if (key_id) { where += ' AND api_key_id=?'; p.push(key_id); }
   if (start_date) { where += ' AND created_at>=?'; p.push(start_date); }
   if (end_date) { where += ' AND created_at<=?'; p.push(end_date+' 23:59:59'); }
-  const rows = db.prepare(`SELECT request_id,api_key_id,model_code,input_tokens,cached_input_tokens,output_tokens,total_cost,status,error_message,error_type,latency_ms,created_at,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,usd_cny_rate,billing_multiplier_input,billing_multiplier_output,official_cost_cny,
-    billing_mode,image_count,image_size,image_quality,official_image_unit_price,billing_multiplier_image,
+  const rows = db.prepare(`SELECT request_id,api_key_id,model_code,input_tokens,cached_input_tokens,cache_creation_tokens,
+    image_input_tokens,output_tokens,image_output_tokens,total_cost,status,error_message,error_type,latency_ms,created_at,
+    official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,
+    official_cache_creation_price,official_image_input_price,official_image_output_price,official_unit_tokens,
+    usd_cny_rate,billing_multiplier_input,billing_multiplier_output,official_cost_cny,
+    billing_mode,billing_model_source,service_tier,long_context_billing_applied,
+    image_count,image_size,image_quality,official_image_unit_price,billing_multiplier_image,
     (SELECT base_input_price FROM models WHERE models.model_code=api_request_logs.model_code) as legacy_input_price,
     (SELECT base_output_price FROM models WHERE models.model_code=api_request_logs.model_code) as legacy_output_price
-    FROM api_request_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
+    FROM api_request_logs ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
   const data = rows.map(row => ({
     ...row,
     billing_detail: buildBillingDetail({
+      modelCode: row.model_code,
       inputTokens: row.input_tokens,
       cachedInputTokens: row.cached_input_tokens,
+      cacheCreationTokens: row.cache_creation_tokens,
+      imageInputTokens: row.image_input_tokens,
       outputTokens: row.output_tokens,
+      imageOutputTokens: row.image_output_tokens,
       totalCost: row.total_cost,
       billingMode: row.billing_mode,
       image: {
@@ -255,12 +264,18 @@ router.get('/logs', authenticate, (req, res) => {
         currency: row.official_currency,
         input: row.official_input_price,
         cachedInput: row.official_cached_input_price ?? row.official_input_price,
+        ...(row.official_cache_creation_price === null
+          ? {}
+          : { cacheCreation: row.official_cache_creation_price }),
+        imageInput: row.official_image_input_price ?? row.official_input_price,
         output: row.official_output_price,
+        imageOutput: row.official_image_output_price ?? row.official_output_price,
         unitTokens: row.official_unit_tokens,
       } : {},
       legacy: { input: row.legacy_input_price, output: row.legacy_output_price, unitTokens: 1_000 },
       multipliers: { input: row.billing_multiplier_input, output: row.billing_multiplier_output, image: row.billing_multiplier_image },
       usdCnyRate: row.usd_cny_rate,
+      serviceTier: row.service_tier,
     }),
   }));
   const total = db.prepare(`SELECT COUNT(*) as count FROM api_request_logs ${where}`).get(...p);

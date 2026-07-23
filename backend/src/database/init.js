@@ -373,6 +373,19 @@ function createTables() {
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_quality TEXT'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_image_unit_price REAL DEFAULT 0'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_multiplier_image REAL DEFAULT 1'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_input_size TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_output_size TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_size_source TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_size_breakdown TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_model_source TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN cache_creation_tokens INTEGER DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_input_tokens INTEGER DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_output_tokens INTEGER DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN service_tier TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN long_context_billing_applied INTEGER DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_cache_creation_price REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_image_input_price REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_image_output_price REAL'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS upstream_channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT, channel_name TEXT NOT NULL,
@@ -425,12 +438,36 @@ function createTables() {
     model_code TEXT NOT NULL REFERENCES models(model_code) ON DELETE CASCADE,
     upstream_model_name TEXT NOT NULL,
     supports_image_input INTEGER,
+    billing_mode TEXT DEFAULT '',
+    billing_model_source TEXT DEFAULT 'channel_mapped',
+    input_price REAL,
+    output_price REAL,
+    cache_write_price REAL,
+    cache_read_price REAL,
+    image_input_price REAL,
+    image_output_price REAL,
+    per_request_price REAL,
+    image_price_1k REAL,
+    image_price_2k REAL,
+    image_price_4k REAL,
     status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(channel_id,model_code)
   )`);
   try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN supports_image_input INTEGER'); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE channel_models ADD COLUMN billing_mode TEXT DEFAULT ''"); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE channel_models ADD COLUMN billing_model_source TEXT DEFAULT 'channel_mapped'"); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN input_price REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN output_price REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN cache_write_price REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN cache_read_price REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN image_input_price REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN image_output_price REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN per_request_price REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN image_price_1k REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN image_price_2k REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE channel_models ADD COLUMN image_price_4k REAL'); } catch(e) {}
   sqlDb.run('CREATE INDEX IF NOT EXISTS idx_cm_model ON channel_models(model_code)');
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS routing_group_models (

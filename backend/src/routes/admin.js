@@ -27,6 +27,40 @@ function nonNegativePrice(value) {
   return Number.isFinite(price) && price >= 0 ? price : null;
 }
 
+const CHANNEL_BILLING_MODES = new Set(['', 'token', 'per_request', 'image']);
+const BILLING_MODEL_SOURCES = new Set(['requested', 'channel_mapped', 'upstream']);
+const CHANNEL_PRICE_FIELDS = [
+  'input_price', 'output_price', 'cache_write_price', 'cache_read_price',
+  'image_input_price', 'image_output_price', 'per_request_price',
+  'image_price_1k', 'image_price_2k', 'image_price_4k',
+];
+
+function nullableChannelPrice(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const price = Number(value);
+  return Number.isFinite(price) && price >= 0 ? price : NaN;
+}
+
+function channelModelPayload(item = {}) {
+  const billingMode = String(item.billing_mode || '').trim();
+  const billingModelSource = String(item.billing_model_source || 'channel_mapped').trim();
+  if (!CHANNEL_BILLING_MODES.has(billingMode)) return { error: '计费模式仅支持自动、token、per_request 或 image' };
+  if (!BILLING_MODEL_SOURCES.has(billingModelSource)) return { error: '计费模型来源仅支持 requested、channel_mapped 或 upstream' };
+  const prices = {};
+  for (const field of CHANNEL_PRICE_FIELDS) {
+    prices[field] = nullableChannelPrice(item[field]);
+    if (Number.isNaN(prices[field])) return { error: `${field} 必须是大于等于 0 的数字` };
+  }
+  return {
+    model_code: item.model_code,
+    upstream_model_name: item.upstream_model_name || item.model_code,
+    supports_image_input: item.supports_image_input === true ? 1 : item.supports_image_input === false ? 0 : null,
+    billing_mode: billingMode,
+    billing_model_source: billingModelSource,
+    ...prices,
+  };
+}
+
 function imagePricesPayload(body) {
   let supplied = {};
   if (body.official_image_prices && typeof body.official_image_prices === 'object') {
@@ -463,7 +497,10 @@ router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) =
 router.get('/channels/:id/models', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
   const models = db.prepare('SELECT * FROM models ORDER BY sort_order ASC').all();
-  const mappings = db.prepare('SELECT model_code,upstream_model_name,supports_image_input,status FROM channel_models WHERE channel_id=?').all(req.params.id);
+  const mappings = db.prepare(`SELECT model_code,upstream_model_name,supports_image_input,status,
+    billing_mode,billing_model_source,input_price,output_price,cache_write_price,cache_read_price,
+    image_input_price,image_output_price,per_request_price,image_price_1k,image_price_2k,image_price_4k
+    FROM channel_models WHERE channel_id=?`).all(req.params.id);
   res.json({ data: models, channel_model_codes: mappings.filter(m=>m.status==='active').map(m=>m.model_code), mappings });
 });
 
@@ -471,25 +508,43 @@ router.put('/channels/:id/models', authenticate, requireAdmin('admin'), (req, re
   const db = getDatabase();
   const { model_codes, mappings = {}, models } = req.body;
   const requestedModels = Array.isArray(models)
-    ? models.map(item => ({
-      model_code: item.model_code,
-      upstream_model_name: item.upstream_model_name || item.model_code,
-      supports_image_input: item.supports_image_input === true ? 1 : item.supports_image_input === false ? 0 : null,
-    }))
-    : (model_codes || []).map(modelCode => ({
-      model_code: modelCode,
-      upstream_model_name: mappings[modelCode] || modelCode,
-      supports_image_input: null,
-    }));
+    ? models.map(channelModelPayload)
+    : (model_codes || []).map(modelCode => {
+      const existing = db.prepare('SELECT * FROM channel_models WHERE channel_id=? AND model_code=?')
+        .get(req.params.id, modelCode);
+      return channelModelPayload({
+        ...(existing || {}),
+        model_code: modelCode,
+        upstream_model_name: mappings[modelCode] || existing?.upstream_model_name || modelCode,
+        supports_image_input: existing?.supports_image_input ?? null,
+      });
+    });
+  const invalid = requestedModels.find(item => item.error);
+  if (invalid) return res.status(400).json({ error: invalid.error });
   db.transaction(() => {
     db.prepare('UPDATE channel_models SET status=\'inactive\',updated_at=CURRENT_TIMESTAMP WHERE channel_id=?').run(req.params.id);
-    const upsert = db.prepare(`INSERT INTO channel_models (channel_id,model_code,upstream_model_name,supports_image_input,status)
-      VALUES (?,?,?,?,'active') ON CONFLICT(channel_id,model_code) DO UPDATE SET
+    const upsert = db.prepare(`INSERT INTO channel_models (
+      channel_id,model_code,upstream_model_name,supports_image_input,billing_mode,billing_model_source,
+      input_price,output_price,cache_write_price,cache_read_price,image_input_price,image_output_price,
+      per_request_price,image_price_1k,image_price_2k,image_price_4k,status
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active') ON CONFLICT(channel_id,model_code) DO UPDATE SET
       upstream_model_name=excluded.upstream_model_name,supports_image_input=excluded.supports_image_input,
+      billing_mode=excluded.billing_mode,billing_model_source=excluded.billing_model_source,
+      input_price=excluded.input_price,output_price=excluded.output_price,
+      cache_write_price=excluded.cache_write_price,cache_read_price=excluded.cache_read_price,
+      image_input_price=excluded.image_input_price,image_output_price=excluded.image_output_price,
+      per_request_price=excluded.per_request_price,image_price_1k=excluded.image_price_1k,
+      image_price_2k=excluded.image_price_2k,image_price_4k=excluded.image_price_4k,
       status='active',updated_at=CURRENT_TIMESTAMP`);
     for (const item of requestedModels) {
       if (!item.model_code) continue;
-      upsert.run(req.params.id, item.model_code, item.upstream_model_name, item.supports_image_input);
+      upsert.run(
+        req.params.id, item.model_code, item.upstream_model_name, item.supports_image_input,
+        item.billing_mode, item.billing_model_source,
+        item.input_price, item.output_price, item.cache_write_price, item.cache_read_price,
+        item.image_input_price, item.image_output_price, item.per_request_price,
+        item.image_price_1k, item.image_price_2k, item.image_price_4k,
+      );
     }
   });
   res.json({ message: '渠道模型已更新' });

@@ -122,6 +122,10 @@ function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new
 
     const channels = db.prepare(`
       SELECT c.*,cm.upstream_model_name,cm.supports_image_input,m.is_multimodal,
+             cm.billing_mode,cm.billing_model_source,
+             cm.input_price,cm.output_price,cm.cache_write_price,cm.cache_read_price,
+             cm.image_input_price,cm.image_output_price,cm.per_request_price,
+             cm.image_price_1k,cm.image_price_2k,cm.image_price_4k,
              rgc.priority AS routing_priority,rgc.weight AS routing_weight
       FROM routing_group_channels rgc
       JOIN upstream_channels c ON c.id=rgc.channel_id
@@ -152,8 +156,16 @@ function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new
   // 尚未迁移的调用方继续使用旧模型绑定，避免升级瞬间中断。
   const model = db.prepare("SELECT channel_id,upstream_model_name,is_multimodal FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model || !model.channel_id) return null;
-  const channels = db.prepare("SELECT *,? AS upstream_model_name FROM upstream_channels WHERE id=? AND status='active'")
-    .all(model.upstream_model_name || modelCode, model.channel_id);
+  const channels = db.prepare(`SELECT c.*,
+      COALESCE(cm.upstream_model_name,?) AS upstream_model_name,
+      cm.supports_image_input,cm.billing_mode,cm.billing_model_source,
+      cm.input_price,cm.output_price,cm.cache_write_price,cm.cache_read_price,
+      cm.image_input_price,cm.image_output_price,cm.per_request_price,
+      cm.image_price_1k,cm.image_price_2k,cm.image_price_4k
+    FROM upstream_channels c
+    LEFT JOIN channel_models cm ON cm.channel_id=c.id AND cm.model_code=? AND cm.status='active'
+    WHERE c.id=? AND c.status='active'`)
+    .all(model.upstream_model_name || modelCode, modelCode, model.channel_id);
   const eligible = channels.filter(channel => {
     if (excludedChannelIds.has(channel.id)) return false;
     if (requirements.endpointCapability && !channelSupportsCapability(channel, requirements.endpointCapability)) return false;

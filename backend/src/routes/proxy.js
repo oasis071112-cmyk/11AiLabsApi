@@ -6,9 +6,27 @@ const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const { selectChannel, reportResult } = require('../utils/channel-selector');
 const { apiKeyCanUseModel, listModelsForApiKey } = require('../utils/routing-group-models');
-const { calculateImagePricing, calculatePricing, extractUsage } = require('../utils/pricing-engine');
-const { countGeneratedImages, imageBillingIntent, imagePriceForSize } = require('../utils/image-billing');
+const {
+  calculateImagePricing,
+  calculatePricing,
+  configuredImageUnitPrice,
+  extractUsage,
+  resolveImageUnitPrice,
+} = require('../utils/pricing-engine');
+const {
+  classifyImageBillingTier,
+  countGeneratedImages,
+  generatedImageOutputSizes,
+  imageBillingIntent,
+  resolveImageBillingSize,
+} = require('../utils/image-billing');
 const { resolveChatOutputLimit } = require('../utils/request-limits');
+const {
+  billingModeForRequest,
+  channelTokenOfficial,
+  resolveBillingModel,
+  resolveFixedUnitPrice,
+} = require('../utils/billing-policy');
 const {
   releaseWalletReservation,
   reserveWalletBalance,
@@ -36,45 +54,175 @@ function getUsdCnyRate(db) {
   return Number.isFinite(value) && value > 0 ? value : 7;
 }
 
-function buildPricing(db, model, usage, multipliers) {
+function channelHasTokenPricing(channel = {}) {
+  channel = channel || {};
+  return ['input_price', 'output_price', 'cache_write_price', 'cache_read_price', 'image_input_price', 'image_output_price']
+    .some(field => channel[field] !== null && channel[field] !== undefined && channel[field] !== '');
+}
+
+function channelBillingForModel(db, channel, modelCode) {
+  if (!channel?.id || !modelCode) return channel;
+  const mapping = db.prepare(`SELECT upstream_model_name,billing_mode,billing_model_source,
+    input_price,output_price,cache_write_price,cache_read_price,image_input_price,image_output_price,
+    per_request_price,image_price_1k,image_price_2k,image_price_4k
+    FROM channel_models WHERE channel_id=? AND model_code=? AND status='active'`).get(channel.id, modelCode);
+  return mapping ? { ...channel, ...mapping } : channel;
+}
+
+function pricingModelForChannel(db, requestedModel, channel, usage = {}) {
+  const billingModel = resolveBillingModel(channel?.billing_model_source, {
+    requested: requestedModel.model_code,
+    channelMapped: channel?.upstream_model_name,
+    upstream: usage.upstreamModel,
+  });
+  if (!billingModel || billingModel === requestedModel.model_code) return requestedModel;
+  return db.prepare(`SELECT * FROM models WHERE status='active'
+    AND (model_code=? OR official_model_id=? OR upstream_model_name=?)
+    ORDER BY CASE WHEN model_code=? THEN 0 WHEN official_model_id=? THEN 1 ELSE 2 END LIMIT 1`)
+    .get(billingModel, billingModel, billingModel, billingModel, billingModel) || requestedModel;
+}
+
+function buildPricing(db, model, usage, multipliers, { channel = null, serviceTier = '' } = {}) {
   const usdCnyRate = getUsdCnyRate(db);
-  const prices = calculatePricing({
-    ...usage,
-    official: {
+  const official = channelHasTokenPricing(channel)
+    ? channelTokenOfficial(model, channel, usdCnyRate)
+    : {
       currency: model.official_currency,
       input: model.official_input_price,
       output: model.official_output_price,
       cachedInput: model.official_cached_input_price,
       unitTokens: model.official_unit_tokens,
-    },
+    };
+  const prices = calculatePricing({
+    modelCode: model.model_code,
+    ...usage,
+    official,
     multipliers,
     usdCnyRate,
+    serviceTier,
   });
-  return { ...prices, usdCnyRate };
+  return { ...prices, currency: official.currency, officialPrices: official, usdCnyRate };
 }
 
 function buildImagePricing(db, model, { imageCount, size, multiplier }) {
   const usdCnyRate = getUsdCnyRate(db);
-  const unitPrice = imagePriceForSize(model.official_image_prices, size);
+  const configuredPrice = configuredImageUnitPrice(model.official_image_prices, size);
+  const unitPrice = resolveImageUnitPrice({
+    serializedPrices: model.official_image_prices,
+    sizeTier: size,
+  });
+  const currency = configuredPrice === null ? 'USD' : model.official_currency;
   const prices = calculateImagePricing({
     imageCount,
     unitPrice,
-    currency: model.official_currency,
+    currency,
     multiplier,
     usdCnyRate,
   });
-  return { ...prices, unitPrice, usdCnyRate };
+  return { ...prices, currency, unitPrice, usdCnyRate };
+}
+
+function buildChannelImagePricing(db, model, channel, { imageCount, size, multiplier }) {
+  const configuredUnitPrice = resolveFixedUnitPrice(channel, size);
+  if (configuredUnitPrice === null) {
+    return buildImagePricing(db, model, { imageCount, size, multiplier });
+  }
+  const usdCnyRate = getUsdCnyRate(db);
+  return {
+    ...calculateImagePricing({
+      imageCount,
+      unitPrice: configuredUnitPrice,
+      currency: 'USD',
+      multiplier,
+      usdCnyRate,
+    }),
+    currency: 'USD',
+    unitPrice: configuredUnitPrice,
+    usdCnyRate,
+  };
+}
+
+function buildRequestPricing(db, model, channel, usage, multipliers, serviceTier = '') {
+  const pricingModel = pricingModelForChannel(db, model, channel, usage);
+  const mode = billingModeForRequest(channel, false);
+  if (mode === 'token') {
+    return {
+      ...buildPricing(db, pricingModel, usage, multipliers, { channel, serviceTier }),
+      pricingModel,
+    };
+  }
+  const unitPrice = resolveFixedUnitPrice(channel, '2K');
+  if (unitPrice === null) throw new Error(`渠道 ${mode} 计费模式尚未配置固定价格`);
+  const usdCnyRate = getUsdCnyRate(db);
+  return {
+    ...calculateImagePricing({
+      imageCount: 1,
+      unitPrice,
+      currency: 'USD',
+      multiplier: positiveOrOne(multipliers.input),
+      usdCnyRate,
+    }),
+    currency: 'USD',
+    unitPrice,
+    pricingModel,
+    usdCnyRate,
+  };
 }
 
 function insertSuccessLog(db, { requestId, userId, apiKeyId, modelCode, channelId, usage, pricing, model, multipliers, requestIp, latencyMs }) {
+  const channelBilling = db.prepare(`SELECT upstream_model_name,billing_mode,billing_model_source,
+    input_price,output_price,cache_write_price,cache_read_price,image_input_price,image_output_price,
+    per_request_price,image_price_1k,image_price_2k,image_price_4k
+    FROM channel_models WHERE channel_id=? AND model_code=? AND status='active'`).get(channelId, modelCode) || {};
+  const logBillingMode = billingModeForRequest(channelBilling, false);
+  const official = logBillingMode !== 'token'
+    ? { currency: 'USD', input: 0, output: 0, cachedInput: 0, unitTokens: 1 }
+    : channelHasTokenPricing(channelBilling)
+      ? channelTokenOfficial(model, channelBilling, getUsdCnyRate(db))
+      : {
+      currency: model.official_currency,
+      input: model.official_input_price,
+      output: model.official_output_price,
+      cachedInput: model.official_cached_input_price,
+      unitTokens: model.official_unit_tokens,
+      };
+  let billingModelSource = channelBilling.billing_model_source || 'channel_mapped';
+  let billingModel = resolveBillingModel(billingModelSource, {
+    requested: modelCode,
+    channelMapped: channelBilling.upstream_model_name,
+    upstream: usage.upstreamModel,
+  });
+  const hasExplicitChannelPrice = logBillingMode === 'token'
+    ? channelHasTokenPricing(channelBilling)
+    : resolveFixedUnitPrice(channelBilling, '2K') !== null;
+  if (!hasExplicitChannelPrice && billingModel !== model.model_code) {
+    billingModel = model.model_code;
+    billingModelSource = 'requested';
+  }
   db.prepare(`INSERT INTO api_request_logs (
     request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,cached_input_tokens,output_tokens,total_cost,
     official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,
     usd_cny_rate,billing_multiplier_input,billing_multiplier_output,official_cost_cny,status,request_ip,latency_ms
   ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'success',?,?)`).run(
     requestId, userId, apiKeyId, modelCode, channelId, usage.inputTokens, usage.cachedInputTokens, usage.outputTokens, pricing.userCostPoints,
-    model.official_provider, model.official_currency, model.official_input_price, model.official_output_price, model.official_cached_input_price, model.official_unit_tokens,
+    model.official_provider, official.currency, official.input, official.output, official.cachedInput, official.unitTokens,
     pricing.usdCnyRate, multipliers.input, multipliers.output, pricing.officialCostCny, requestIp, latencyMs,
+  );
+  db.prepare(`UPDATE api_request_logs SET
+    billing_mode=?,billing_model=?,billing_model_source=?,
+    cache_creation_tokens=?,image_input_tokens=?,image_output_tokens=?,
+    service_tier=?,long_context_billing_applied=?,
+    official_cache_creation_price=?,official_image_input_price=?,official_image_output_price=?,
+    official_image_unit_price=?
+    WHERE request_id=?`).run(
+    logBillingMode, billingModel, billingModelSource,
+    usage.cacheCreationTokens || 0, usage.imageInputTokens || 0, usage.imageOutputTokens || 0,
+    usage.serviceTier || '', pricing.longContextBillingApplied ? 1 : 0,
+    pricing.officialPrices?.cacheCreation ?? null,
+    pricing.officialPrices?.imageInput ?? null,
+    pricing.officialPrices?.imageOutput ?? null,
+    pricing.unitPrice || 0,
+    requestId,
   );
 }
 
@@ -99,17 +247,42 @@ function insertUpstreamFailureLog(db, {
 
 function insertImageSuccessLog(db, {
   requestId, userId, apiKeyId, modelCode, billingModel, channelId, imageCount,
-  size, quality, pricing, model, multiplier, requestIp, latencyMs,
+  size, inputSize, outputSize, sizeSource, sizeBreakdown, quality, pricing, model,
+  multiplier, requestIp, latencyMs, billingModelSource = 'channel_mapped',
+  billingMode = 'image', usage = {}, tokenMultipliers = { input: 1, output: 1 },
 }) {
   db.prepare(`INSERT INTO api_request_logs (
     request_id,user_id,api_key_id,model_code,billing_model,upstream_channel_id,total_cost,
     official_provider,official_currency,usd_cny_rate,official_cost_cny,billing_mode,
     image_count,image_size,image_quality,official_image_unit_price,billing_multiplier_image,
     status,request_ip,latency_ms
-  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,'image',?,?,?,?,?,'success',?,?)`).run(
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'success',?,?)`).run(
     requestId, userId, apiKeyId, modelCode, billingModel, channelId, pricing.userCostPoints,
-    model.official_provider, model.official_currency, pricing.usdCnyRate, pricing.officialCostCny,
-    imageCount, size, quality, pricing.unitPrice, multiplier, requestIp, latencyMs,
+    model.official_provider, pricing.currency || model.official_currency, pricing.usdCnyRate, pricing.officialCostCny,
+    billingMode, imageCount, size, quality, pricing.unitPrice || 0, multiplier,
+    requestIp, latencyMs,
+  );
+  db.prepare(`UPDATE api_request_logs SET
+    image_input_size=?,image_output_size=?,image_size_source=?,image_size_breakdown=?,billing_model_source=?,
+    input_tokens=?,cached_input_tokens=?,cache_creation_tokens=?,output_tokens=?,image_input_tokens=?,image_output_tokens=?,
+    service_tier=?,long_context_billing_applied=?,
+    official_input_price=?,official_output_price=?,official_cached_input_price=?,official_unit_tokens=?,
+    official_cache_creation_price=?,official_image_input_price=?,official_image_output_price=?,
+    billing_multiplier_input=?,billing_multiplier_output=?
+    WHERE request_id=?`).run(
+    inputSize, outputSize, sizeSource, JSON.stringify(sizeBreakdown || []), billingModelSource,
+    usage.inputTokens || 0, usage.cachedInputTokens || 0, usage.cacheCreationTokens || 0,
+    usage.outputTokens || 0, usage.imageInputTokens || 0, usage.imageOutputTokens || 0,
+    usage.serviceTier || '', pricing.longContextBillingApplied ? 1 : 0,
+    pricing.officialPrices?.input ?? 0,
+    pricing.officialPrices?.output ?? 0,
+    pricing.officialPrices?.cachedInput ?? 0,
+    pricing.officialPrices?.unitTokens ?? model.official_unit_tokens,
+    pricing.officialPrices?.cacheCreation ?? null,
+    pricing.officialPrices?.imageInput ?? null,
+    pricing.officialPrices?.imageOutput ?? null,
+    tokenMultipliers.input, tokenMultipliers.output,
+    requestId,
   );
 }
 
@@ -268,7 +441,8 @@ function assertEmbeddingTextInput(input) {
 function hasBillableUsage(payload) {
   if (!payload?.usage) return false;
   const usage = extractUsage(payload.usage);
-  return usage.inputTokens > 0 || usage.outputTokens > 0 || usage.cachedInputTokens > 0;
+  return usage.inputTokens > 0 || usage.outputTokens > 0 || usage.cachedInputTokens > 0
+    || usage.cacheCreationTokens > 0 || usage.imageInputTokens > 0 || usage.imageOutputTokens > 0;
 }
 
 function normalizeVisibleChatContent(payload, streaming = false, allowReasoningFallback = false) {
@@ -300,10 +474,21 @@ function fallbackEmbeddingUsage(requestBody) {
   };
 }
 
-function capChatRequestToReservedBalance(db, model, multipliers, requestBody, availableBalance) {
+function capChatRequestToReservedBalance(db, model, channel, multipliers, requestBody, availableBalance) {
+  if (billingModeForRequest(channel, false) !== 'token') {
+    const reservationAmount = buildRequestPricing(
+      db, model, channel, {}, multipliers, requestBody.service_tier || '',
+    ).userCostPoints;
+    if (reservationAmount <= 0 || reservationAmount > availableBalance + 1e-9) {
+      throw new Error('额度不足以覆盖本次请求预算');
+    }
+    return { body: { ...requestBody }, reservationAmount };
+  }
   const inputTokens = estimatedChatInputTokens(requestBody);
-  const inputCost = buildPricing(db, model, { inputTokens, cachedInputTokens: 0, outputTokens: 0 }, multipliers).userCostPoints;
-  const outputOneToken = buildPricing(db, model, { inputTokens: 0, cachedInputTokens: 0, outputTokens: 1 }, multipliers).userCostPoints;
+  const pricingModel = pricingModelForChannel(db, model, channel);
+  const pricingOptions = { channel, serviceTier: requestBody.service_tier || '' };
+  const inputCost = buildPricing(db, pricingModel, { inputTokens, cachedInputTokens: 0, outputTokens: 0 }, multipliers, pricingOptions).userCostPoints;
+  const outputOneToken = buildPricing(db, pricingModel, { inputTokens: 0, cachedInputTokens: 0, outputTokens: 1 }, multipliers, pricingOptions).userCostPoints;
   if (inputCost + 1e-9 >= availableBalance || outputOneToken <= 0) throw new Error('额度不足以覆盖本次请求的输入与最小输出');
 
   const maxAffordableOutput = Math.floor((availableBalance - inputCost) / outputOneToken);
@@ -314,11 +499,11 @@ function capChatRequestToReservedBalance(db, model, multipliers, requestBody, av
     model, requestBody: body, estimatedInputTokens: inputTokens, maxAffordableOutput,
   });
   body[limitField] = maxTokens;
-  const reservationAmount = buildPricing(db, model, {
+  const reservationAmount = buildPricing(db, pricingModel, {
     inputTokens,
     cachedInputTokens: 0,
     outputTokens: maxTokens,
-  }, multipliers).userCostPoints;
+  }, multipliers, pricingOptions).userCostPoints;
   if (reservationAmount <= 0 || reservationAmount > availableBalance + 1e-9) {
     throw new Error('额度不足以覆盖本次请求预算');
   }
@@ -400,6 +585,9 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   let actualImageCount = 0;
   let settlementPricing = null;
   let confirmedBillingModel = intent?.billingModel || modelCode;
+  let resolvedImageSize = resolveImageBillingSize({ inputSize: intent?.size });
+  let billingMode = 'image';
+  let billingChannel = null;
 
   if (!intent) {
     return res.status(400).json({ error: {
@@ -446,18 +634,6 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   const imageMultiplier = positiveOrOne(pricingRule
     ? pricingRule.billing_multiplier_image
     : pricingModel.billing_multiplier_image);
-  const reservationPricing = buildImagePricing(db, pricingModel, {
-    imageCount: intent.requestedCount,
-    size: intent.size,
-    multiplier: imageMultiplier,
-  });
-  if (reservationPricing.unitPrice <= 0) {
-    return res.status(503).json({ error: {
-      message: `计费模型 ${pricingModel.model_code} 尚未配置 ${intent.size} 图片单价`,
-      type: 'image_price_unavailable',
-    } });
-  }
-
   const requirements = {
     endpointCapability,
     requiredMappedModelCode: intent.billingModel !== modelCode ? intent.billingModel : null,
@@ -466,6 +642,20 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   if (!channel) {
     return res.status(503).json({ error: { message: `暂无支持 ${endpoint} 的可用上游渠道`, type: 'no_channel' } });
   }
+  billingChannel = channelBillingForModel(db, channel, intent.billingModel);
+  billingMode = billingModeForRequest(billingChannel, true);
+  const reservationPricingModel = pricingModelForChannel(db, pricingModel, billingChannel);
+  const reservationPricing = billingMode === 'token'
+    ? buildImagePricing(db, reservationPricingModel, {
+      imageCount: intent.requestedCount,
+      size: resolvedImageSize.billingSize,
+      multiplier: imageMultiplier,
+    })
+    : buildChannelImagePricing(db, reservationPricingModel, billingChannel, {
+    imageCount: intent.requestedCount,
+    size: resolvedImageSize.billingSize,
+    multiplier: imageMultiplier,
+  });
 
   try {
     const available = availableWalletBalance(db, req.userId);
@@ -503,10 +693,18 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       }),
     });
     channel = upstreamResult.channel;
+    billingChannel = channelBillingForModel(db, channel, intent.billingModel);
+    billingMode = billingModeForRequest(billingChannel, true);
     upstreamConfirmed = true;
-    confirmedBillingModel = endpoint === 'images/generations'
-      ? String(upstreamResult.response.data?.model || upstreamResult.requestBody.model || intent.billingModel)
+    const channelMappedBillingModel = endpoint === 'images/generations'
+      ? String(upstreamResult.requestBody.model || intent.billingModel)
       : String(upstreamResult.requestBody.tools?.find(tool => tool?.type === 'image_generation')?.model || intent.billingModel);
+    let effectiveBillingModelSource = billingChannel.billing_model_source || 'channel_mapped';
+    confirmedBillingModel = resolveBillingModel(effectiveBillingModelSource, {
+      requested: intent.billingModel,
+      channelMapped: channelMappedBillingModel,
+      upstream: String(upstreamResult.response.data?.model || channelMappedBillingModel),
+    });
     actualImageCount = countGeneratedImages(upstreamResult.response.data);
     if (actualImageCount <= 0) {
       releaseWalletReservation(db, req.userId, reservedAmount, requestId, '上游未返回有效图片，释放冻结额度');
@@ -518,9 +716,30 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       reportResult(db, channel.id, false);
       return res.status(502).json({ error: { message: '上游未返回有效图片，本次未扣费', type: 'empty_image_result' } });
     }
-    settlementPricing = buildImagePricing(db, pricingModel, {
-      imageCount: actualImageCount, size: intent.size, multiplier: imageMultiplier,
-    });
+    const outputSizes = generatedImageOutputSizes(upstreamResult.response.data);
+    resolvedImageSize = resolveImageBillingSize({ inputSize: intent.size, outputSizes });
+    const usage = extractUsage(upstreamResult.response.data?.usage || {});
+    usage.serviceTier = upstreamResult.response.data?.service_tier || req.body.service_tier || '';
+    usage.upstreamModel = String(upstreamResult.response.data?.model || channelMappedBillingModel);
+    const settlementPricingModel = pricingModelForChannel(db, pricingModel, billingChannel, usage);
+    const hasExplicitChannelPrice = billingMode === 'token'
+      ? channelHasTokenPricing(billingChannel)
+      : resolveFixedUnitPrice(billingChannel, resolvedImageSize.billingSize) !== null;
+    if (!hasExplicitChannelPrice && confirmedBillingModel !== settlementPricingModel.model_code) {
+      confirmedBillingModel = settlementPricingModel.model_code;
+      effectiveBillingModelSource = 'requested';
+    }
+    const tokenMultipliers = {
+      input: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_input : pricingModel.billing_multiplier_input),
+      output: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_output : pricingModel.billing_multiplier_output),
+    };
+    settlementPricing = billingMode === 'token'
+      ? buildPricing(db, settlementPricingModel, usage, tokenMultipliers, {
+        channel: billingChannel, serviceTier: usage.serviceTier,
+      })
+      : buildChannelImagePricing(db, settlementPricingModel, billingChannel, {
+        imageCount: actualImageCount, size: resolvedImageSize.billingSize, multiplier: imageMultiplier,
+      });
     settleWalletReservation(db, {
       userId: req.userId,
       reservedAmount,
@@ -529,7 +748,14 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       writeSuccessLog: () => insertImageSuccessLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
         billingModel: confirmedBillingModel, channelId: channel.id, imageCount: actualImageCount,
-        size: intent.size, quality: intent.quality, pricing: settlementPricing, model: pricingModel,
+        size: resolvedImageSize.billingSize,
+        inputSize: classifyImageBillingTier(intent.size) || '',
+        outputSize: resolvedImageSize.source === 'output' ? resolvedImageSize.billingSize : '',
+        sizeSource: resolvedImageSize.source,
+        sizeBreakdown: outputSizes.map(size => classifyImageBillingTier(size)).filter(Boolean),
+        quality: intent.quality, pricing: settlementPricing, model: settlementPricingModel,
+        billingMode, billingModelSource: effectiveBillingModelSource,
+        usage, tokenMultipliers,
         multiplier: imageMultiplier, requestIp: req.ip, latencyMs: Date.now() - startTime,
       }),
     });
@@ -600,10 +826,6 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     input: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_input : model.billing_multiplier_input),
     output: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_output : model.billing_multiplier_output),
   };
-  if (Number(model.official_input_price) <= 0 && Number(model.official_output_price) <= 0) {
-    return res.status(503).json({ error: { message: '该模型的官方价格尚未同步完成，暂不能计费调用', type: 'official_price_unavailable' } });
-  }
-
   try {
     assertSupportedBillableInput(req.body.messages ?? req.body.input ?? req.body, model);
   } catch (error) {
@@ -622,12 +844,22 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       .run(requestId, req.userId, req.apiKey.id, modelCode, message, type, req.ip, Date.now() - startTime);
     return res.status(requiresImageInput ? 400 : 503).json({ error: { message, type } });
   }
+  if (billingModeForRequest(channel, false) === 'token'
+      && !channelHasTokenPricing(channel)
+      && Number(model.official_input_price) <= 0
+      && Number(model.official_output_price) <= 0) {
+    return res.status(503).json({ error: { message: '该模型的官方价格尚未同步完成，暂不能计费调用', type: 'official_price_unavailable' } });
+  }
+  if (billingModeForRequest(channel, false) === 'per_request'
+      && resolveFixedUnitPrice(channel, '2K') === null) {
+    return res.status(503).json({ error: { message: '该渠道尚未配置每请求价格', type: 'channel_price_unavailable' } });
+  }
 
   let upstreamBody;
   try {
     const available = availableWalletBalance(db, req.userId);
     // 先按保守输入估算并限制最大输出，再只冻结本次请求预算，兼顾扣费安全与并发调用。
-    const capped = capChatRequestToReservedBalance(db, model, multipliers, req.body, available);
+    const capped = capChatRequestToReservedBalance(db, model, channel, multipliers, req.body, available);
     upstreamBody = capped.body;
     reservedAmount = reserveWalletBalance(db, req.userId, capped.reservationAmount, requestId).reserved;
   } catch (error) {
@@ -664,12 +896,13 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       let inputTokens = 0;
       let outputTokens = 0;
       let cachedInputTokens = 0;
+      let streamedUsage = {};
       let fullContent = '';
       let reasoningContent = '';
       let buffer = '';
       let finalized = false;
       let receivedSseEvent = false;
-      let receivedBillableUsage = false;
+      let receivedBillableUsage = billingModeForRequest(channel, false) !== 'token';
 
       const settleStream = () => {
         if (finalized) return;
@@ -691,7 +924,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
         }
         if (!receivedBillableUsage) {
           const usage = fallbackChatUsage(upstreamBody, { choices: [{ message: { content: fullContent } }] });
-          const pricing = buildPricing(db, model, usage, multipliers);
+          const pricing = buildRequestPricing(db, model, channel, usage, multipliers, usage.serviceTier || req.body.service_tier || '');
           insertSettlementFailureLog(db, {
             requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
             usage, pricing, model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
@@ -704,8 +937,15 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
         }
         if (outputTokens === 0 && fullContent) outputTokens = Math.max(1, Math.ceil(fullContent.length / 4));
         if (inputTokens === 0) inputTokens = estimatedChatInputTokens(upstreamBody);
-        const usage = { inputTokens, outputTokens, cachedInputTokens };
-        const pricing = buildPricing(db, model, usage, multipliers);
+        const usage = {
+          ...streamedUsage,
+          inputTokens,
+          outputTokens,
+          cachedInputTokens,
+          serviceTier: streamedUsage.serviceTier || req.body.service_tier || '',
+          upstreamModel: streamedUsage.upstreamModel || channel.upstream_model_name,
+        };
+        const pricing = buildRequestPricing(db, model, channel, usage, multipliers, usage.serviceTier || req.body.service_tier || '');
         try {
           settleWalletReservation(db, {
             userId: req.userId,
@@ -714,7 +954,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
             requestId,
             writeSuccessLog: () => insertSuccessLog(db, {
               requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
-              usage, pricing, model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
+              usage, pricing, model: pricing.pricingModel || model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
             }),
           });
           reservedAmount = 0;
@@ -753,6 +993,9 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
             receivedSseEvent = true;
             if (parsed.usage) {
               const usage = extractUsage(parsed.usage);
+              usage.serviceTier = parsed.service_tier || req.body.service_tier || '';
+              usage.upstreamModel = parsed.model || channel.upstream_model_name;
+              streamedUsage = usage;
               inputTokens = usage.inputTokens;
               outputTokens = usage.outputTokens;
               cachedInputTokens = usage.cachedInputTokens;
@@ -774,7 +1017,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
           outputTokens: outputTokens || (fullContent ? Math.max(1, Math.ceil(fullContent.length / 4)) : 0),
           cachedInputTokens,
         };
-        const pricing = buildPricing(db, model, usage, multipliers);
+        const pricing = buildRequestPricing(db, model, channel, usage, multipliers, usage.serviceTier || req.body.service_tier || '');
         insertSettlementFailureLog(db, {
           requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
           usage, pricing, model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
@@ -799,19 +1042,21 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     channel = upstreamResult.channel;
     upstreamBody = upstreamResult.requestBody;
     upstreamConfirmed = true;
-    if (!hasBillableUsage(upstreamResponse.data)) {
+    if (billingModeForRequest(channel, false) === 'token' && !hasBillableUsage(upstreamResponse.data)) {
       const usage = fallbackChatUsage(upstreamBody, upstreamResponse.data);
-      const pricing = buildPricing(db, model, usage, multipliers);
+      const pricing = buildRequestPricing(db, model, channel, usage, multipliers, usage.serviceTier || req.body.service_tier || '');
       insertSettlementFailureLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
-        usage, pricing, model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
+        usage, pricing, model: pricing.pricingModel || model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
         error: `上游未返回真实 usage，已保留 ${reservedAmount} 点冻结额度等待核对`,
       });
       reportResult(db, channel.id, false);
       return res.status(502).json({ error: { message: '上游未返回用量，本次调用正在结算；余额已冻结等待核对，请勿重试', type: 'settlement_pending' } });
     }
     const usage = extractUsage(upstreamResponse.data?.usage || {});
-    const pricing = buildPricing(db, model, usage, multipliers);
+    usage.serviceTier = upstreamResponse.data?.service_tier || req.body.service_tier || '';
+    usage.upstreamModel = upstreamResponse.data?.model || channel.upstream_model_name;
+    const pricing = buildRequestPricing(db, model, channel, usage, multipliers, usage.serviceTier || req.body.service_tier || '');
     settleWalletReservation(db, {
       userId: req.userId,
       reservedAmount,
@@ -819,7 +1064,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       requestId,
       writeSuccessLog: () => insertSuccessLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
-        usage, pricing, model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
+        usage, pricing, model: pricing.pricingModel || model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
       }),
     });
     reservedAmount = 0;
@@ -843,7 +1088,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       insertSettlementFailureLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel?.id,
         usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
-        pricing: buildPricing(db, model, { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 }, multipliers),
+        pricing: buildRequestPricing(db, model, channel, { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 }, multipliers, req.body.service_tier || ''),
         model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
         error: executionUncertain ? `上游响应不确定，已保留 ${reservedAmount} 点冻结额度等待核对：${error.message}` : error.message,
       });
@@ -870,8 +1115,6 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
   if (!apiKeyCanUseModel(db, req.apiKey, modelCode)) return res.status(403).json({ error: { message: `模型 ${modelCode} 未授权`, type: 'unauthorized_model' } });
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
-  if (Number(model.official_input_price) <= 0) return res.status(503).json({ error: { message: '该模型的官方价格尚未同步完成，暂不能计费调用', type: 'official_price_unavailable' } });
-
   const pricingRule = getEffectiveMultiplier(db, modelCode, req.userId);
   const multipliers = {
     input: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_input : model.billing_multiplier_input),
@@ -880,11 +1123,20 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
   const channelRequirements = { endpointCapability: 'embeddings' };
   let channel = selectChannel(db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), channelRequirements);
   if (!channel) return res.status(503).json({ error: { message: '暂无支持向量接口的可用上游渠道', type: 'no_channel' } });
+  if (billingModeForRequest(channel, false) === 'token'
+      && !channelHasTokenPricing(channel)
+      && Number(model.official_input_price) <= 0) {
+    return res.status(503).json({ error: { message: '该模型的官方价格尚未同步完成，暂不能计费调用', type: 'official_price_unavailable' } });
+  }
+  if (billingModeForRequest(channel, false) === 'per_request'
+      && resolveFixedUnitPrice(channel, '2K') === null) {
+    return res.status(503).json({ error: { message: '该渠道尚未配置每请求价格', type: 'channel_price_unavailable' } });
+  }
   try {
     const available = availableWalletBalance(db, req.userId);
     assertEmbeddingTextInput(req.body.input);
     const conservativeTokens = estimatedInputTokens(JSON.stringify(req.body.input ?? req.body));
-    const estimate = buildPricing(db, model, { inputTokens: conservativeTokens, cachedInputTokens: 0, outputTokens: 0 }, multipliers).userCostPoints;
+    const estimate = buildRequestPricing(db, model, channel, { inputTokens: conservativeTokens, cachedInputTokens: 0, outputTokens: 0 }, multipliers, req.body.service_tier || '').userCostPoints;
     if (estimate + 1e-9 > available) throw new Error('额度不足以覆盖本次向量请求');
     reservedAmount = reserveWalletBalance(db, req.userId, estimate, requestId).reserved;
   } catch (error) {
@@ -903,24 +1155,26 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
     const upstreamResponse = upstreamResult.response;
     channel = upstreamResult.channel;
     upstreamConfirmed = true;
-    if (!hasBillableUsage(upstreamResponse.data)) {
+    if (billingModeForRequest(channel, false) === 'token' && !hasBillableUsage(upstreamResponse.data)) {
       const usage = fallbackEmbeddingUsage(req.body);
-      const pricing = buildPricing(db, model, usage, multipliers);
+      const pricing = buildRequestPricing(db, model, channel, usage, multipliers, usage.serviceTier || req.body.service_tier || '');
       insertSettlementFailureLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
-        usage, pricing, model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
+        usage, pricing, model: pricing.pricingModel || model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
         error: `上游未返回真实 usage，已保留 ${reservedAmount} 点冻结额度等待核对`,
       });
       reportResult(db, channel.id, false);
       return res.status(502).json({ error: { message: '上游未返回用量，本次调用正在结算；余额已冻结等待核对，请勿重试', type: 'settlement_pending' } });
     }
     const usage = extractUsage(upstreamResponse.data?.usage || {});
-    const pricing = buildPricing(db, model, usage, multipliers);
+    usage.serviceTier = upstreamResponse.data?.service_tier || req.body.service_tier || '';
+    usage.upstreamModel = upstreamResponse.data?.model || channel.upstream_model_name;
+    const pricing = buildRequestPricing(db, model, channel, usage, multipliers, usage.serviceTier || req.body.service_tier || '');
     settleWalletReservation(db, {
       userId: req.userId, reservedAmount, chargeAmount: pricing.userCostPoints, requestId,
       writeSuccessLog: () => insertSuccessLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
-        usage, pricing, model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
+        usage, pricing, model: pricing.pricingModel || model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
       }),
     });
     reservedAmount = 0;
@@ -938,7 +1192,7 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
       insertSettlementFailureLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
         usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
-        pricing: buildPricing(db, model, { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 }, multipliers),
+        pricing: buildRequestPricing(db, model, channel, { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 }, multipliers, req.body.service_tier || ''),
         model, multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
         error: executionUncertain ? `上游响应不确定，已保留 ${reservedAmount} 点冻结额度等待核对：${error.message}` : error.message,
       });

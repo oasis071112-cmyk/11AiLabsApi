@@ -145,4 +145,36 @@ describe('用户计费明细', () => {
     });
     expect(detail.reconciled).toBe(true);
   });
+
+  it('每请求模式按固定美元单价快照展示', () => {
+    const detail = buildBillingDetail({
+      billingMode: 'per_request',
+      totalCost: 0.84,
+      official: { currency: 'USD' },
+      image: { unitPrice: 0.12 },
+      multipliers: { input: 1 },
+      usdCnyRate: 7,
+    });
+    expect(detail.mode).toBe('fixed_snapshot');
+    expect(detail.dimensions[0]).toMatchObject({
+      label: '固定请求', usage: 1, unit: '次', unitPrice: 0.12, amount: 0.84,
+    });
+    expect(detail.reconciled).toBe(true);
+  });
+
+  it('GPT-5.6 缓存写入缺少独立价格时按输入价格的 1.25 倍回显', () => {
+    const detail = buildBillingDetail({
+      modelCode: 'gpt-5.6',
+      inputTokens: 100_000,
+      cacheCreationTokens: 100_000,
+      totalCost: 0.25,
+      official: { currency: 'CNY', input: 2, output: 10, unitTokens: 1_000_000 },
+      multipliers: { input: 1, output: 1 },
+    });
+
+    expect(detail.dimensions).toEqual([
+      expect.objectContaining({ label: '缓存写入 Token', usage: 100_000, amount: 0.25 }),
+    ]);
+    expect(detail.reconciled).toBe(true);
+  });
 });

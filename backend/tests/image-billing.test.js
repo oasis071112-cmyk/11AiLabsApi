@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  classifyImageBillingTier,
   countGeneratedImages,
+  generatedImageOutputSizes,
   imageBillingIntent,
   imagePriceForSize,
   normalizeImageSize,
+  resolveImageBillingSize,
 } from '../src/utils/image-billing.js';
 
 describe('Sub2API 风格图片生成计费', () => {
@@ -61,5 +64,38 @@ describe('Sub2API 风格图片生成计费', () => {
     });
     expect(imagePriceForSize(prices, '1024x1536')).toBe(0.08);
     expect(imagePriceForSize(prices, '1536x1024')).toBe(0.04);
+  });
+
+  it('按 Sub2API 的 1K/2K/4K 档位归类，auto 默认 2K', () => {
+    expect(classifyImageBillingTier('1024x1024')).toBe('1K');
+    expect(classifyImageBillingTier('1536x1024')).toBe('2K');
+    expect(classifyImageBillingTier('3840x2160')).toBe('4K');
+    expect(classifyImageBillingTier('auto')).toBeNull();
+    expect(resolveImageBillingSize({ inputSize: 'auto', outputSizes: [] })).toMatchObject({
+      billingSize: '2K',
+      source: 'default',
+    });
+  });
+
+  it('实际输出尺寸优先于请求尺寸，多图按最高档结算', () => {
+    expect(resolveImageBillingSize({
+      inputSize: '1024x1024',
+      outputSizes: ['1024x1024', '2160x3840'],
+    })).toEqual({
+      billingSize: '4K',
+      inputSize: '1024x1024',
+      outputSize: '1024x1024',
+      source: 'output',
+      breakdown: { '1K': 1, '4K': 1 },
+    });
+  });
+
+  it('从图片响应的显式尺寸字段收集实际输出尺寸', () => {
+    expect(generatedImageOutputSizes({
+      data: [
+        { b64_json: 'abc', size: '1024x1024' },
+        { url: 'https://example.test/image.png', width: 2048, height: 1152 },
+      ],
+    })).toEqual(['1024x1024', '2048x1152']);
   });
 });

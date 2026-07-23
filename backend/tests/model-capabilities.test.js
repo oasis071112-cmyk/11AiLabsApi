@@ -295,6 +295,81 @@ describe('模型能力与图片请求边界', () => {
     db.prepare('UPDATE wallets SET quota_balance=100, gift_quota=0, frozen_balance=0 WHERE user_id=?').run(userId);
   });
 
+  it('对话请求使用渠道的 Sub2API 每 token 美元价格结算', async () => {
+    const db = getDatabase();
+    db.prepare(`UPDATE channel_models SET
+      billing_mode='token',billing_model_source='upstream',input_price=?,output_price=?
+      WHERE channel_id=? AND model_code=?`).run(0.000003, 0.000008, channelId, visionModelCode);
+    const response = await request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, messages: [{ role: 'user', content: 'priced chat' }] }),
+    });
+
+    const responseBody = await response.json();
+    expect(response.status, JSON.stringify(responseBody)).toBe(200);
+    const log = db.prepare("SELECT * FROM api_request_logs WHERE model_code=? AND status='success' ORDER BY id DESC").get(visionModelCode);
+    expect(log).toMatchObject({
+      billing_mode: 'token',
+      input_tokens: 5,
+      output_tokens: 2,
+    });
+    expect(log.total_cost).toBeCloseTo(0.000217, 10);
+    db.prepare(`UPDATE channel_models SET
+      billing_mode='',billing_model_source='channel_mapped',input_price=NULL,output_price=NULL
+      WHERE channel_id=? AND model_code=?`).run(channelId, visionModelCode);
+  });
+
+  it('对话渠道 per_request 模式按一次固定价格结算且不新增订阅', async () => {
+    const db = getDatabase();
+    db.prepare(`UPDATE channel_models SET
+      billing_mode='per_request',per_request_price=?,input_price=NULL,output_price=NULL
+      WHERE channel_id=? AND model_code=?`).run(0.12, channelId, visionModelCode);
+
+    const response = await request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, messages: [{ role: 'user', content: 'fixed price chat' }] }),
+    });
+
+    expect(response.status).toBe(200);
+    const log = db.prepare("SELECT * FROM api_request_logs WHERE model_code=? AND status='success' ORDER BY id DESC").get(visionModelCode);
+    expect(log.billing_mode).toBe('per_request');
+    expect(log.total_cost).toBeCloseTo(0.84, 10);
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%subscription%'").all()).toEqual([]);
+    const userLogs = await request('/api/user/logs?limit=100', {
+      headers: { Authorization: `Bearer ${userToken}` },
+    }).then(result => result.json());
+    expect(userLogs.data.find(item => item.request_id === log.request_id).billing_detail)
+      .toMatchObject({ mode: 'fixed_snapshot', reconciled: true, actualTotal: 0.84 });
+
+    db.prepare(`UPDATE channel_models SET billing_mode='',per_request_price=NULL
+      WHERE channel_id=? AND model_code=?`).run(channelId, visionModelCode);
+  });
+
+  it('billing_model_source=channel_mapped 时使用映射模型的价格结算', async () => {
+    const db = getDatabase();
+    db.prepare(`INSERT INTO models (
+      model_code,model_name,model_type,official_currency,official_input_price,official_output_price,
+      official_unit_tokens,status
+    ) VALUES (?,?,?,'USD',?,?,1000000,'active')`)
+      .run('vision-upstream', 'Mapped billing price', 'llm', 10, 20);
+    db.prepare(`UPDATE channel_models SET billing_model_source='channel_mapped',billing_mode=''
+      WHERE channel_id=? AND model_code=?`).run(channelId, visionModelCode);
+
+    const response = await request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: visionModelCode, messages: [{ role: 'user', content: 'mapped price' }] }),
+    });
+    expect(response.status).toBe(200);
+    const log = db.prepare("SELECT * FROM api_request_logs WHERE model_code=? AND status='success' ORDER BY id DESC").get(visionModelCode);
+    expect(log.billing_model).toBe('vision-upstream');
+    expect(log.total_cost).toBeCloseTo(0.00063, 10);
+
+    db.prepare('DELETE FROM models WHERE model_code=?').run('vision-upstream');
+  });
+
   it('只把对话请求路由到声明支持 chat_completions 的渠道', async () => {
     const channelPayload = capabilities => ({
       channel_name: 'cap-channel-capability-test',
