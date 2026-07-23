@@ -20,14 +20,18 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
   const byModel = new Map();
   for (const row of rows) {
     const chatCompletions = channelSupportsCapability(row, 'chat_completions');
+    const imageGenerations = channelSupportsCapability(row, 'image_generations');
+    const responses = channelSupportsCapability(row, 'responses');
     const existing = byModel.get(row.model_code) || {
       model_code: row.model_code,
       model_name: row.model_name,
       sort_order: row.sort_order,
-      capabilities: { chat_completions: false, image_input: false },
+      capabilities: { chat_completions: false, image_input: false, image_generations: false, responses: false },
     };
     existing.capabilities.chat_completions ||= chatCompletions;
     existing.capabilities.image_input ||= chatCompletions && channelModelSupportsImageInput(row);
+    existing.capabilities.image_generations ||= imageGenerations;
+    existing.capabilities.responses ||= responses;
     byModel.set(row.model_code, existing);
   }
   const models = [...byModel.values()];
@@ -40,6 +44,8 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
     else {
       existing.capabilities.chat_completions ||= model.capabilities.chat_completions;
       existing.capabilities.image_input ||= model.capabilities.image_input;
+      existing.capabilities.image_generations ||= model.capabilities.image_generations;
+      existing.capabilities.responses ||= model.capabilities.responses;
     }
   }
   return [...byCode.values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || a.model_code.localeCompare(b.model_code));
@@ -59,6 +65,8 @@ function listModelsForApiKey(db, apiKey) {
         capabilities: {
           chat_completions: channelSupportsCapability(model, 'chat_completions'),
           image_input: channelSupportsCapability(model, 'chat_completions') && Number(model.is_multimodal) === 1,
+          image_generations: channelSupportsCapability(model, 'image_generations'),
+          responses: channelSupportsCapability(model, 'responses'),
         },
       }));
   }
@@ -81,10 +89,12 @@ function listSystemModelCapabilities(db) {
     WHERE cm.status='active'`).all();
   const capabilities = new Map();
   for (const row of rows) {
-    const current = capabilities.get(row.model_code) || { chat_completions: false, image_input: false };
+    const current = capabilities.get(row.model_code) || { chat_completions: false, image_input: false, image_generations: false, responses: false };
     const supportsChat = channelSupportsCapability(row, 'chat_completions');
     current.chat_completions ||= supportsChat;
     current.image_input ||= supportsChat && channelModelSupportsImageInput(row);
+    current.image_generations ||= channelSupportsCapability(row, 'image_generations');
+    current.responses ||= channelSupportsCapability(row, 'responses');
     capabilities.set(row.model_code, current);
   }
   return capabilities;
@@ -96,9 +106,11 @@ function listUserModelCapabilities(db, userId) {
   const capabilities = new Map();
   for (const apiKey of apiKeys) {
     for (const model of listModelsForApiKey(db, apiKey)) {
-      const current = capabilities.get(model.model_code) || { chat_completions: false, image_input: false };
+      const current = capabilities.get(model.model_code) || { chat_completions: false, image_input: false, image_generations: false, responses: false };
       current.chat_completions ||= Boolean(model.capabilities?.chat_completions);
       current.image_input ||= Boolean(model.capabilities?.image_input);
+      current.image_generations ||= Boolean(model.capabilities?.image_generations);
+      current.responses ||= Boolean(model.capabilities?.responses);
       capabilities.set(model.model_code, current);
     }
   }

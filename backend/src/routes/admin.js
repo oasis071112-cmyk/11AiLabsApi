@@ -27,6 +27,27 @@ function nonNegativePrice(value) {
   return Number.isFinite(price) && price >= 0 ? price : null;
 }
 
+function imagePricesPayload(body) {
+  let supplied = {};
+  if (body.official_image_prices && typeof body.official_image_prices === 'object') {
+    supplied = body.official_image_prices;
+  } else if (typeof body.official_image_prices === 'string' && body.official_image_prices.trim()) {
+    try { supplied = JSON.parse(body.official_image_prices); } catch (error) { return { error: '图片价格配置必须是有效 JSON' }; }
+  }
+  const values = {
+    default: body.official_image_price_square ?? supplied.default ?? supplied['1024x1024'] ?? 0,
+    '1024x1024': body.official_image_price_square ?? supplied['1024x1024'] ?? supplied.default ?? 0,
+    '1536x1024': body.official_image_price_landscape ?? supplied['1536x1024'] ?? supplied.default ?? 0,
+    '1024x1536': body.official_image_price_portrait ?? supplied['1024x1536'] ?? supplied.default ?? 0,
+  };
+  for (const [size, value] of Object.entries(values)) {
+    const price = nonNegativePrice(value);
+    if (price === null) return { error: `${size} 图片价格必须是大于等于 0 的数字` };
+    values[size] = price;
+  }
+  return { values, serialized: JSON.stringify(values), configured: Object.values(values).some(value => value > 0) };
+}
+
 function pricingPayload(body) {
   const mode = body.official_pricing_mode === 'manual' ? 'manual' : 'auto';
   const provider = supportedProvider(body.official_provider);
@@ -36,9 +57,11 @@ function pricingPayload(body) {
   const input = nonNegativePrice(body.official_input_price ?? 0);
   const cached = nonNegativePrice(body.official_cached_input_price ?? body.official_input_price ?? 0);
   const output = nonNegativePrice(body.official_output_price ?? 0);
+  const imagePrices = imagePricesPayload(body);
+  if (imagePrices.error) return imagePrices;
   if (input === null || cached === null || output === null) return { error: '官方价格必须是大于等于 0 的数字' };
-  if (mode === 'manual' && input <= 0 && output <= 0) return { error: '手动价格的输入或输出至少一项必须大于 0' };
-  return { mode, provider, currency, input, cached, output, unitTokens: 1_000_000 };
+  if (mode === 'manual' && input <= 0 && output <= 0 && !imagePrices.configured) return { error: '手动价格的 Token 或图片价格至少一项必须大于 0' };
+  return { mode, provider, currency, input, cached, output, imagePrices: imagePrices.serialized, unitTokens: 1_000_000 };
 }
 
 function supportedPricingScope(value) {
@@ -249,42 +272,51 @@ router.post('/models', authenticate, requireAdmin('admin'), (req, res) => {
   const { model_code, model_name, upstream_model_name, model_type, context_length, is_multimodal, description, official_model_id, sort_order } = req.body;
   const inputMultiplier = positiveMultiplier(req.body.multiplier_input ?? req.body.billing_multiplier_input ?? 1);
   const outputMultiplier = positiveMultiplier(req.body.multiplier_output ?? req.body.billing_multiplier_output ?? 1);
+  const imageMultiplier = positiveMultiplier(req.body.multiplier_image ?? req.body.billing_multiplier_image ?? 1);
   const pricing = pricingPayload(req.body);
   if (!model_code || !model_name) return res.status(400).json({ error: '模型编码和名称不能为空' });
   if (pricing.error) return res.status(400).json({ error: pricing.error });
-  if (!inputMultiplier || !outputMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
+  if (!inputMultiplier || !outputMultiplier || !imageMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
   db.prepare(`INSERT INTO models (
     model_code,model_name,upstream_model_name,model_type,context_length,is_multimodal,description,
-    display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,
+    display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image,
     official_provider,official_model_id,official_currency,official_input_price,official_cached_input_price,
-    official_output_price,official_unit_tokens,official_pricing_mode,official_price_source,official_price_updated_at,sort_order
-  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?)`).run(
+    official_output_price,official_image_prices,official_unit_tokens,official_pricing_mode,official_price_source,official_price_updated_at,sort_order
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?)`).run(
     model_code, model_name, upstream_model_name||model_code, model_type||'llm', context_length||4096,
-    is_multimodal?1:0, description||'', inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier,
+    is_multimodal?1:0, description||'', inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier,
     pricing.provider, official_model_id||model_code, pricing.currency, pricing.input, pricing.cached, pricing.output,
-    pricing.unitTokens, pricing.mode, pricing.mode === 'manual' ? '管理员手动录入' : null, sort_order||0
+    pricing.imagePrices, pricing.unitTokens, pricing.mode, pricing.mode === 'manual' ? '管理员手动录入' : null, sort_order||0
   );
   res.status(201).json({ message: '模型创建成功' });
 });
 
 router.put('/models/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
+  const existingModel = db.prepare('SELECT official_image_prices,billing_multiplier_image FROM models WHERE id=?').get(req.params.id);
+  if (!existingModel) return res.status(404).json({ error: '模型不存在' });
   const { model_name, upstream_model_name, model_type, context_length, is_multimodal, description, official_model_id, status, sort_order } = req.body;
   const inputMultiplier = positiveMultiplier(req.body.multiplier_input ?? req.body.billing_multiplier_input ?? 1);
   const outputMultiplier = positiveMultiplier(req.body.multiplier_output ?? req.body.billing_multiplier_output ?? 1);
-  const pricing = pricingPayload(req.body);
+  const imageMultiplier = positiveMultiplier(
+    req.body.multiplier_image ?? req.body.billing_multiplier_image ?? existingModel.billing_multiplier_image ?? 1,
+  );
+  const pricing = pricingPayload({
+    ...req.body,
+    official_image_prices: req.body.official_image_prices ?? existingModel.official_image_prices,
+  });
   if (pricing.error) return res.status(400).json({ error: pricing.error });
-  if (!inputMultiplier || !outputMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
+  if (!inputMultiplier || !outputMultiplier || !imageMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
   db.prepare(`UPDATE models SET
     model_name=?,upstream_model_name=?,model_type=?,context_length=?,is_multimodal=?,description=?,
-    display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,
+    display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
     official_provider=?,official_model_id=?,official_currency=?,official_input_price=?,official_cached_input_price=?,
-    official_output_price=?,official_unit_tokens=?,official_pricing_mode=?,official_price_source=?,
+    official_output_price=?,official_image_prices=?,official_unit_tokens=?,official_pricing_mode=?,official_price_source=?,
     official_price_updated_at=CURRENT_TIMESTAMP,status=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(
     model_name, upstream_model_name, model_type, context_length, is_multimodal?1:0, description||'',
-    inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier,
+    inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier,
     pricing.provider, official_model_id||null, pricing.currency, pricing.input, pricing.cached, pricing.output,
-    pricing.unitTokens, pricing.mode, pricing.mode === 'manual' ? '管理员手动录入' : null,
+    pricing.imagePrices, pricing.unitTokens, pricing.mode, pricing.mode === 'manual' ? '管理员手动录入' : null,
     status, sort_order, req.params.id
   );
   res.json({ message: '模型更新成功' });
@@ -317,11 +349,12 @@ router.post('/pricing-rules', authenticate, requireAdmin('admin','operator'), (r
   const { rule_name, model_code, scope_type, scope_id, priority, start_time, end_time, status } = req.body;
   const inputMultiplier = positiveMultiplier(req.body.multiplier_input ?? req.body.billing_multiplier_input ?? 1);
   const outputMultiplier = positiveMultiplier(req.body.multiplier_output ?? req.body.billing_multiplier_output ?? 1);
+  const imageMultiplier = positiveMultiplier(req.body.multiplier_image ?? req.body.billing_multiplier_image ?? req.body.multiplier_output ?? 1);
   if (!rule_name) return res.status(400).json({ error: '规则名称不能为空' });
-  if (!inputMultiplier || !outputMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
+  if (!inputMultiplier || !outputMultiplier || !imageMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
   const scope = supportedPricingScope(scope_type || 'platform');
   if (!scope || (scope === 'user' && !scope_id)) return res.status(400).json({ error: '仅支持平台默认或指定用户的倍率规则' });
-  db.prepare('INSERT INTO pricing_rules (rule_name,model_code,scope_type,scope_id,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,priority,start_time,end_time,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(rule_name, model_code||null, scope, scope === 'user' ? scope_id : null, inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, priority||0, start_time||null, end_time||null, status||'active');
+  db.prepare('INSERT INTO pricing_rules (rule_name,model_code,scope_type,scope_id,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image,priority,start_time,end_time,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(rule_name, model_code||null, scope, scope === 'user' ? scope_id : null, inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier, priority||0, start_time||null, end_time||null, status||'active');
   res.status(201).json({ message: '倍率规则创建成功' });
 });
 
@@ -330,11 +363,12 @@ router.put('/pricing-rules/:id', authenticate, requireAdmin('admin','operator'),
   const { rule_name, model_code, scope_type, scope_id, priority, start_time, end_time, status } = req.body;
   const inputMultiplier = positiveMultiplier(req.body.multiplier_input ?? req.body.billing_multiplier_input ?? 1);
   const outputMultiplier = positiveMultiplier(req.body.multiplier_output ?? req.body.billing_multiplier_output ?? 1);
+  const imageMultiplier = positiveMultiplier(req.body.multiplier_image ?? req.body.billing_multiplier_image ?? req.body.multiplier_output ?? 1);
   if (!rule_name) return res.status(400).json({ error: '规则名称不能为空' });
-  if (!inputMultiplier || !outputMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
+  if (!inputMultiplier || !outputMultiplier || !imageMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
   const scope = supportedPricingScope(scope_type || 'platform');
   if (!scope || (scope === 'user' && !scope_id)) return res.status(400).json({ error: '仅支持平台默认或指定用户的倍率规则' });
-  db.prepare('UPDATE pricing_rules SET rule_name=?,model_code=?,scope_type=?,scope_id=?,display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,priority=?,start_time=?,end_time=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(rule_name, model_code||null, scope, scope === 'user' ? scope_id : null, inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, priority, start_time, end_time, status, req.params.id);
+  db.prepare('UPDATE pricing_rules SET rule_name=?,model_code=?,scope_type=?,scope_id=?,display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,priority=?,start_time=?,end_time=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(rule_name, model_code||null, scope, scope === 'user' ? scope_id : null, inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier, priority, start_time, end_time, status, req.params.id);
   res.json({ message: '倍率规则更新成功' });
 });
 

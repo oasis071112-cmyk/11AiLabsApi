@@ -136,6 +136,40 @@ describe('模型能力与图片请求边界', () => {
     });
   }
 
+  it('旧版模型更新未提交图片字段时保留已有图片价格与倍率', async () => {
+    const db = getDatabase();
+    const imagePrices = JSON.stringify({ default: 0.5, '1024x1024': 0.5 });
+    db.prepare('UPDATE models SET official_image_prices=?,billing_multiplier_image=? WHERE id=?')
+      .run(imagePrices, 1.7, visionModelId);
+    const response = await request(`/api/admin/models/${visionModelId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        model_name: 'Vision model',
+        upstream_model_name: 'vision-upstream',
+        model_type: 'llm',
+        context_length: 128000,
+        is_multimodal: false,
+        official_provider: 'openai',
+        official_model_id: visionModelCode,
+        official_pricing_mode: 'manual',
+        official_currency: 'USD',
+        official_input_price: 1,
+        official_cached_input_price: 0.5,
+        official_output_price: 2,
+        multiplier_input: 1,
+        multiplier_output: 1,
+        status: 'active',
+        sort_order: 0,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const saved = db.prepare('SELECT official_image_prices,billing_multiplier_image FROM models WHERE id=?').get(visionModelId);
+    expect(saved.billing_multiplier_image).toBe(1.7);
+    expect(JSON.parse(saved.official_image_prices)).toMatchObject({ default: 0.5, '1024x1024': 0.5 });
+  });
+
   it('文本模型收到图片时返回明确 400，且不会污染后续文本调用', async () => {
     const imageResponse = await request('/v1/chat/completions', {
       method: 'POST',

@@ -58,6 +58,25 @@ function calculatePricing({ inputTokens = 0, cachedInputTokens = 0, outputTokens
   };
 }
 
+function calculateImagePricing({ imageCount = 0, unitPrice = 0, currency = 'CNY', multiplier = 1, usdCnyRate = 7 }) {
+  const count = Math.max(Math.floor(number(imageCount)), 0);
+  const price = Math.max(number(unitPrice), 0);
+  const imageMultiplier = Math.max(number(multiplier, 1), 0);
+  const officialUnitPriceCny = toCny(price, currency, usdCnyRate);
+  const officialCostCny = count * officialUnitPriceCny;
+  return {
+    userCostPoints: officialCostCny * imageMultiplier,
+    officialCostCny,
+    image: {
+      imageCount: count,
+      unitPrice: price,
+      unitPriceCny: officialUnitPriceCny,
+      multiplier: imageMultiplier,
+      totalCost: officialCostCny * imageMultiplier,
+    },
+  };
+}
+
 function extractUsage(usage = {}) {
   const inputTokens = number(usage.input_tokens ?? usage.prompt_tokens);
   const outputTokens = number(usage.output_tokens ?? usage.completion_tokens);
@@ -71,4 +90,4 @@ function extractUsage(usage = {}) {
   return { inputTokens, outputTokens, cachedInputTokens };
 }
 
-module.exports = { calculatePricing, extractUsage, normalizeCurrency, toCny };
+module.exports = { calculateImagePricing, calculatePricing, extractUsage, normalizeCurrency, toCny };

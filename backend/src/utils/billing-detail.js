@@ -15,7 +15,44 @@ function perMillionPrice(price, sourceUnitTokens) {
   return number(price) * DISPLAY_UNIT_TOKENS / Math.max(number(sourceUnitTokens, DISPLAY_UNIT_TOKENS), 1);
 }
 
-function buildBillingDetail({ inputTokens = 0, cachedInputTokens = 0, outputTokens = 0, totalCost = 0, official = {}, legacy = {}, multipliers = {}, usdCnyRate = 1 } = {}) {
+function buildBillingDetail({
+  inputTokens = 0, cachedInputTokens = 0, outputTokens = 0, totalCost = 0,
+  billingMode = 'token', image = {}, official = {}, legacy = {}, multipliers = {}, usdCnyRate = 1,
+} = {}) {
+  if (billingMode === 'image') {
+    const count = Math.max(Math.floor(number(image.count)), 0);
+    const unitPrice = Math.max(number(image.unitPrice), 0);
+    const multiplier = number(multipliers.image, 1);
+    const fxRate = String(official.currency).toUpperCase() === 'USD' ? number(usdCnyRate, 7) : 1;
+    const amount = rounded(count * unitPrice * multiplier * fxRate);
+    const actualTotal = rounded(totalCost);
+    const dimensions = [{
+      label: '生成图片',
+      usage: count,
+      unit: '张',
+      unitPrice,
+      multiplier,
+      fxRate,
+      amount,
+      size: image.size,
+      quality: image.quality,
+    }];
+    const difference = rounded(actualTotal - amount);
+    if (difference !== 0) dimensions.push({
+      label: '实际结算差额', usage: null, unitPrice: null, multiplier: null,
+      fxRate: 1, amount: difference, isAdjustment: true,
+    });
+    return {
+      mode: 'image_snapshot',
+      currency: String(official.currency || 'CNY').toUpperCase(),
+      dimensions,
+      priceCalculationTotal: amount,
+      calculatedTotal: rounded(dimensions.reduce((sum, item) => sum + item.amount, 0)),
+      actualTotal,
+      reconciled: rounded(dimensions.reduce((sum, item) => sum + item.amount, 0)) === actualTotal,
+      notice: '图片数量来自上游成功响应；尺寸、单价、倍率和汇率均使用本次请求发生时保存的快照。',
+    };
+  }
   const input = Math.max(number(inputTokens), 0);
   const cached = Math.min(Math.max(number(cachedInputTokens), 0), input);
   const uncached = input - cached;

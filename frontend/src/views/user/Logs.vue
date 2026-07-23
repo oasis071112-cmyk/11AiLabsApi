@@ -38,6 +38,7 @@
       <el-table class="desktop-log-table" :data="recentLogs" stripe size="small" v-loading="loading">
         <el-table-column label="时间" width="170"><template #default="{row}">{{ formatBeijingTime(row.created_at) }}</template></el-table-column>
         <el-table-column prop="model_code" label="模型" width="130"><template #default="{row}"><el-tag size="small" effect="plain">{{ row.model_code }}</el-tag></template></el-table-column>
+        <el-table-column label="计费方式" width="110"><template #default="{row}"><el-tag :type="row.billing_mode==='image'?'warning':'info'" size="small">{{ row.billing_mode==='image'?'图片计费':'Token 计费' }}</el-tag></template></el-table-column>
         <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
         <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
         <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ row.total_cost?.toFixed(6)||'0' }} 点</template></el-table-column>
@@ -47,7 +48,7 @@
       </el-table>
       <div class="mobile-log-list" v-loading="loading">
         <article v-for="row in recentLogs" :key="row.id||row.request_id" class="mobile-log-card">
-          <div class="mobile-log-head"><el-tag size="small" effect="plain">{{ row.model_code }}</el-tag><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></div>
+          <div class="mobile-log-head"><div><el-tag size="small" effect="plain">{{ row.model_code }}</el-tag><el-tag v-if="row.billing_mode==='image'" size="small" type="warning">图片 {{ row.image_count }} 张</el-tag></div><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></div>
           <div class="mobile-log-time">{{ formatBeijingTime(row.created_at) }}</div>
           <div class="mobile-log-usage"><span>输入 <strong>{{ number(row.input_tokens) }}</strong></span><span>输出 <strong>{{ number(row.output_tokens) }}</strong></span><span>扣费 <strong>{{ point(row.total_cost) }} 点</strong></span></div>
           <el-button v-if="hasBillingDetail(row)" class="billing-detail-button" type="primary" size="small" @click="openBilling(row)">查看扣费计算过程</el-button>
@@ -69,6 +70,7 @@
       <el-table-column label="时间" width="170"><template #default="{row}">{{ formatBeijingTime(row.created_at) }}</template></el-table-column>
       <el-table-column prop="request_id" label="请求ID" width="180" show-overflow-tooltip/>
       <el-table-column prop="model_code" label="模型" width="130"/>
+      <el-table-column label="计费方式" width="110"><template #default="{row}"><el-tag :type="row.billing_mode==='image'?'warning':'info'" size="small">{{ row.billing_mode==='image'?`图片 ${row.image_count} 张`:'Token' }}</el-tag></template></el-table-column>
       <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
       <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
       <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ row.total_cost?.toFixed(6)||'0' }} 点</template></el-table-column>
@@ -93,9 +95,10 @@
         <div class="snapshot-grid">
           <div><span>计费版本</span><strong>{{ billingVersion }}</strong></div>
           <div><span>计费币种</span><strong>{{ selectedBilling.billing_detail.currency||'点数' }}</strong></div>
-          <div><span>计费单位</span><strong>{{ formatTokenUnit(selectedBilling.billing_detail.dimensions.find(item=>!item.isAdjustment)?.unitTokens||1000000) }} Token</strong></div>
-          <div><span>输入倍率</span><strong>×{{ selectedBilling.billing_multiplier_input }}</strong></div>
-          <div><span>输出倍率</span><strong>×{{ selectedBilling.billing_multiplier_output }}</strong></div>
+          <div><span>计费单位</span><strong>{{ selectedBilling.billing_mode==='image'?'1 张':`${formatTokenUnit(selectedBilling.billing_detail.dimensions.find(item=>!item.isAdjustment)?.unitTokens||1000000)} Token` }}</strong></div>
+          <div v-if="selectedBilling.billing_mode==='image'"><span>图片倍率</span><strong>×{{ selectedBilling.billing_multiplier_image }}</strong></div>
+          <div v-if="selectedBilling.billing_mode!=='image'"><span>输入倍率</span><strong>×{{ selectedBilling.billing_multiplier_input }}</strong></div>
+          <div v-if="selectedBilling.billing_mode!=='image'"><span>输出倍率</span><strong>×{{ selectedBilling.billing_multiplier_output }}</strong></div>
           <div v-if="selectedBilling.official_currency==='USD'"><span>美元兑人民币</span><strong>×{{ selectedBilling.usd_cny_rate }}</strong></div>
         </div>
         <div class="breakdown-title">逐项计算</div>
@@ -159,14 +162,18 @@ const billingBreakdown = computed(() => {
   const symbol = currency==='USD'?'$':currency==='CNY'?'¥':''
   return row.billing_detail.dimensions.map(item=>{
     if(item.isAdjustment)return {...item,formula:'用于对齐钱包最终保存的实际扣费金额'}
+    if(row.billing_detail.mode==='image_snapshot'){
+      const fx=currency==='USD'?` × 汇率 ${item.fxRate}`:''
+      return {...item,formula:`${number(item.usage)} 张 × ${symbol}${item.unitPrice}/张 × 图片倍率 ${item.multiplier}${fx}（${item.size}，${item.quality}）`}
+    }
     const multiplierLabel=item.label.includes('输出')?'输出倍率':'输入倍率'
     const fx=currency==='USD'?` × 汇率 ${item.fxRate}`:''
     return {...item,formula:`${number(item.usage)} ÷ ${formatTokenUnit(item.unitTokens)} × ${symbol}${item.unitPrice} × ${multiplierLabel} ${item.multiplier}${fx}`}
   })
 })
 const billingSum = computed(() => point(selectedBilling.value?.billing_detail?.calculatedTotal||0))
-const billingTitle = computed(()=>({snapshot:'本次调用采用的价格快照',legacy_zero:'历史 0 扣费计算过程',legacy:'旧版计费计算过程'}[selectedBilling.value?.billing_detail?.mode]||'计费计算过程'))
-const billingVersion = computed(()=>({snapshot:'调用时官方价格',legacy_zero:'历史实际 0 扣费',legacy:'旧版价格'}[selectedBilling.value?.billing_detail?.mode]||'未知'))
+const billingTitle = computed(()=>({snapshot:'本次调用采用的价格快照',image_snapshot:'本次图片生成价格快照',legacy_zero:'历史 0 扣费计算过程',legacy:'旧版计费计算过程'}[selectedBilling.value?.billing_detail?.mode]||'计费计算过程'))
+const billingVersion = computed(()=>({snapshot:'调用时官方价格',image_snapshot:'按实际图片结果计费',legacy_zero:'历史实际 0 扣费',legacy:'旧版价格'}[selectedBilling.value?.billing_detail?.mode]||'未知'))
 
 // ============ 球型 1: 消费仪表盘 ============
 const costGaugeOption = computed(() => {

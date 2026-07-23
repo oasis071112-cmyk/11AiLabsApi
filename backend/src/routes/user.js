@@ -119,7 +119,7 @@ router.get('/models', authenticate, (req, res) => {
   const ruleForModel = db.prepare("SELECT * FROM pricing_rules WHERE (model_code=? OR model_code IS NULL) AND status='active' AND (start_time IS NULL OR start_time<=?) AND (end_time IS NULL OR end_time>=?) AND ((scope_type='user' AND scope_id=?) OR scope_type='platform') ORDER BY CASE scope_type WHEN 'user' THEN 2 WHEN 'platform' THEN 1 END DESC, priority DESC LIMIT 1");
   const data = models.map(model => {
     const rule = ruleForModel.get(model.model_code, now, now, req.user.id);
-    const capabilities = capabilityByModel.get(model.model_code) || { chat_completions: false, image_input: false };
+    const capabilities = capabilityByModel.get(model.model_code) || { chat_completions: false, image_input: false, image_generations: false, responses: false };
     const normalizedModel = {
       ...model,
       is_multimodal: capabilities.image_input,
@@ -233,6 +233,7 @@ router.get('/logs', authenticate, (req, res) => {
   if (start_date) { where += ' AND created_at>=?'; p.push(start_date); }
   if (end_date) { where += ' AND created_at<=?'; p.push(end_date+' 23:59:59'); }
   const rows = db.prepare(`SELECT request_id,api_key_id,model_code,input_tokens,cached_input_tokens,output_tokens,total_cost,status,error_message,error_type,latency_ms,created_at,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,usd_cny_rate,billing_multiplier_input,billing_multiplier_output,official_cost_cny,
+    billing_mode,image_count,image_size,image_quality,official_image_unit_price,billing_multiplier_image,
     (SELECT base_input_price FROM models WHERE models.model_code=api_request_logs.model_code) as legacy_input_price,
     (SELECT base_output_price FROM models WHERE models.model_code=api_request_logs.model_code) as legacy_output_price
     FROM api_request_logs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
@@ -243,6 +244,13 @@ router.get('/logs', authenticate, (req, res) => {
       cachedInputTokens: row.cached_input_tokens,
       outputTokens: row.output_tokens,
       totalCost: row.total_cost,
+      billingMode: row.billing_mode,
+      image: {
+        count: row.image_count,
+        size: row.image_size,
+        quality: row.image_quality,
+        unitPrice: row.official_image_unit_price,
+      },
       official: row.official_currency ? {
         currency: row.official_currency,
         input: row.official_input_price,
@@ -251,7 +259,7 @@ router.get('/logs', authenticate, (req, res) => {
         unitTokens: row.official_unit_tokens,
       } : {},
       legacy: { input: row.legacy_input_price, output: row.legacy_output_price, unitTokens: 1_000 },
-      multipliers: { input: row.billing_multiplier_input, output: row.billing_multiplier_output },
+      multipliers: { input: row.billing_multiplier_input, output: row.billing_multiplier_output, image: row.billing_multiplier_image },
       usdCnyRate: row.usd_cny_rate,
     }),
   }));

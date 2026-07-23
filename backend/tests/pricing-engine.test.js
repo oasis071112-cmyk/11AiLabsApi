@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculatePricing } from '../src/utils/pricing-engine.js';
+import { calculateImagePricing, calculatePricing } from '../src/utils/pricing-engine.js';
 
 describe('官方定价换算与用户扣费', () => {
   it('美元官方价应先换算为人民币点数，再应用用户倍率', () => {
@@ -25,5 +25,23 @@ describe('官方定价换算与用户扣费', () => {
     });
 
       expect(result.userCostPoints).toBeCloseTo(11.28, 8);
+  });
+
+  it('图片计费按真实张数、尺寸单价、图片倍率和汇率结算', () => {
+    const result = calculateImagePricing({
+      imageCount: 2,
+      unitPrice: 0.04,
+      currency: 'USD',
+      multiplier: 1.2,
+      usdCnyRate: 7,
+    });
+
+    expect(result.userCostPoints).toBeCloseTo(0.672, 8);
+    expect(result.officialCostCny).toBeCloseTo(0.56, 8);
+    expect(result.image).toMatchObject({
+      imageCount: 2,
+      unitPrice: 0.04,
+      multiplier: 1.2,
+    });
   });
 });

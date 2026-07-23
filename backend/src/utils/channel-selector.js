@@ -135,6 +135,11 @@ function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new
       if (excludedChannelIds.has(channel.id)) return false;
       if (requirements.endpointCapability && !channelSupportsCapability(channel, requirements.endpointCapability)) return false;
       if (requirements.requiresImageInput && !channelModelSupportsImageInput(channel)) return false;
+      if (requirements.requiredMappedModelCode) {
+        const mapping = db.prepare("SELECT id FROM channel_models WHERE channel_id=? AND model_code=? AND status='active'")
+          .get(channel.id, requirements.requiredMappedModelCode);
+        if (!mapping) return false;
+      }
       return true;
     });
     const selected = weightedRoundRobin(eligible, modelCode);
@@ -153,6 +158,11 @@ function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new
     if (excludedChannelIds.has(channel.id)) return false;
     if (requirements.endpointCapability && !channelSupportsCapability(channel, requirements.endpointCapability)) return false;
     if (requirements.requiresImageInput && !channelModelSupportsImageInput({ ...channel, is_multimodal: model.is_multimodal })) return false;
+    if (requirements.requiredMappedModelCode) {
+      const mapping = db.prepare("SELECT id FROM channel_models WHERE channel_id=? AND model_code=? AND status='active'")
+        .get(channel.id, requirements.requiredMappedModelCode);
+      if (!mapping) return false;
+    }
     return true;
   });
   return weightedRoundRobin(eligible, modelCode);

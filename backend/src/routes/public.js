@@ -16,7 +16,7 @@ router.get('/models', (req, res) => {
   const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,billing_multiplier_input,billing_multiplier_output FROM models WHERE status='active' ORDER BY sort_order ASC").all();
   const capabilityByModel = listSystemModelCapabilities(db);
   res.json({ data: models.map(model => {
-    const capabilities = capabilityByModel.get(model.model_code) || { chat_completions: false, image_input: false };
+    const capabilities = capabilityByModel.get(model.model_code) || { chat_completions: false, image_input: false, image_generations: false, responses: false };
     return { ...model, is_multimodal: capabilities.image_input, supports_image_input: capabilities.image_input, capabilities };
   }) });
 });

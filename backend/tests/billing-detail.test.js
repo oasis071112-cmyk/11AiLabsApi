@@ -116,4 +116,33 @@ describe('用户计费明细', () => {
     }));
     expect(detail.calculatedTotal).toBe(detail.actualTotal);
   });
+
+  it('图片模式按真实张数和调用时图片价格快照展示', () => {
+    const detail = buildBillingDetail({
+      billingMode: 'image',
+      totalCost: 0.672,
+      official: { currency: 'USD' },
+      image: {
+        count: 2,
+        size: '1024x1536',
+        quality: 'high',
+        unitPrice: 0.04,
+        billingModel: 'gpt-image-1',
+      },
+      multipliers: { image: 1.2 },
+      usdCnyRate: 7,
+    });
+
+    expect(detail.mode).toBe('image_snapshot');
+    expect(detail.dimensions[0]).toMatchObject({
+      label: '生成图片',
+      usage: 2,
+      unit: '张',
+      unitPrice: 0.04,
+      multiplier: 1.2,
+      amount: 0.672,
+      size: '1024x1536',
+    });
+    expect(detail.reconciled).toBe(true);
+  });
 });

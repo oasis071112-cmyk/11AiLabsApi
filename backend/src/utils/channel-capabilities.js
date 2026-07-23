@@ -1,5 +1,5 @@
 const DEFAULT_CHANNEL_CAPABILITIES = Object.freeze(['chat_completions']);
-const ALLOWED_CHANNEL_CAPABILITIES = new Set(['chat_completions', 'embeddings']);
+const ALLOWED_CHANNEL_CAPABILITIES = new Set(['chat_completions', 'embeddings', 'image_generations', 'responses']);
 
 function parseChannelCapabilities(value) {
   if (Array.isArray(value)) return value.filter(item => ALLOWED_CHANNEL_CAPABILITIES.has(item));

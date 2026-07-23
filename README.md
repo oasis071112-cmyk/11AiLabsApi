@@ -129,8 +129,17 @@ sudo cp -r dist /var/www/ai-api-proxy/dist
 - **模型管理**：LLM / Embedding / Image / Audio 多类型，上下文长度、多模态标记
 - **多渠道池**：多上游渠道配置，加权轮询负载均衡，自动健康检查，连续失败熔断降级
 - **计费规则**：平台/用户组/用户/API Key 四级计费倍率，生效时间和优先级
-- **调用代理**：OpenAI 兼容 `/v1/chat/completions` + `/v1/embeddings`，支持 SSE 流式，自动鉴权→计费→记录日志
+- **调用代理**：OpenAI 兼容 `/v1/chat/completions`、`/v1/embeddings`、`/v1/images/generations` 和非流式图片 `/v1/responses`，支持 Chat SSE 流式，自动鉴权→计费→记录日志
 - **管理后台**：仪表盘、用户管理、渠道管理、模型管理、计费规则、订单审核、调用日志、系统配置
+
+### 图片生成计费
+
+图片生成采用 Sub2API 风格的“请求预留、响应证实”模式：
+
+1. 在“模型管理”中选择手动价格，配置方图、横图、竖图的每张单价及图片倍率。
+2. 在“路由与渠道”中为对应上游启用“生图 / Images Generations”或“Responses 原生工具”接口能力，并保存模型映射。
+3. 客户端调用 `POST /v1/images/generations`，或使用非流式 `POST /v1/responses` 并声明 `image_generation` 工具。系统按请求数量冻结额度，只按上游响应中实际返回的有效图片张数结算。
+4. 每次请求只生成一条图片计费日志，保存请求模型、计费模型、图片张数、尺寸、质量、单价、倍率和汇率快照；空图片结果不会扣费。
 
 ## 运维功能
 

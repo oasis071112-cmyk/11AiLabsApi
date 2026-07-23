@@ -75,10 +75,14 @@
       <el-form-item label="输入价 / 1M"><el-input-number v-model="form.official_input_price" :min="0" :precision="6" :step="0.1"/></el-form-item>
       <el-form-item label="缓存输入价 / 1M"><el-input-number v-model="form.official_cached_input_price" :min="0" :precision="6" :step="0.1"/></el-form-item>
       <el-form-item label="输出价 / 1M"><el-input-number v-model="form.official_output_price" :min="0" :precision="6" :step="0.1"/></el-form-item>
+      <el-divider content-position="left">图片生成单价 / 张</el-divider>
+      <el-form-item label="方图 1024×1024"><el-input-number v-model="form.official_image_price_square" :min="0" :precision="6" :step="0.01"/></el-form-item>
+      <el-form-item label="横图 1536×1024"><el-input-number v-model="form.official_image_price_landscape" :min="0" :precision="6" :step="0.01"/></el-form-item>
+      <el-form-item label="竖图 1024×1536"><el-input-number v-model="form.official_image_price_portrait" :min="0" :precision="6" :step="0.01"/></el-form-item>
       <el-alert title="手动价格会被锁定，定时同步和手动同步官方价格都不会覆盖。" type="warning" :closable="false"/>
     </template>
     <el-form-item label="类型"><el-select v-model="form.model_type"><el-option value="llm" label="LLM 对话"/><el-option value="embedding" label="Embedding"/><el-option value="image" label="图像"/><el-option value="audio" label="音频"/><el-option value="video" label="视频"/></el-select></el-form-item><el-form-item label="上下文长度"><el-input-number v-model="form.context_length" :min="0" :step="1024"/></el-form-item><el-form-item label="目录图片能力"><div><el-switch v-model="form.is_multimodal"/><div class="form-help">作为新渠道映射的默认值；实际图片请求还要求对应渠道模型映射已开启“图片输入”。</div></div></el-form-item>
-    <el-form-item label="用户扣费倍率(入)"><el-input-number v-model="form.multiplier_input" :min="0.0001" :step="0.1"/></el-form-item><el-form-item label="用户扣费倍率(出)"><el-input-number v-model="form.multiplier_output" :min="0.0001" :step="0.1"/></el-form-item>
+    <el-form-item label="用户扣费倍率(入)"><el-input-number v-model="form.multiplier_input" :min="0.0001" :step="0.1"/></el-form-item><el-form-item label="用户扣费倍率(出)"><el-input-number v-model="form.multiplier_output" :min="0.0001" :step="0.1"/></el-form-item><el-form-item label="用户扣费倍率(图)"><el-input-number v-model="form.multiplier_image" :min="0.0001" :step="0.1"/></el-form-item>
   </el-form><template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存</el-button></template></el-dialog>
 </div>
 </template>
@@ -101,12 +105,13 @@ const inactiveModels=computed(()=>filteredModels.value.filter(model=>model.statu
 watch(activeProvider,()=>{activeType.value='all'})
 watch([activeProvider,activeType],()=>{expandedSections.value=[]})
 
-const emptyForm=()=>({model_code:'',model_name:'',upstream_model_name:'',model_type:'llm',context_length:4096,is_multimodal:false,multiplier_input:1,multiplier_output:1,official_provider:activeProvider.value,official_model_id:'',official_pricing_mode:'auto',official_currency:activeProvider.value==='deepseek'?'CNY':'USD',official_input_price:0,official_cached_input_price:0,official_output_price:0,status:'active',sort_order:0})
+const emptyForm=()=>({model_code:'',model_name:'',upstream_model_name:'',model_type:'llm',context_length:4096,is_multimodal:false,multiplier_input:1,multiplier_output:1,multiplier_image:1,official_provider:activeProvider.value,official_model_id:'',official_pricing_mode:'auto',official_currency:activeProvider.value==='deepseek'?'CNY':'USD',official_input_price:0,official_cached_input_price:0,official_output_price:0,official_image_price_square:0,official_image_price_landscape:0,official_image_price_portrait:0,status:'active',sort_order:0})
 const form=ref(emptyForm())
 onMounted(fetchModels)
 const asMultimodal=value=>value===true||Number(value)===1
 async function fetchModels(){loading.value=true;try{models.value=((await api.get('/api/admin/models')).data.data||[]).map(model=>({...model,is_multimodal:asMultimodal(model.is_multimodal)}))}catch(e){}loading.value=false}
-function openDialog(row){isEdit.value=!!row;form.value=row?{...row,is_multimodal:asMultimodal(row.is_multimodal),official_pricing_mode:row.official_pricing_mode||'auto',multiplier_input:row.billing_multiplier_input,multiplier_output:row.billing_multiplier_output}:emptyForm();dialogVisible.value=true}
+function imagePrices(value){try{return typeof value==='string'?JSON.parse(value||'{}'):(value||{})}catch(e){return {}}}
+function openDialog(row){isEdit.value=!!row;if(!row){form.value=emptyForm()}else{const prices=imagePrices(row.official_image_prices);form.value={...row,is_multimodal:asMultimodal(row.is_multimodal),official_pricing_mode:row.official_pricing_mode||'auto',multiplier_input:row.billing_multiplier_input,multiplier_output:row.billing_multiplier_output,multiplier_image:row.billing_multiplier_image||1,official_image_price_square:prices['1024x1024']??prices.default??0,official_image_price_landscape:prices['1536x1024']??prices.default??0,official_image_price_portrait:prices['1024x1536']??prices.default??0}}dialogVisible.value=true}
 async function save(){saving.value=true;try{if(isEdit.value)await api.put(`/api/admin/models/${form.value.id}`,form.value);else await api.post('/api/admin/models',form.value);ElMessage.success('保存成功');dialogVisible.value=false;fetchModels()}catch(e){}saving.value=false}
 async function toggleStatus(row){const status=row.status==='active'?'inactive':'active';await api.patch(`/api/admin/models/${row.id}/status`,{status});ElMessage.success('状态已更新');fetchModels()}
 async function syncPricing(){syncing.value=true;try{const r=await api.post('/api/admin/pricing-sync');ElMessage.success(`同步完成：更新 ${r.data.official_pricing.updated} 个模型，USD/CNY=${r.data.exchange_rate.rate}`);fetchModels()}catch(e){}syncing.value=false}

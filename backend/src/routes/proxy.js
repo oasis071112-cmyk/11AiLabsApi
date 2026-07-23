@@ -6,7 +6,8 @@ const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const { selectChannel, reportResult } = require('../utils/channel-selector');
 const { apiKeyCanUseModel, listModelsForApiKey } = require('../utils/routing-group-models');
-const { calculatePricing, extractUsage } = require('../utils/pricing-engine');
+const { calculateImagePricing, calculatePricing, extractUsage } = require('../utils/pricing-engine');
+const { countGeneratedImages, imageBillingIntent, imagePriceForSize } = require('../utils/image-billing');
 const { resolveChatOutputLimit } = require('../utils/request-limits');
 const {
   releaseWalletReservation,
@@ -52,6 +53,19 @@ function buildPricing(db, model, usage, multipliers) {
   return { ...prices, usdCnyRate };
 }
 
+function buildImagePricing(db, model, { imageCount, size, multiplier }) {
+  const usdCnyRate = getUsdCnyRate(db);
+  const unitPrice = imagePriceForSize(model.official_image_prices, size);
+  const prices = calculateImagePricing({
+    imageCount,
+    unitPrice,
+    currency: model.official_currency,
+    multiplier,
+    usdCnyRate,
+  });
+  return { ...prices, unitPrice, usdCnyRate };
+}
+
 function insertSuccessLog(db, { requestId, userId, apiKeyId, modelCode, channelId, usage, pricing, model, multipliers, requestIp, latencyMs }) {
   db.prepare(`INSERT INTO api_request_logs (
     request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,cached_input_tokens,output_tokens,total_cost,
@@ -76,9 +90,43 @@ function insertSettlementFailureLog(db, { requestId, userId, apiKeyId, modelCode
   );
 }
 
-function insertUpstreamFailureLog(db, { requestId, userId, apiKeyId, modelCode, channelId, requestIp, latencyMs, error }) {
-  db.prepare("INSERT OR IGNORE INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,?,'failed',?,'upstream_error',?,?)")
-    .run(requestId, userId, apiKeyId, modelCode, channelId || null, error, requestIp, latencyMs);
+function insertUpstreamFailureLog(db, {
+  requestId, userId, apiKeyId, modelCode, channelId, requestIp, latencyMs, error, billingMode = 'token',
+}) {
+  db.prepare("INSERT OR IGNORE INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,billing_mode,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,?,?,'failed',?,'upstream_error',?,?)")
+    .run(requestId, userId, apiKeyId, modelCode, channelId || null, billingMode, error, requestIp, latencyMs);
+}
+
+function insertImageSuccessLog(db, {
+  requestId, userId, apiKeyId, modelCode, billingModel, channelId, imageCount,
+  size, quality, pricing, model, multiplier, requestIp, latencyMs,
+}) {
+  db.prepare(`INSERT INTO api_request_logs (
+    request_id,user_id,api_key_id,model_code,billing_model,upstream_channel_id,total_cost,
+    official_provider,official_currency,usd_cny_rate,official_cost_cny,billing_mode,
+    image_count,image_size,image_quality,official_image_unit_price,billing_multiplier_image,
+    status,request_ip,latency_ms
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,'image',?,?,?,?,?,'success',?,?)`).run(
+    requestId, userId, apiKeyId, modelCode, billingModel, channelId, pricing.userCostPoints,
+    model.official_provider, model.official_currency, pricing.usdCnyRate, pricing.officialCostCny,
+    imageCount, size, quality, pricing.unitPrice, multiplier, requestIp, latencyMs,
+  );
+}
+
+function insertImageSettlementFailureLog(db, {
+  requestId, userId, apiKeyId, modelCode, billingModel, channelId, imageCount, size, quality,
+  pricing, model, multiplier, requestIp, latencyMs, error,
+}) {
+  db.prepare(`INSERT OR IGNORE INTO api_request_logs (
+    request_id,user_id,api_key_id,model_code,billing_model,upstream_channel_id,total_cost,
+    official_provider,official_currency,usd_cny_rate,official_cost_cny,billing_mode,
+    image_count,image_size,image_quality,official_image_unit_price,billing_multiplier_image,
+    status,error_message,error_type,request_ip,latency_ms
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,'image',?,?,?,?,?,'failed',?,'settlement_failed',?,?)`).run(
+    requestId, userId, apiKeyId, modelCode, billingModel, channelId, pricing.userCostPoints,
+    model.official_provider, model.official_currency, pricing.usdCnyRate, pricing.officialCostCny,
+    imageCount, size, quality, pricing.unitPrice, multiplier, error, requestIp, latencyMs,
+  );
 }
 
 function listModels(req, res) {
@@ -89,7 +137,7 @@ function listModels(req, res) {
     object: 'model',
     created: 0,
     owned_by: 'ai-proxy',
-    capabilities: m.capabilities || { chat_completions: true, image_input: false },
+    capabilities: m.capabilities || { chat_completions: true, image_input: false, image_generations: false, responses: false },
   })) });
 }
 
@@ -286,11 +334,14 @@ function availableWalletBalance(db, userId) {
 
 const SAFE_FAILOVER_STATUSES = new Set([401, 403, 404, 429]);
 
-async function postWithSafeFailover({ db, modelCode, routingGroupId, initialChannel, endpoint, body, config, requirements = {} }) {
+async function postWithSafeFailover({
+  db, modelCode, routingGroupId, initialChannel, endpoint, body, config, requirements = {}, transformBody,
+}) {
   let channel = initialChannel;
   const excludedChannelIds = new Set();
   while (channel) {
-    const requestBody = { ...body, model: channel.upstream_model_name || body.model || modelCode };
+    const mappedBody = { ...body, model: channel.upstream_model_name || body.model || modelCode };
+    const requestBody = transformBody ? transformBody(mappedBody, channel) : mappedBody;
     try {
       const response = await axios.post(`${channel.base_url}/${endpoint}`, requestBody, config(channel));
       return { response, channel, requestBody };
@@ -336,6 +387,194 @@ async function upstreamErrorMessage(error) {
 // 兼容部分客户端直接 GET Base URL 来刷新模型列表。
 router.get('/', authenticateApiKey, listModels);
 router.get('/models', authenticateApiKey, listModels);
+
+async function handleImageBilledRequest(req, res, { endpoint, endpointCapability }) {
+  const db = getDatabase();
+  const requestId = 'req_' + uuidv4().replace(/-/g, '').substring(0, 16);
+  const modelCode = String(req.body.model || '').trim();
+  const startTime = Date.now();
+  const intent = imageBillingIntent({ endpoint, body: req.body });
+  let channel = null;
+  let reservedAmount = 0;
+  let upstreamConfirmed = false;
+  let actualImageCount = 0;
+  let settlementPricing = null;
+  let confirmedBillingModel = intent?.billingModel || modelCode;
+
+  if (!intent) {
+    return res.status(400).json({ error: {
+      message: 'Responses 图片计费仅接受 image_generation 工具或图片模型请求',
+      type: 'image_generation_intent_required',
+    } });
+  }
+  const imageTools = Array.isArray(req.body.tools)
+    ? req.body.tools.filter(tool => tool?.type === 'image_generation')
+    : [];
+  if (imageTools.length > 1) {
+    return res.status(400).json({ error: {
+      message: '每个 Responses 请求只能声明一个 image_generation 工具',
+      type: 'multiple_image_generation_tools',
+    } });
+  }
+  if (endpoint === 'responses' && req.body.stream === true) {
+    return res.status(400).json({ error: {
+      message: '当前图片计费模式暂不支持流式 Responses，请设置 stream=false',
+      type: 'streaming_image_generation_unsupported',
+    } });
+  }
+
+  if (!modelCode || !apiKeyCanUseModel(db, req.apiKey, modelCode)) {
+    const message = modelCode ? `模型 ${modelCode} 未授权` : '图片生成请求必须指定模型';
+    db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,billing_mode,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,'image','blocked',?,'unauthorized_model',?,?)")
+      .run(requestId, req.userId, req.apiKey.id, modelCode || null, message, req.ip, Date.now() - startTime);
+    return res.status(modelCode ? 403 : 400).json({ error: { message, type: 'unauthorized_model' } });
+  }
+
+  const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
+  if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
+  if (intent.billingModel !== modelCode && !apiKeyCanUseModel(db, req.apiKey, intent.billingModel)) {
+    return res.status(403).json({ error: {
+      message: `图片计费模型 ${intent.billingModel} 未授权`,
+      type: 'unauthorized_image_model',
+    } });
+  }
+  const billingModelCandidate = intent.billingModel !== modelCode
+    ? db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(intent.billingModel)
+    : null;
+  const pricingModel = billingModelCandidate || model;
+  const pricingRule = getEffectiveMultiplier(db, pricingModel.model_code, req.userId);
+  const imageMultiplier = positiveOrOne(pricingRule
+    ? pricingRule.billing_multiplier_image
+    : pricingModel.billing_multiplier_image);
+  const reservationPricing = buildImagePricing(db, pricingModel, {
+    imageCount: intent.requestedCount,
+    size: intent.size,
+    multiplier: imageMultiplier,
+  });
+  if (reservationPricing.unitPrice <= 0) {
+    return res.status(503).json({ error: {
+      message: `计费模型 ${pricingModel.model_code} 尚未配置 ${intent.size} 图片单价`,
+      type: 'image_price_unavailable',
+    } });
+  }
+
+  const requirements = {
+    endpointCapability,
+    requiredMappedModelCode: intent.billingModel !== modelCode ? intent.billingModel : null,
+  };
+  channel = selectChannel(db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), requirements);
+  if (!channel) {
+    return res.status(503).json({ error: { message: `暂无支持 ${endpoint} 的可用上游渠道`, type: 'no_channel' } });
+  }
+
+  try {
+    const available = availableWalletBalance(db, req.userId);
+    if (available + 1e-9 < reservationPricing.userCostPoints) throw new Error('额度不足，请购买额度包后重试');
+    reservedAmount = reserveWalletBalance(db, req.userId, reservationPricing.userCostPoints, requestId).reserved;
+  } catch (error) {
+    return res.status(402).json({ error: { message: error.message, type: 'insufficient_balance' } });
+  }
+
+  try {
+    const upstreamResult = await postWithSafeFailover({
+      db,
+      modelCode,
+      routingGroupId: req.apiKey.routing_group_id,
+      initialChannel: channel,
+      endpoint,
+      body: req.body,
+      requirements,
+      transformBody: endpoint === 'responses' ? (body, selected) => {
+        const mappedImageModel = intent.billingModel === modelCode
+          ? selected.upstream_model_name
+          : db.prepare("SELECT upstream_model_name FROM channel_models WHERE channel_id=? AND model_code=? AND status='active'")
+            .get(selected.id, intent.billingModel)?.upstream_model_name;
+        if (!mappedImageModel || !Array.isArray(body.tools)) return body;
+        return {
+          ...body,
+          tools: body.tools.map(tool => tool?.type === 'image_generation'
+            ? { ...tool, model: mappedImageModel }
+            : tool),
+        };
+      } : undefined,
+      config: selected => ({
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${selected.api_key}` },
+        timeout: 300000,
+      }),
+    });
+    channel = upstreamResult.channel;
+    upstreamConfirmed = true;
+    confirmedBillingModel = endpoint === 'images/generations'
+      ? String(upstreamResult.response.data?.model || upstreamResult.requestBody.model || intent.billingModel)
+      : String(upstreamResult.requestBody.tools?.find(tool => tool?.type === 'image_generation')?.model || intent.billingModel);
+    actualImageCount = countGeneratedImages(upstreamResult.response.data);
+    if (actualImageCount <= 0) {
+      releaseWalletReservation(db, req.userId, reservedAmount, requestId, '上游未返回有效图片，释放冻结额度');
+      reservedAmount = 0;
+      insertUpstreamFailureLog(db, {
+        requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
+        requestIp: req.ip, latencyMs: Date.now() - startTime, error: '上游未返回有效图片结果', billingMode: 'image',
+      });
+      reportResult(db, channel.id, false);
+      return res.status(502).json({ error: { message: '上游未返回有效图片，本次未扣费', type: 'empty_image_result' } });
+    }
+    settlementPricing = buildImagePricing(db, pricingModel, {
+      imageCount: actualImageCount, size: intent.size, multiplier: imageMultiplier,
+    });
+    settleWalletReservation(db, {
+      userId: req.userId,
+      reservedAmount,
+      chargeAmount: settlementPricing.userCostPoints,
+      requestId,
+      writeSuccessLog: () => insertImageSuccessLog(db, {
+        requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+        billingModel: confirmedBillingModel, channelId: channel.id, imageCount: actualImageCount,
+        size: intent.size, quality: intent.quality, pricing: settlementPricing, model: pricingModel,
+        multiplier: imageMultiplier, requestIp: req.ip, latencyMs: Date.now() - startTime,
+      }),
+    });
+    reservedAmount = 0;
+    db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
+    reportResult(db, channel.id, true);
+    return res.json(upstreamResult.response.data);
+  } catch (error) {
+    if (error.upstreamChannel) channel = error.upstreamChannel;
+    if (reservedAmount > 0 && !upstreamConfirmed && error.response) {
+      try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放图片冻结额度失败]', releaseError); }
+    }
+    if (channel && !upstreamConfirmed && !error.failoverReported) reportResult(db, channel.id, false);
+    const executionUncertain = !upstreamConfirmed && !error.response;
+    if (upstreamConfirmed || executionUncertain) {
+      const message = executionUncertain
+        ? `上游响应不确定，已保留 ${reservedAmount} 点冻结额度等待核对：${error.message}`
+        : `图片生成成功但结算失败，已保留 ${reservedAmount} 点冻结额度等待核对：${error.message}`;
+      insertImageSettlementFailureLog(db, {
+        requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+        billingModel: confirmedBillingModel, channelId: channel?.id, imageCount: actualImageCount,
+        size: intent.size, quality: intent.quality, pricing: settlementPricing || reservationPricing,
+        model: pricingModel, multiplier: imageMultiplier,
+        requestIp: req.ip, latencyMs: Date.now() - startTime, error: message,
+      });
+      return res.status(executionUncertain ? 504 : 500).json({ error: {
+        message: '图片请求正在结算；余额已冻结等待管理员核对，请勿重试',
+        type: 'settlement_pending',
+      } });
+    }
+    const upstreamMessage = await upstreamErrorMessage(error);
+    insertUpstreamFailureLog(db, {
+      requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel?.id,
+      requestIp: req.ip, latencyMs: Date.now() - startTime, error: upstreamMessage, billingMode: 'image',
+    });
+    return res.status(error.response?.status || 500).json({ error: { message: `上游图片生成失败: ${upstreamMessage}`, type: 'upstream_error' } });
+  }
+}
+
+router.post('/images/generations', authenticateApiKey, (req, res) => handleImageBilledRequest(
+  req, res, { endpoint: 'images/generations', endpointCapability: 'image_generations' },
+));
+router.post('/responses', authenticateApiKey, (req, res) => handleImageBilledRequest(
+  req, res, { endpoint: 'responses', endpointCapability: 'responses' },
+));
 
 router.post('/chat/completions', authenticateApiKey, async (req, res) => {
   const db = getDatabase();

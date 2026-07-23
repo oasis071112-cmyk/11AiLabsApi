@@ -303,6 +303,8 @@ function createTables() {
   try { sqlDb.run('ALTER TABLE models ADD COLUMN official_price_source TEXT'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE models ADD COLUMN official_price_updated_at DATETIME'); } catch(e) {}
   try { sqlDb.run("ALTER TABLE models ADD COLUMN official_pricing_mode TEXT DEFAULT 'auto'"); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE models ADD COLUMN official_image_prices TEXT DEFAULT '{}'"); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE models ADD COLUMN billing_multiplier_image REAL DEFAULT 1'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS pricing_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT, rule_name TEXT NOT NULL, model_code TEXT,
@@ -313,6 +315,7 @@ function createTables() {
     status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  try { sqlDb.run('ALTER TABLE pricing_rules ADD COLUMN billing_multiplier_image REAL DEFAULT 1'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS api_keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
@@ -363,6 +366,13 @@ function createTables() {
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_cost_cny REAL DEFAULT 0'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN channel_cost_cny REAL DEFAULT 0'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN profit_cny REAL DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run("ALTER TABLE api_request_logs ADD COLUMN billing_mode TEXT DEFAULT 'token'"); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_model TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_count INTEGER DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_size TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_quality TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_image_unit_price REAL DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_multiplier_image REAL DEFAULT 1'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS upstream_channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT, channel_name TEXT NOT NULL,
