@@ -39,7 +39,7 @@ describe('认证模块', () => {
     expect(() => jwt.verify('', process.env.JWT_SECRET)).toThrow();
   });
 
-  it('API Key 必须校验完整密钥，不能只依赖前缀', () => {
+  it('API Key 必须校验完整密钥，不能只依赖前缀', async () => {
     const db = getDatabase();
     const user = db.prepare("SELECT * FROM users WHERE username='testuser'").get();
     const rawKey = 'sk-123456789-full-valid-key';
@@ -48,7 +48,7 @@ describe('认证模块', () => {
     db.prepare("INSERT INTO api_keys (user_id,key_name,key_hash,key_prefix,status) VALUES (?,'测试密钥',?,?,'active')")
       .run(user.id, bcrypt.hashSync(rawKey, 10), prefix);
 
-    expect(findApiKey(db, rawKey)).toBeTruthy();
-    expect(findApiKey(db, `${prefix}-forged-key`)).toBeUndefined();
+    await expect(findApiKey(db, rawKey)).resolves.toBeTruthy();
+    await expect(findApiKey(db, `${prefix}-forged-key`)).resolves.toBeUndefined();
   });
 });
