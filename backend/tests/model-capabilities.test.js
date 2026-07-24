@@ -170,6 +170,23 @@ describe('模型能力与图片请求边界', () => {
     expect(JSON.parse(saved.official_image_prices)).toMatchObject({ default: 0.5, '1024x1024': 0.5 });
   });
 
+  it('管理员可保存 1K、2K、4K 单张图片价格', async () => {
+    const response = await request(`/api/admin/models/${visionModelId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        model_name: 'Vision model', upstream_model_name: 'vision-upstream', model_type: 'llm',
+        context_length: 128000, is_multimodal: false, description: '', status: 'active', sort_order: 0,
+        official_provider: 'openai', official_model_id: visionModelCode, official_pricing_mode: 'manual',
+        official_currency: 'USD', official_input_price: 1, official_cached_input_price: 0.5, official_output_price: 2,
+        official_image_price_1k: 0.04, official_image_price_2k: 0.08, official_image_price_4k: 0.16,
+      }),
+    });
+    expect(response.status).toBe(200);
+    const saved = getDatabase().prepare('SELECT official_image_prices FROM models WHERE id=?').get(visionModelId);
+    expect(JSON.parse(saved.official_image_prices)).toMatchObject({ '1K': 0.04, '2K': 0.08, '4K': 0.16 });
+  });
+
   it('文本模型收到图片时返回明确 400，且不会污染后续文本调用', async () => {
     const imageResponse = await request('/v1/chat/completions', {
       method: 'POST',
@@ -191,8 +208,9 @@ describe('模型能力与图片请求边界', () => {
       headers: { Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ model: visionModelCode, messages: [{ role: 'user', content: 'hello' }] }),
     });
-    expect(textResponse.status).toBe(200);
-    expect(await textResponse.json()).toMatchObject({ choices: [{ message: { content: 'ok' } }] });
+    const textPayload = await textResponse.json();
+    expect(textResponse.status, JSON.stringify(textPayload)).toBe(200);
+    expect(textPayload).toMatchObject({ choices: [{ message: { content: 'ok' } }] });
   });
 
   it('保存多模态能力后，管理端和用户端接口都返回布尔值 true', async () => {

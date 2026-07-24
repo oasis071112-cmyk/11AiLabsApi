@@ -68,12 +68,29 @@ function imagePricesPayload(body) {
   } else if (typeof body.official_image_prices === 'string' && body.official_image_prices.trim()) {
     try { supplied = JSON.parse(body.official_image_prices); } catch (error) { return { error: '图片价格配置必须是有效 JSON' }; }
   }
-  const values = {
-    default: body.official_image_price_square ?? supplied.default ?? supplied['1024x1024'] ?? 0,
-    '1024x1024': body.official_image_price_square ?? supplied['1024x1024'] ?? supplied.default ?? 0,
-    '1536x1024': body.official_image_price_landscape ?? supplied['1536x1024'] ?? supplied.default ?? 0,
-    '1024x1536': body.official_image_price_portrait ?? supplied['1024x1536'] ?? supplied.default ?? 0,
+  const values = { ...supplied };
+  const priceInputs = {
+    default: body.official_image_price_square,
+    '1024x1024': body.official_image_price_square,
+    '1536x1024': body.official_image_price_landscape,
+    '1024x1536': body.official_image_price_portrait,
+    '1K': body.official_image_price_1k,
+    '2K': body.official_image_price_2k,
+    '4K': body.official_image_price_4k,
   };
+  for (const [size, value] of Object.entries(priceInputs)) {
+    if (value === undefined || value === null || value === '') continue;
+    const price = nonNegativePrice(value);
+    if (price === null) return { error: `${size} 图片价格必须是大于等于 0 的数字` };
+    values[size] = price;
+  }
+  const squarePrice = values['1024x1024'] ?? values.default;
+  if (squarePrice !== undefined) {
+    values.default = squarePrice;
+    values['1024x1024'] = squarePrice;
+    values['1536x1024'] = values['1536x1024'] ?? values.default;
+    values['1024x1536'] = values['1024x1536'] ?? values.default;
+  }
   for (const [size, value] of Object.entries(values)) {
     const price = nonNegativePrice(value);
     if (price === null) return { error: `${size} 图片价格必须是大于等于 0 的数字` };
