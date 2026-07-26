@@ -2,7 +2,7 @@
 <div class="app-shell user-shell">
   <header class="mobile-topbar">
     <button ref="triggerRef" class="mobile-menu-button" type="button" aria-label="打开导航菜单" @click="openDrawer"><Menu :size="22"/></button>
-    <router-link to="/" class="mobile-brand"><img src="/logo-icon.svg" alt="IonAiLabs"/><span>IonAiLabs</span></router-link>
+    <router-link to="/" class="mobile-brand"><img src="/logo-icon.svg?v=ionailabs-20260726" alt="IonAiLabs"/><span>IonAiLabs</span></router-link>
     <button class="mobile-avatar" type="button" aria-label="打开用户菜单" @click="openDrawer">{{ userInitial }}</button>
   </header>
 
@@ -16,7 +16,7 @@
 
     <div class="sidebar-logo">
       <router-link to="/" @click="closeDrawer">
-        <img src="/logo-icon.svg" alt="IonAiLabs"/>
+        <img src="/logo-icon.svg?v=ionailabs-20260726" alt="IonAiLabs"/>
         <span>IonAiLabs</span>
       </router-link>
     </div>
