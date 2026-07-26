@@ -22,6 +22,31 @@ function positiveMultiplier(value) {
   return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : null;
 }
 
+const CHANNEL_MULTIPLIER_FIELDS = [
+  'billing_multiplier_input',
+  'billing_multiplier_output',
+  'billing_multiplier_image',
+];
+
+function channelMultiplierPayload(body = {}, existing = null) {
+  const values = {};
+  for (const field of CHANNEL_MULTIPLIER_FIELDS) {
+    const supplied = body[field];
+    if (supplied === undefined) {
+      values[field] = existing ? existing[field] : null;
+      continue;
+    }
+    if (supplied === null || supplied === '') {
+      values[field] = null;
+      continue;
+    }
+    const multiplier = positiveMultiplier(supplied);
+    if (multiplier === null) return { error: '渠道计费倍率必须是大于 0 的数字，留空则沿用原有全局规则' };
+    values[field] = multiplier;
+  }
+  return { values };
+}
+
 function nonNegativePrice(value) {
   const price = Number(value);
   return Number.isFinite(price) && price >= 0 ? price : null;
@@ -724,27 +749,31 @@ router.get('/channels', authenticate, requireAdmin('admin'), (req, res) => {
     LEFT JOIN routing_groups rg ON rg.id=rgc.group_id
     LEFT JOIN channel_models cm ON cm.channel_id=uc.id AND cm.status='active'
     GROUP BY uc.id ORDER BY uc.priority DESC,uc.id ASC`).all();
-  res.json({ data: channels.map(channel => {
-    const payload = { ...channel };
-    delete payload.billing_multiplier_input;
-    delete payload.billing_multiplier_output;
-    delete payload.billing_multiplier_image;
-    return {
-      ...payload,
+  res.json({ data: channels.map(channel => ({
+      ...channel,
       api_key: desensitize(channel.api_key),
       capabilities: parseChannelCapabilities(channel.capabilities),
-    };
-  }) });
+    })) });
 });
 
 router.post('/channels', authenticate, requireAdmin('admin'), (req, res) => {
   const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible', capabilities } = req.body;
   if (!String(channel_name||'').trim() || !String(base_url||'').trim() || !String(api_key||'').trim()) return res.status(400).json({ error: '渠道名称、上游地址和 API Key 不能为空' });
   if (protocol_type !== 'openai_compatible') return res.status(400).json({ error: '当前版本仅支持 OpenAI 兼容协议' });
+  const multiplierPayload = channelMultiplierPayload(req.body);
+  if (multiplierPayload.error) return res.status(400).json({ error: multiplierPayload.error });
   let serializedCapabilities;
   try { serializedCapabilities = serializeChannelCapabilities(capabilities); }
   catch (error) { return res.status(400).json({ error: error.message }); }
-  getDatabase().prepare('INSERT INTO upstream_channels (channel_name,base_url,api_key,priority,weight,protocol_type,capabilities) VALUES (?,?,?,?,?,?,?)').run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, serializedCapabilities);
+  getDatabase().prepare(`INSERT INTO upstream_channels (
+    channel_name,base_url,api_key,priority,weight,protocol_type,capabilities,
+    billing_multiplier_input,billing_multiplier_output,billing_multiplier_image
+  ) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
+    String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, serializedCapabilities,
+    multiplierPayload.values.billing_multiplier_input,
+    multiplierPayload.values.billing_multiplier_output,
+    multiplierPayload.values.billing_multiplier_image,
+  );
   res.status(201).json({ message: '渠道创建成功' });
 });
 
@@ -786,8 +815,12 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
   if (!String(channel_name||'').trim() || !String(base_url||'').trim()) return res.status(400).json({ error: '渠道名称和上游地址不能为空' });
   if (protocol_type !== 'openai_compatible') return res.status(400).json({ error: '当前版本仅支持 OpenAI 兼容协议' });
-  const existingChannel = db.prepare('SELECT capabilities FROM upstream_channels WHERE id=?').get(req.params.id);
+  const existingChannel = db.prepare(`SELECT capabilities,
+    billing_multiplier_input,billing_multiplier_output,billing_multiplier_image
+    FROM upstream_channels WHERE id=?`).get(req.params.id);
   if (!existingChannel) return res.status(404).json({ error: '渠道不存在' });
+  const multiplierPayload = channelMultiplierPayload(req.body, existingChannel);
+  if (multiplierPayload.error) return res.status(400).json({ error: multiplierPayload.error });
   let serializedCapabilities;
   try {
     serializedCapabilities = capabilities === undefined
@@ -796,11 +829,25 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
   }
   catch (error) { return res.status(400).json({ error: error.message }); }
   if (api_key && api_key.trim()) {
-    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, api_key=?, priority=?, weight=?, protocol_type=?, capabilities=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
-      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, serializedCapabilities, req.params.id);
+    db.prepare(`UPDATE upstream_channels SET
+      channel_name=?,base_url=?,api_key=?,priority=?,weight=?,protocol_type=?,capabilities=?,
+      billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
+      health_score=50,consecutive_failures=0,circuit_breaker_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, serializedCapabilities,
+        multiplierPayload.values.billing_multiplier_input,
+        multiplierPayload.values.billing_multiplier_output,
+        multiplierPayload.values.billing_multiplier_image,
+        req.params.id);
   } else {
-    db.prepare('UPDATE upstream_channels SET channel_name=?, base_url=?, priority=?, weight=?, protocol_type=?, capabilities=?, health_score=50, consecutive_failures=0, circuit_breaker_until=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?')
-      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), priority||0, weight||100, protocol_type, serializedCapabilities, req.params.id);
+    db.prepare(`UPDATE upstream_channels SET
+      channel_name=?,base_url=?,priority=?,weight=?,protocol_type=?,capabilities=?,
+      billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
+      health_score=50,consecutive_failures=0,circuit_breaker_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), priority||0, weight||100, protocol_type, serializedCapabilities,
+        multiplierPayload.values.billing_multiplier_input,
+        multiplierPayload.values.billing_multiplier_output,
+        multiplierPayload.values.billing_multiplier_image,
+        req.params.id);
   }
   res.json({ message: '渠道已更新' });
 });

@@ -52,16 +52,62 @@ describe('Sub2API 渠道模型计费配置', () => {
     });
   }
 
-  it('第一轮不在渠道列表接口中提前暴露渠道倍率字段', async () => {
+  it('第二轮在渠道列表接口中返回可空渠道倍率字段', async () => {
     const response = await request('/api/admin/channels');
     expect(response.status).toBe(200);
 
     const payload = await response.json();
     const channel = payload.data.find(item => item.id === channelId);
     expect(channel).toBeTruthy();
-    expect(channel).not.toHaveProperty('billing_multiplier_input');
-    expect(channel).not.toHaveProperty('billing_multiplier_output');
-    expect(channel).not.toHaveProperty('billing_multiplier_image');
+    expect(channel).toMatchObject({
+      billing_multiplier_input: null,
+      billing_multiplier_output: null,
+      billing_multiplier_image: null,
+    });
+  });
+
+  it('管理员可保存渠道倍率，清空后回退到原有全局规则', async () => {
+    const payload = {
+      channel_name: 'billing-channel-updated',
+      base_url: 'https://billing.example.test/v1',
+      api_key: '', priority: 0, weight: 100,
+      protocol_type: 'openai_compatible', capabilities: ['chat_completions'],
+      billing_multiplier_input: 1.25,
+      billing_multiplier_output: 1.5,
+      billing_multiplier_image: 1.75,
+    };
+    const update = await request(`/api/admin/channels/${channelId}`, {
+      method: 'PUT', body: JSON.stringify(payload),
+    });
+    expect(update.status).toBe(200);
+
+    let channel = (await (await request('/api/admin/channels')).json()).data.find(item => item.id === channelId);
+    expect(channel).toMatchObject({
+      billing_multiplier_input: 1.25,
+      billing_multiplier_output: 1.5,
+      billing_multiplier_image: 1.75,
+    });
+
+    const invalid = await request(`/api/admin/channels/${channelId}`, {
+      method: 'PUT', body: JSON.stringify({ ...payload, billing_multiplier_input: 0 }),
+    });
+    expect(invalid.status).toBe(400);
+
+    const clear = await request(`/api/admin/channels/${channelId}`, {
+      method: 'PUT', body: JSON.stringify({
+        ...payload,
+        billing_multiplier_input: '',
+        billing_multiplier_output: null,
+        billing_multiplier_image: '',
+      }),
+    });
+    expect(clear.status).toBe(200);
+    channel = (await (await request('/api/admin/channels')).json()).data.find(item => item.id === channelId);
+    expect(channel).toMatchObject({
+      billing_multiplier_input: null,
+      billing_multiplier_output: null,
+      billing_multiplier_image: null,
+    });
   });
 
   it('保存并返回 token/image/per_request 与计费模型来源配置', async () => {

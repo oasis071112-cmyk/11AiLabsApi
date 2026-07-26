@@ -318,6 +318,8 @@ describe('模型能力与图片请求边界', () => {
     db.prepare(`UPDATE channel_models SET
       billing_mode='token',billing_model_source='upstream',input_price=?,output_price=?
       WHERE channel_id=? AND model_code=?`).run(0.000003, 0.000008, channelId, visionModelCode);
+    db.prepare(`UPDATE upstream_channels SET
+      billing_multiplier_input=?,billing_multiplier_output=? WHERE id=?`).run(1.5, 2, channelId);
     const response = await request('/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -331,11 +333,15 @@ describe('模型能力与图片请求边界', () => {
       billing_mode: 'token',
       input_tokens: 5,
       output_tokens: 2,
+      billing_multiplier_input: 1.5,
+      billing_multiplier_output: 2,
     });
-    expect(log.total_cost).toBeCloseTo(0.000217, 10);
+    expect(log.total_cost).toBeCloseTo(0.0003815, 10);
     db.prepare(`UPDATE channel_models SET
       billing_mode='',billing_model_source='channel_mapped',input_price=NULL,output_price=NULL
       WHERE channel_id=? AND model_code=?`).run(channelId, visionModelCode);
+    db.prepare(`UPDATE upstream_channels SET
+      billing_multiplier_input=NULL,billing_multiplier_output=NULL WHERE id=?`).run(channelId);
   });
 
   it('对话渠道 per_request 模式按一次固定价格结算且不新增订阅', async () => {

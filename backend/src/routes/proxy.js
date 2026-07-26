@@ -33,10 +33,19 @@ const {
   settleWalletReservation,
   walletBalances,
 } = require('../utils/wallet-billing');
+const { resolveChannelMultipliers } = require('../utils/channel-multipliers');
 
 function positiveOrOne(value) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : 1;
+}
+
+function globalMultipliers(pricingRule, model) {
+  return {
+    input: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_input : model.billing_multiplier_input),
+    output: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_output : model.billing_multiplier_output),
+    image: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_image : model.billing_multiplier_image),
+  };
 }
 
 function getEffectiveMultiplier(db, modelCode, userId) {
@@ -631,9 +640,8 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     : null;
   const pricingModel = billingModelCandidate || model;
   const pricingRule = getEffectiveMultiplier(db, pricingModel.model_code, req.userId);
-  const imageMultiplier = positiveOrOne(pricingRule
-    ? pricingRule.billing_multiplier_image
-    : pricingModel.billing_multiplier_image);
+  const fallbackMultipliers = globalMultipliers(pricingRule, pricingModel);
+  let imageMultiplier = fallbackMultipliers.image;
   const requirements = {
     endpointCapability,
     requiredMappedModelCode: intent.billingModel !== modelCode ? intent.billingModel : null,
@@ -642,6 +650,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   if (!channel) {
     return res.status(503).json({ error: { message: `暂无支持 ${endpoint} 的可用上游渠道`, type: 'no_channel' } });
   }
+  imageMultiplier = resolveChannelMultipliers(channel, fallbackMultipliers).image;
   billingChannel = channelBillingForModel(db, channel, intent.billingModel);
   billingMode = billingModeForRequest(billingChannel, true);
   const reservationPricingModel = pricingModelForChannel(db, pricingModel, billingChannel);
@@ -693,6 +702,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       }),
     });
     channel = upstreamResult.channel;
+    imageMultiplier = resolveChannelMultipliers(channel, fallbackMultipliers).image;
     billingChannel = channelBillingForModel(db, channel, intent.billingModel);
     billingMode = billingModeForRequest(billingChannel, true);
     upstreamConfirmed = true;
@@ -729,10 +739,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       confirmedBillingModel = settlementPricingModel.model_code;
       effectiveBillingModelSource = 'requested';
     }
-    const tokenMultipliers = {
-      input: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_input : pricingModel.billing_multiplier_input),
-      output: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_output : pricingModel.billing_multiplier_output),
-    };
+    const tokenMultipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
     settlementPricing = billingMode === 'token'
       ? buildPricing(db, settlementPricingModel, usage, tokenMultipliers, {
         channel: billingChannel, serviceTier: usage.serviceTier,
@@ -765,6 +772,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     return res.json(upstreamResult.response.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
+    imageMultiplier = resolveChannelMultipliers(channel, fallbackMultipliers).image;
     if (reservedAmount > 0 && !upstreamConfirmed && error.response) {
       try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放图片冻结额度失败]', releaseError); }
     }
@@ -822,10 +830,8 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
   const pricingRule = getEffectiveMultiplier(db, modelCode, req.userId);
-  const multipliers = {
-    input: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_input : model.billing_multiplier_input),
-    output: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_output : model.billing_multiplier_output),
-  };
+  const fallbackMultipliers = globalMultipliers(pricingRule, model);
+  let multipliers = fallbackMultipliers;
   try {
     assertSupportedBillableInput(req.body.messages ?? req.body.input ?? req.body, model);
   } catch (error) {
@@ -844,6 +850,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       .run(requestId, req.userId, req.apiKey.id, modelCode, message, type, req.ip, Date.now() - startTime);
     return res.status(requiresImageInput ? 400 : 503).json({ error: { message, type } });
   }
+  multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
   if (billingModeForRequest(channel, false) === 'token'
       && !channelHasTokenPricing(channel)
       && Number(model.official_input_price) <= 0
@@ -887,6 +894,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       const upstreamResp = upstreamResult.response;
       channel = upstreamResult.channel;
       upstreamBody = upstreamResult.requestBody;
+      multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
 
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -1041,6 +1049,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     normalizeVisibleChatContent(upstreamResponse.data, false, true);
     channel = upstreamResult.channel;
     upstreamBody = upstreamResult.requestBody;
+    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
     upstreamConfirmed = true;
     if (billingModeForRequest(channel, false) === 'token' && !hasBillableUsage(upstreamResponse.data)) {
       const usage = fallbackChatUsage(upstreamBody, upstreamResponse.data);
@@ -1073,6 +1082,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     return res.json(upstreamResponse.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
+    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
     // 只有明确收到上游 HTTP 错误响应，才可确认本次没有成功结果并释放额度。
     // 网络超时/断连时上游可能已执行，必须保留冻结额度，不能免费放行。
     const executionUncertain = !upstreamConfirmed && !error.response;
@@ -1116,13 +1126,12 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
   const pricingRule = getEffectiveMultiplier(db, modelCode, req.userId);
-  const multipliers = {
-    input: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_input : model.billing_multiplier_input),
-    output: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_output : model.billing_multiplier_output),
-  };
+  const fallbackMultipliers = globalMultipliers(pricingRule, model);
+  let multipliers = fallbackMultipliers;
   const channelRequirements = { endpointCapability: 'embeddings' };
   let channel = selectChannel(db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), channelRequirements);
   if (!channel) return res.status(503).json({ error: { message: '暂无支持向量接口的可用上游渠道', type: 'no_channel' } });
+  multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
   if (billingModeForRequest(channel, false) === 'token'
       && !channelHasTokenPricing(channel)
       && Number(model.official_input_price) <= 0) {
@@ -1154,6 +1163,7 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
     });
     const upstreamResponse = upstreamResult.response;
     channel = upstreamResult.channel;
+    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
     upstreamConfirmed = true;
     if (billingModeForRequest(channel, false) === 'token' && !hasBillableUsage(upstreamResponse.data)) {
       const usage = fallbackEmbeddingUsage(req.body);
@@ -1183,6 +1193,7 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
     return res.json(upstreamResponse.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
+    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
     const executionUncertain = !upstreamConfirmed && !error.response;
     if (reservedAmount > 0 && !upstreamConfirmed && !executionUncertain) {
       try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放冻结额度失败]', releaseError); }

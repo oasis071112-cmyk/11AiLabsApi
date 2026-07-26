@@ -152,6 +152,25 @@ describe('图片生成端点计费', () => {
     expect(userLog.billing_detail.dimensions[0]).not.toHaveProperty('billingModel');
   });
 
+  it('渠道图片倍率优先于模型默认倍率并写入本次账单快照', async () => {
+    const db = getDatabase();
+    db.prepare('UPDATE upstream_channels SET billing_multiplier_image=? WHERE id=?').run(1.8, channelId);
+    try {
+      const response = await request('/v1/images/generations', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: modelCode, prompt: 'channel multiplier', size: '1024x1024', n: 1 }),
+      });
+
+      expect(response.status).toBe(200);
+      const log = db.prepare("SELECT billing_multiplier_image,total_cost FROM api_request_logs WHERE api_key_id=? AND billing_mode='image' AND status='success' ORDER BY id DESC").get(apiKeyId);
+      expect(log).toMatchObject({ billing_multiplier_image: 1.8 });
+      expect(log.total_cost).toBeCloseTo(1.008, 8);
+    } finally {
+      db.prepare('UPDATE upstream_channels SET billing_multiplier_image=NULL WHERE id=?').run(channelId);
+    }
+  });
+
   it('Responses 原生图片工具按实际 image_generation_call 结果计费', async () => {
     const response = await request('/v1/responses', {
       method: 'POST',
