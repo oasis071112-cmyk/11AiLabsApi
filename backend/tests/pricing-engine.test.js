@@ -139,6 +139,35 @@ describe('官方定价换算与用户扣费', () => {
     expect(result.userCostPoints).toBeCloseTo(0.25, 8);
   });
 
+  it('Anthropic 缓存写入按 5 分钟与 1 小时独立价格结算', () => {
+    const result = calculatePricing({
+      inputTokens: 1_000_000,
+      cacheCreationTokens: 1_000_000,
+      cacheCreation5mTokens: 600_000,
+      cacheCreation1hTokens: 400_000,
+      official: {
+        currency: 'USD',
+        input: 5,
+        cacheCreation: 6.25,
+        cacheCreation5m: 6.25,
+        cacheCreation1h: 10,
+        output: 25,
+        unitTokens: 1_000_000,
+      },
+      multipliers: { input: 1, output: 1 },
+      usdCnyRate: 7,
+    });
+
+    expect(result.userCostPoints).toBeCloseTo(54.25, 8);
+    expect(result.official).toMatchObject({
+      cacheCreation5mTokens: 600_000,
+      cacheCreation1hTokens: 400_000,
+      cacheCreation5mCost: 26.25,
+      cacheCreation1hCost: 28,
+      cacheCreationEffectivePrice: 7.75,
+    });
+  });
+
   it('解析上游 usage 时保留 Sub2API 使用的缓存和图片 token 桶', () => {
     expect(extractUsage({
       input_tokens: 1000,
@@ -166,6 +195,20 @@ describe('官方定价换算与用户扣费', () => {
         cache_creation_1h_tokens: 80,
       },
     }).cacheCreationTokens).toBe(200);
+  });
+
+  it('解析 Anthropic 新版嵌套缓存创建明细', () => {
+    expect(extractUsage({
+      input_tokens: 1000,
+      cache_creation: {
+        ephemeral_5m_input_tokens: 120,
+        ephemeral_1h_input_tokens: 80,
+      },
+    })).toMatchObject({
+      cacheCreationTokens: 200,
+      cacheCreation5mTokens: 120,
+      cacheCreation1hTokens: 80,
+    });
   });
 
   it('嵌套 cache_write_tokens 包括显式 0 都优先于顶层兼容字段', () => {

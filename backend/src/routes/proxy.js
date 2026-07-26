@@ -26,6 +26,7 @@ const {
   channelTokenOfficial,
   resolveBillingModel,
   resolveFixedUnitPrice,
+  withProviderCachePricing,
 } = require('../utils/billing-policy');
 const {
   releaseWalletReservation,
@@ -100,13 +101,13 @@ function buildPricing(db, model, usage, multipliers, { channel = null, serviceTi
   const usdCnyRate = getUsdCnyRate(db);
   const official = channelHasTokenPricing(channel)
     ? channelTokenOfficial(model, channel, usdCnyRate)
-    : {
+    : withProviderCachePricing({
       currency: model.official_currency,
       input: model.official_input_price,
       output: model.official_output_price,
       cachedInput: model.official_cached_input_price,
       unitTokens: model.official_unit_tokens,
-    };
+    }, model);
   const prices = calculatePricing({
     modelCode: model.model_code,
     ...usage,
@@ -115,7 +116,13 @@ function buildPricing(db, model, usage, multipliers, { channel = null, serviceTi
     usdCnyRate,
     serviceTier,
   });
-  return { ...prices, currency: official.currency, officialPrices: official, usdCnyRate };
+  const officialPrices = { ...official };
+  if ((Object.prototype.hasOwnProperty.call(official, 'cacheCreation5m')
+      || Object.prototype.hasOwnProperty.call(official, 'cacheCreation1h'))
+      && prices.official.cacheCreationTokens > 0) {
+    officialPrices.cacheCreation = prices.official.cacheCreationEffectivePrice;
+  }
+  return { ...prices, currency: official.currency, officialPrices, usdCnyRate };
 }
 
 function buildImagePricing(db, model, { imageCount, size, multiplier }) {
@@ -203,13 +210,13 @@ function insertSuccessLog(db, {
     ? { currency: 'USD', input: 0, output: 0, cachedInput: 0, unitTokens: 1 }
     : channelHasTokenPricing(channelBilling)
       ? channelTokenOfficial(model, channelBilling, getUsdCnyRate(db))
-      : {
+      : withProviderCachePricing({
       currency: model.official_currency,
       input: model.official_input_price,
       output: model.official_output_price,
       cachedInput: model.official_cached_input_price,
       unitTokens: model.official_unit_tokens,
-      };
+      }, model);
   let billingModelSource = channelBilling.billing_model_source || 'channel_mapped';
   let billingModel = resolveBillingModel(billingModelSource, {
     requested: modelCode,
@@ -369,6 +376,7 @@ function billableTextProjection(value, key = '') {
   if (Array.isArray(value)) return value.map(item => billableTextProjection(item, key));
   if (!value || typeof value !== 'object') return value;
   if (value.type === 'image') return '[image]';
+  if (value.type === 'document') return '[document]';
   return Object.fromEntries(Object.entries(value)
     .map(([childKey, childValue]) => [childKey, billableTextProjection(childValue, childKey)]));
 }
@@ -414,6 +422,9 @@ function listImageInputs(value, key = '') {
       : (source.url || '');
     return [{ url, detail: 'auto' }];
   }
+  if (value && typeof value === 'object' && !Array.isArray(value) && value.type === 'document') {
+    return [{ url: '', detail: 'document' }];
+  }
   if (normalizedKey === 'image_url' || normalizedKey === 'input_image') {
     const image = value && typeof value === 'object' ? value : {};
     return [{ url: image.url || image.image_url || image.source?.url || '', detail: image.detail || 'auto' }];
@@ -426,6 +437,8 @@ function listImageInputs(value, key = '') {
 function estimatedImageReservationTokens(requestBody) {
   return listImageInputs(requestBody.messages ?? requestBody.input ?? requestBody)
     .reduce((total, image) => {
+      // PDF/文档的 Base64 是传输载体；按媒体内容预留，不能把它误计为文本 Token。
+      if (String(image.detail).toLowerCase() === 'document') return total + 16_384;
       if (String(image.detail).toLowerCase() === 'low') return total + 512;
       // URL 图片在请求前无法安全取得分辨率，按上游通常会缩放到的 2048px 上限预留。
       const dimensions = imageDimensionsFromDataUrl(image.url) || { width: 2048, height: 2048 };
@@ -628,6 +641,7 @@ async function upstreamErrorMessage(error) {
   });
   try {
     const parsed = JSON.parse(raw);
+    if (error.response) error.response.data = parsed;
     return parsed?.error?.message || raw || error.message;
   } catch (parseError) {
     return raw || error.message;
@@ -651,6 +665,39 @@ function sendAnthropicError(res, status, type, message) {
   return res.status(status).json({ type: 'error', error: { type, message } });
 }
 
+const ANTHROPIC_RESPONSE_HEADERS = Object.freeze([
+  'request-id',
+  'retry-after',
+  'anthropic-ratelimit-requests-limit',
+  'anthropic-ratelimit-requests-remaining',
+  'anthropic-ratelimit-requests-reset',
+  'anthropic-ratelimit-tokens-limit',
+  'anthropic-ratelimit-tokens-remaining',
+  'anthropic-ratelimit-tokens-reset',
+]);
+
+function copyAnthropicResponseHeaders(res, upstreamHeaders = {}) {
+  for (const header of ANTHROPIC_RESPONSE_HEADERS) {
+    const value = upstreamHeaders?.[header];
+    if (value !== null && value !== undefined && value !== '') res.setHeader(header, value);
+  }
+}
+
+function sendAnthropicUpstreamError(res, error, fallbackMessage) {
+  copyAnthropicResponseHeaders(res, error.response?.headers);
+  const body = error.response?.data;
+  if (body && typeof body === 'object' && typeof body.on !== 'function'
+      && body.type === 'error' && body.error?.message) {
+    return res.status(error.response?.status || 500).json(body);
+  }
+  return sendAnthropicError(
+    res,
+    error.response?.status || 500,
+    body?.error?.type || 'api_error',
+    fallbackMessage,
+  );
+}
+
 function insertBlockedLog(db, {
   requestId, userId, apiKeyId, modelCode, error, errorType, requestIp, latencyMs,
   requestProtocol = CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
@@ -672,17 +719,44 @@ function insertCountTokensSuccessLog(db, {
   );
 }
 
+function extractAnthropicUsage(rawUsage = {}) {
+  const usage = extractUsage(rawUsage);
+  return {
+    ...usage,
+    inputTokens: usage.inputTokens + usage.cachedInputTokens + usage.cacheCreationTokens,
+  };
+}
+
 function mergeAnthropicStreamUsage(current, rawUsage, upstreamModel = '') {
   if (!rawUsage || typeof rawUsage !== 'object') return current;
   const parsed = extractUsage(rawUsage);
   const next = { ...current };
-  if (Object.prototype.hasOwnProperty.call(rawUsage, 'input_tokens')) next.inputTokens = parsed.inputTokens;
-  if (Object.prototype.hasOwnProperty.call(rawUsage, 'output_tokens')) next.outputTokens = parsed.outputTokens;
-  if (Object.prototype.hasOwnProperty.call(rawUsage, 'cache_read_input_tokens')) {
+  let ordinaryInputTokens = Math.max(
+    Number(next.inputTokens || 0)
+      - Number(next.cachedInputTokens || 0)
+      - Number(next.cacheCreationTokens || 0),
+    0,
+  );
+  if (rawUsage.input_tokens !== null && rawUsage.input_tokens !== undefined) {
+    ordinaryInputTokens = parsed.inputTokens;
+  }
+  if (rawUsage.cache_read_input_tokens !== null && rawUsage.cache_read_input_tokens !== undefined) {
     next.cachedInputTokens = parsed.cachedInputTokens;
   }
-  if (Object.prototype.hasOwnProperty.call(rawUsage, 'cache_creation_input_tokens')) {
+  if (rawUsage.cache_creation_input_tokens !== null
+      && rawUsage.cache_creation_input_tokens !== undefined) {
     next.cacheCreationTokens = parsed.cacheCreationTokens;
+  }
+  if (rawUsage.cache_creation && typeof rawUsage.cache_creation === 'object') {
+    next.cacheCreationTokens = parsed.cacheCreationTokens;
+    next.cacheCreation5mTokens = parsed.cacheCreation5mTokens;
+    next.cacheCreation1hTokens = parsed.cacheCreation1hTokens;
+  }
+  next.inputTokens = ordinaryInputTokens
+    + Number(next.cachedInputTokens || 0)
+    + Number(next.cacheCreationTokens || 0);
+  if (rawUsage.output_tokens !== null && rawUsage.output_tokens !== undefined) {
+    next.outputTokens = parsed.outputTokens;
   }
   if (upstreamModel) next.upstreamModel = upstreamModel;
   return next;
@@ -740,6 +814,7 @@ router.post('/messages/count_tokens', authenticateApiKey, async (req, res) => {
       }),
     });
     channel = upstreamResult.channel;
+    copyAnthropicResponseHeaders(res, upstreamResult.response.headers);
     insertCountTokensSuccessLog(db, {
       requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
       channelId: channel.id,
@@ -762,12 +837,7 @@ router.post('/messages/count_tokens', authenticateApiKey, async (req, res) => {
       channelId: channel?.id, requestIp: req.ip, latencyMs: Date.now() - startTime,
       error: message, billingMode: 'count_tokens', ...ANTHROPIC_LOG_CONTEXT,
     });
-    return sendAnthropicError(
-      res,
-      error.response?.status || 500,
-      'api_error',
-      `上游 Count Tokens 请求失败: ${message}`,
-    );
+    return sendAnthropicUpstreamError(res, error, `上游 Count Tokens 请求失败: ${message}`);
   }
 });
 
@@ -840,7 +910,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
       error: message, errorType: 'insufficient_balance', requestIp: req.ip,
       latencyMs: Date.now() - startTime, requestProtocol: CHANNEL_PROTOCOLS.ANTHROPIC,
     });
-    return sendAnthropicError(res, 402, 'permission_error', message);
+    return sendAnthropicError(res, 402, 'billing_error', message);
   }
 
   try {
@@ -864,6 +934,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
       upstreamBody = upstreamResult.requestBody;
       multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
       upstreamConfirmed = true;
+      copyAnthropicResponseHeaders(res, upstreamResponse.headers);
 
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -880,6 +951,8 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
         upstreamModel: channel.upstream_model_name,
       };
       let heldMessageStop = '';
+      let receivedStreamError = false;
+      let streamErrorMessage = '';
 
       const processEvent = (rawEvent) => {
         if (!rawEvent.trim()) return;
@@ -904,6 +977,10 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
             usage.upstreamModel || channel.upstream_model_name,
           );
         }
+        if (eventName === 'error' || parsed?.type === 'error') {
+          receivedStreamError = true;
+          streamErrorMessage = parsed?.error?.message || 'Anthropic 上游返回流式错误';
+        }
         if (eventName === 'message_stop' || parsed?.type === 'message_stop') {
           heldMessageStop = `${rawEvent}\n\n`;
           return;
@@ -915,6 +992,30 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
         if (finalized) return;
         finalized = true;
         if (buffer.trim()) processEvent(buffer);
+        if (receivedStreamError || !heldMessageStop) {
+          const pricing = buildRequestPricing(db, model, channel, usage, multipliers);
+          insertSettlementFailureLog(db, {
+            requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+            channelId: channel.id, usage, pricing, model, multipliers,
+            requestIp: req.ip, latencyMs: Date.now() - startTime,
+            error: receivedStreamError
+              ? `Anthropic 上游流返回错误，已保留 ${reservedAmount} 点冻结额度等待核对：${streamErrorMessage}`
+              : `Anthropic 上游流未发送 message_stop，已保留 ${reservedAmount} 点冻结额度等待核对`,
+            ...ANTHROPIC_LOG_CONTEXT,
+          });
+          if (!receivedStreamError) {
+            res.write(`event: error\ndata: ${JSON.stringify({
+              type: 'error',
+              error: {
+                type: 'api_error',
+                message: '上游流未正常结束，本次调用正在结算；余额已冻结等待核对，请勿重试',
+              },
+            })}\n\n`);
+          }
+          res.end();
+          reportResult(db, channel.id, false);
+          return;
+        }
         if (billingModeForRequest(channel, false) === 'token' && !anthropicUsageIsBillable(usage)) {
           const pricing = buildRequestPricing(db, model, channel, usage, multipliers);
           insertSettlementFailureLog(db, {
@@ -927,7 +1028,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
           res.write(`event: error\ndata: ${JSON.stringify({
             type: 'error',
             error: {
-              type: 'settlement_pending',
+              type: 'api_error',
               message: '上游未返回用量，本次调用正在结算；余额已冻结等待核对，请勿重试',
             },
           })}\n\n`);
@@ -950,8 +1051,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
             }),
           });
           reservedAmount = 0;
-          if (heldMessageStop) res.write(heldMessageStop);
-          else res.write(`event: message_stop\ndata: ${JSON.stringify({ type: 'message_stop' })}\n\n`);
+          res.write(heldMessageStop);
           res.end();
           db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
           reportResult(db, channel.id, true);
@@ -965,7 +1065,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
           res.write(`event: error\ndata: ${JSON.stringify({
             type: 'error',
             error: {
-              type: 'settlement_pending',
+              type: 'api_error',
               message: '本次调用正在结算；余额已冻结等待核对，请勿重试',
             },
           })}\n\n`);
@@ -994,7 +1094,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
         });
         res.write(`event: error\ndata: ${JSON.stringify({
           type: 'error',
-          error: { type: 'settlement_pending', message: '上游流中断，本次调用正在结算' },
+          error: { type: 'api_error', message: '上游流中断，本次调用正在结算' },
         })}\n\n`);
         res.end();
         reportResult(db, channel.id, false);
@@ -1019,6 +1119,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
     upstreamBody = upstreamResult.requestBody;
     multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
     upstreamConfirmed = true;
+    copyAnthropicResponseHeaders(res, upstreamResult.response.headers);
     if (billingModeForRequest(channel, false) === 'token'
         && !hasBillableUsage(upstreamResult.response.data)) {
       const usage = {
@@ -1038,11 +1139,11 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
       return sendAnthropicError(
         res,
         502,
-        'settlement_pending',
+        'api_error',
         '上游未返回用量，本次调用正在结算；余额已冻结等待核对，请勿重试',
       );
     }
-    const usage = extractUsage(upstreamResult.response.data?.usage || {});
+    const usage = extractAnthropicUsage(upstreamResult.response.data?.usage || {});
     usage.upstreamModel = upstreamResult.response.data?.model || channel.upstream_model_name;
     const pricing = buildRequestPricing(db, model, channel, usage, multipliers);
     settleWalletReservation(db, {
@@ -1094,7 +1195,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
       return sendAnthropicError(
         res,
         executionUncertain ? 504 : 500,
-        'settlement_pending',
+        'api_error',
         '本次调用正在结算；余额已冻结等待管理员核对，请勿重试',
       );
     }
@@ -1104,12 +1205,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
       channelId: channel?.id, requestIp: req.ip, latencyMs: Date.now() - startTime,
       error: message, ...ANTHROPIC_LOG_CONTEXT,
     });
-    return sendAnthropicError(
-      res,
-      error.response?.status || 500,
-      'api_error',
-      `Anthropic 上游请求失败: ${message}`,
-    );
+    return sendAnthropicUpstreamError(res, error, `Anthropic 上游请求失败: ${message}`);
   }
 });
 

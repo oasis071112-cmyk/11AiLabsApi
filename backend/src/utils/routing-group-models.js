@@ -1,4 +1,34 @@
 const { channelModelSupportsImageInput, channelSupportsCapability } = require('./channel-capabilities');
+const { CHANNEL_PROTOCOLS } = require('./channel-protocols');
+
+function listRoutingGroupProtocolTypes(db, groupId, visitedGroups = new Set()) {
+  if (visitedGroups.has(groupId)) return [];
+  visitedGroups.add(groupId);
+  const group = db.prepare(`SELECT protocol_type,fallback_group_id
+    FROM routing_groups WHERE id=? AND status='active'`).get(groupId);
+  if (!group) return [];
+
+  const protocols = new Set(db.prepare(`SELECT DISTINCT uc.protocol_type
+    FROM routing_group_channels rgc
+    JOIN upstream_channels uc ON uc.id=rgc.channel_id
+    WHERE rgc.group_id=? AND rgc.status='active' AND uc.status='active'`)
+    .all(groupId)
+    .map(item => item.protocol_type)
+    .filter(protocol => Object.values(CHANNEL_PROTOCOLS).includes(protocol)));
+
+  if (group.fallback_group_id) {
+    for (const protocol of listRoutingGroupProtocolTypes(db, group.fallback_group_id, visitedGroups)) {
+      protocols.add(protocol);
+    }
+  }
+  if (protocols.size === 0 && Object.values(CHANNEL_PROTOCOLS).includes(group.protocol_type)) {
+    protocols.add(group.protocol_type);
+  }
+  return [...protocols].sort((a, b) => {
+    const rank = protocol => protocol === CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE ? 0 : 1;
+    return rank(a) - rank(b) || a.localeCompare(b);
+  });
+}
 
 function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
   if (visitedGroups.has(groupId)) return [];
@@ -156,6 +186,7 @@ function listUserModelCapabilities(db, userId) {
 
 module.exports = {
   listRoutingGroupModels,
+  listRoutingGroupProtocolTypes,
   listModelsForApiKey,
   apiKeyCanUseModel,
   listSystemModelCapabilities,

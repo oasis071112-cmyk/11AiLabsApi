@@ -24,6 +24,7 @@ describe('原生 Anthropic 协议', () => {
   let userId;
   let modelCode;
   let anthropicChannelId;
+  let groupId;
   let groupName;
   let trapHits = 0;
   const upstreamRequests = [];
@@ -49,13 +50,31 @@ describe('原生 Anthropic 协议', () => {
         }
 
         if (req.method === 'POST' && req.url === '/v1/messages/count_tokens') {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'request-id': 'req_count_tokens_upstream',
+          });
           res.end(JSON.stringify({ input_tokens: 37 }));
           return;
         }
 
         if (req.method !== 'POST' || req.url !== '/v1/messages') {
           res.writeHead(404).end();
+          return;
+        }
+
+        if (body.metadata?.force_error) {
+          res.writeHead(400, {
+            'Content-Type': 'application/json',
+            'request-id': 'req_rate_limit_upstream',
+          });
+          res.end(JSON.stringify({
+            type: 'error',
+            error: {
+              type: 'invalid_request_error',
+              message: 'Native Anthropic validation error',
+            },
+          }));
           return;
         }
 
@@ -78,6 +97,10 @@ describe('原生 Anthropic 协议', () => {
                 usage: {
                   input_tokens: 200,
                   cache_creation_input_tokens: 20,
+                  cache_creation: {
+                    ephemeral_5m_input_tokens: 12,
+                    ephemeral_1h_input_tokens: 8,
+                  },
                   cache_read_input_tokens: 40,
                   output_tokens: 0,
                 },
@@ -102,18 +125,43 @@ describe('原生 Anthropic 协议', () => {
             `data: ${JSON.stringify({
               type: 'message_delta',
               delta: { stop_reason: 'end_turn', stop_sequence: null },
-              usage: { output_tokens: 25 },
+              usage: {
+                input_tokens: null,
+                cache_creation_input_tokens: null,
+                cache_read_input_tokens: null,
+                output_tokens: 25,
+              },
             })}`,
             '',
-            'event: message_stop',
-            `data: ${JSON.stringify({ type: 'message_stop' })}`,
-            '',
-            '',
+            ...(body.metadata?.force_stream_error
+              ? [
+                'event: error',
+                `data: ${JSON.stringify({
+                  type: 'error',
+                  error: {
+                    type: 'overloaded_error',
+                    message: 'Native streamed overload',
+                  },
+                })}`,
+                '',
+                '',
+              ]
+              : body.metadata?.omit_stop
+                ? ['', '']
+              : [
+                'event: message_stop',
+                `data: ${JSON.stringify({ type: 'message_stop' })}`,
+                '',
+                '',
+              ]),
           ].join('\n'));
           return;
         }
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'request-id': 'req_messages_upstream',
+        });
         res.end(JSON.stringify({
           id: 'msg_native_test',
           type: 'message',
@@ -125,6 +173,10 @@ describe('原生 Anthropic 协议', () => {
           usage: {
             input_tokens: 1000,
             cache_creation_input_tokens: 50,
+            cache_creation: {
+              ephemeral_5m_input_tokens: 30,
+              ephemeral_1h_input_tokens: 20,
+            },
             cache_read_input_tokens: 100,
             output_tokens: 500,
           },
@@ -190,7 +242,7 @@ describe('原生 Anthropic 协议', () => {
         JSON.stringify(['chat_completions', 'anthropic_messages', 'anthropic_count_tokens'])).lastInsertRowid;
 
     groupName = `anthropic-group-${suffix}`;
-    const groupId = db.prepare("INSERT INTO routing_groups (group_name,status) VALUES (?,'active')")
+    groupId = db.prepare("INSERT INTO routing_groups (group_name,status) VALUES (?,'active')")
       .run(groupName).lastInsertRowid;
     db.prepare(`INSERT INTO routing_group_channels
       (group_id,channel_id,priority,weight,status) VALUES (?,?,10,100,'active')`)
@@ -300,11 +352,38 @@ describe('原生 Anthropic 协议', () => {
   });
 
   it('用户只选择分组，文档按管理端渠道配置展示可用原生协议', async () => {
+    const db = getDatabase();
+    const openAiOnlyDocsModel = `openai-docs-only-${Date.now()}`;
+    db.prepare(`INSERT INTO models
+      (model_code,model_name,official_provider,official_currency,
+       official_input_price,official_output_price,official_unit_tokens,status)
+      VALUES (?,?,?,?,?,?,?,'active')`)
+      .run(openAiOnlyDocsModel, 'OpenAI docs only', 'openai', 'USD', 1, 2, 1_000_000);
+    const trapChannelId = db.prepare(`SELECT id FROM upstream_channels
+      WHERE channel_name LIKE 'openai-trap-%' ORDER BY id DESC LIMIT 1`).get().id;
+    db.prepare(`INSERT INTO channel_models
+      (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
+      .run(trapChannelId, openAiOnlyDocsModel, 'openai-docs-only-upstream');
+    const fallbackOnlyGroupName = `anthropic-fallback-group-${Date.now()}`;
+    const fallbackOnlyGroupId = db.prepare(`INSERT INTO routing_groups
+      (group_name,fallback_group_id,status) VALUES (?,?,'active')`)
+      .run(fallbackOnlyGroupName, groupId).lastInsertRowid;
+    db.prepare(`INSERT INTO api_keys
+      (user_id,key_name,key_hash,key_prefix,permission_mode,routing_group_id,status)
+      VALUES (?,?,?,?,?,?,'active')`)
+      .run(userId, 'Fallback protocol docs', bcrypt.hashSync(`${apiKey}-fallback`, 4),
+        'sk-fallback', 'group_dynamic', fallbackOnlyGroupId);
+
     const channels = await request('/api/user/channels', {
       headers: { Authorization: `Bearer ${userToken}` },
     });
-    const group = (await channels.json()).data.find(item => item.channel_name === groupName);
+    const channelGroups = (await channels.json()).data;
+    const group = channelGroups.find(item => item.channel_name === groupName);
     expect(group).toMatchObject({
+      protocol_type: 'mixed',
+      protocol_types: expect.arrayContaining(['openai_compatible', 'anthropic']),
+    });
+    expect(channelGroups.find(item => item.channel_name === fallbackOnlyGroupName)).toMatchObject({
       protocol_type: 'mixed',
       protocol_types: expect.arrayContaining(['openai_compatible', 'anthropic']),
     });
@@ -317,11 +396,22 @@ describe('原生 Anthropic 协议', () => {
     const anthropicDocs = payload.protocol_docs.find(item => item.protocol_type === 'anthropic');
     expect(anthropicDocs).toMatchObject({
       endpoint: '/v1/messages',
+      additional_endpoints: ['/v1/messages/count_tokens'],
       protocol_label: 'Anthropic Messages',
+      models: [expect.objectContaining({ model_code: modelCode })],
     });
     expect(anthropicDocs.curl).toContain('x-api-key');
     expect(anthropicDocs.python).toContain(`base_url="${payload.base_url}"`);
     expect(anthropicDocs.nodejs).toContain(`baseURL: "${payload.base_url}"`);
+    expect(anthropicDocs.models.map(model => model.model_code)).not.toContain(openAiOnlyDocsModel);
+
+    const fallbackDocs = await request(
+      `/api/user/docs/channel?channel_name=${encodeURIComponent(fallbackOnlyGroupName)}`,
+      { headers: { Authorization: `Bearer ${userToken}` } },
+    );
+    expect(fallbackDocs.status).toBe(200);
+    expect((await fallbackDocs.json()).supported_protocols)
+      .toEqual(['openai_compatible', 'anthropic']);
   });
 
   it('Anthropic 端点的鉴权失败使用原生错误结构', async () => {
@@ -339,6 +429,35 @@ describe('原生 Anthropic 协议', () => {
       type: 'error',
       error: { type: 'authentication_error', message: 'API Key 无效' },
     });
+  });
+
+  it('OpenAI 请求不能反向落到仅有 Anthropic 映射的渠道', async () => {
+    const db = getDatabase();
+    const anthropicOnlyModel = `anthropic-only-${Date.now()}`;
+    db.prepare(`INSERT INTO models (
+      model_code,model_name,official_provider,official_currency,
+      official_input_price,official_output_price,official_unit_tokens,status
+    ) VALUES (?,?,?,?,?,?,?,'active')`).run(
+      anthropicOnlyModel, 'Anthropic only', 'anthropic', 'USD', 1, 2, 1_000_000,
+    );
+    db.prepare(`INSERT INTO channel_models
+      (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
+      .run(anthropicChannelId, anthropicOnlyModel, 'claude-anthropic-only');
+    const beforeRequests = upstreamRequests.length;
+    const beforeTrapHits = trapHits;
+
+    const response = await request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: anthropicOnlyModel,
+        messages: [{ role: 'user', content: 'Do not bridge this.' }],
+      }),
+    });
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: { type: 'no_channel' } });
+    expect(upstreamRequests).toHaveLength(beforeRequests);
+    expect(trapHits).toBe(beforeTrapHits);
   });
 
   it('Messages 使用 x-api-key 原样走 Anthropic 渠道并按真实 usage 扣点', async () => {
@@ -381,6 +500,7 @@ describe('原生 Anthropic 协议', () => {
     });
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('request-id')).toBe('req_messages_upstream');
     const payload = await response.json();
     expect(payload).toMatchObject({
       id: 'msg_native_test',
@@ -412,13 +532,14 @@ describe('原生 Anthropic 协议', () => {
       upstream_channel_id: anthropicChannelId,
       request_protocol: 'anthropic',
       upstream_protocol: 'anthropic',
-      input_tokens: 1000,
+      input_tokens: 1150,
       cached_input_tokens: 100,
       cache_creation_tokens: 50,
       output_tokens: 500,
+      official_cache_creation_price: 1.55,
     });
     const after = db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance;
-    expect(log.total_cost).toBeGreaterThan(0);
+    expect(log.total_cost).toBeCloseTo(0.0146125, 8);
     expect(after).toBeCloseTo(before - log.total_cost, 8);
   });
 
@@ -439,6 +560,7 @@ describe('原生 Anthropic 协议', () => {
     });
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('request-id')).toBe('req_count_tokens_upstream');
     expect(await response.json()).toEqual({ input_tokens: 37 });
     const upstream = upstreamRequests.find(item => item.url === '/v1/messages/count_tokens');
     expect(upstream.body.model).toBe('claude-anthropic-mapped');
@@ -455,6 +577,61 @@ describe('原生 Anthropic 协议', () => {
       upstream_protocol: 'anthropic',
       status: 'success',
     });
+  });
+
+  it('上游 Anthropic 错误体与诊断响应头保持原生语义', async () => {
+    const response = await request('/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: modelCode,
+        max_tokens: 10,
+        metadata: { force_error: true },
+        messages: [{ role: 'user', content: 'Return the native error.' }],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get('request-id')).toBe('req_rate_limit_upstream');
+    expect(await response.json()).toEqual({
+      type: 'error',
+      error: {
+        type: 'invalid_request_error',
+        message: 'Native Anthropic validation error',
+      },
+    });
+  });
+
+  it('Base64 document 按媒体预占而不是作为海量文本误判余额不足', async () => {
+    const response = await request('/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: modelCode,
+        max_tokens: 10,
+        messages: [{
+          role: 'user',
+          content: [{
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: 'A'.repeat(200_000),
+            },
+          }],
+        }],
+      }),
+    });
+
+    const raw = await response.text();
+    expect(response.status, raw).toBe(200);
+    expect(JSON.parse(raw).type).toBe('message');
   });
 
   it('模型列表暴露 Anthropic 原生接口能力但不要求用户选择协议', async () => {
@@ -503,12 +680,76 @@ describe('原生 Anthropic 协议', () => {
     expect(log).toMatchObject({
       request_protocol: 'anthropic',
       upstream_protocol: 'anthropic',
-      input_tokens: 200,
+      input_tokens: 260,
       cached_input_tokens: 40,
       cache_creation_tokens: 20,
       output_tokens: 25,
     });
     const after = db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance;
+    expect(log.total_cost).toBeCloseTo(0.001995, 8);
     expect(after).toBeCloseTo(before - log.total_cost, 8);
+  });
+
+  it('流式上游缺少 message_stop 时不伪造成功并保留冻结额度待核对', async () => {
+    const db = getDatabase();
+    const before = db.prepare('SELECT quota_balance,frozen_balance FROM wallets WHERE user_id=?')
+      .get(userId);
+    const response = await request('/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: modelCode,
+        max_tokens: 100,
+        stream: true,
+        metadata: { omit_stop: true },
+        messages: [{ role: 'user', content: 'Return a truncated stream.' }],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const stream = await response.text();
+    expect(stream).not.toContain('event: message_stop');
+    expect(stream).toContain('"type":"api_error"');
+    const log = db.prepare(`SELECT status,error_type,error_message FROM api_request_logs
+      WHERE api_key_id=? ORDER BY id DESC`).get(apiKeyId);
+    expect(log).toMatchObject({
+      status: 'failed',
+      error_type: 'settlement_failed',
+    });
+    expect(log.error_message).toContain('message_stop');
+    const after = db.prepare('SELECT quota_balance,frozen_balance FROM wallets WHERE user_id=?')
+      .get(userId);
+    expect(after.quota_balance).toBeCloseTo(before.quota_balance, 8);
+    expect(after.frozen_balance).toBeGreaterThan(before.frozen_balance);
+  });
+
+  it('原生流式 error 事件不被改写或追加伪造结束事件', async () => {
+    getDatabase().prepare(`UPDATE upstream_channels
+      SET circuit_breaker_until=NULL,consecutive_failures=0 WHERE id=?`)
+      .run(anthropicChannelId);
+    const response = await request('/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: modelCode,
+        max_tokens: 100,
+        stream: true,
+        metadata: { force_stream_error: true },
+        messages: [{ role: 'user', content: 'Return a native stream error.' }],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const stream = await response.text();
+    expect(stream.match(/event: error/g)).toHaveLength(1);
+    expect(stream).toContain('"type":"overloaded_error"');
+    expect(stream).toContain('"message":"Native streamed overload"');
+    expect(stream).not.toContain('event: message_stop');
   });
 });

@@ -7,7 +7,12 @@ const bcrypt = require('bcryptjs');
 const { encrypt, decrypt, desensitize } = require('../utils/crypto');
 const { generateDocs } = require('../utils/channel-docs');
 const { buildBillingDetail } = require('../utils/billing-detail');
-const { listModelsForApiKey, listRoutingGroupModels, listUserModelCapabilities } = require('../utils/routing-group-models');
+const {
+  listModelsForApiKey,
+  listRoutingGroupModels,
+  listRoutingGroupProtocolTypes,
+  listUserModelCapabilities,
+} = require('../utils/routing-group-models');
 const { buildEasyPayRequest, supportedPaymentMethods } = require('../utils/easypay');
 
 router.get('/wallet', authenticate, (req, res) => {
@@ -142,7 +147,6 @@ router.get('/channels', authenticate, (req, res) => {
   const db = getDatabase();
   const groups = db.prepare(`
     SELECT rg.id,rg.group_name AS channel_name,rg.description,rg.protocol_type,
-           GROUP_CONCAT(DISTINCT uc.protocol_type) AS configured_protocol_types,
            COUNT(DISTINCT CASE WHEN m.status='active' AND cm.status='active' THEN m.model_code END) AS model_count
     FROM routing_groups rg
     LEFT JOIN routing_group_channels rgc ON rgc.group_id=rg.id AND rgc.status='active'
@@ -153,11 +157,9 @@ router.get('/channels', authenticate, (req, res) => {
     GROUP BY rg.id ORDER BY rg.id ASC
   `).all();
   res.json({ data: groups.map(group => {
-    const protocolTypes = String(group.configured_protocol_types || group.protocol_type || 'openai_compatible')
-      .split(',').filter(Boolean);
-    const { configured_protocol_types: configuredProtocolTypes, ...publicGroup } = group;
+    const protocolTypes = listRoutingGroupProtocolTypes(db, group.id);
     return {
-      ...publicGroup,
+      ...group,
       protocol_type: protocolTypes.length === 1 ? protocolTypes[0] : 'mixed',
       protocol_types: protocolTypes,
       model_count: listRoutingGroupModels(db, group.id).length,
@@ -364,17 +366,19 @@ router.get('/docs/channel', authenticate, (req, res) => {
   const protocol = req.protocol;
   const host = req.get('host');
   const baseUrl = `${protocol}://${host}`;
-  const configuredProtocols = db.prepare(`SELECT DISTINCT uc.protocol_type
-    FROM routing_group_channels rgc
-    JOIN upstream_channels uc ON uc.id=rgc.channel_id
-    WHERE rgc.group_id=? AND rgc.status='active' AND uc.status='active'
-    ORDER BY CASE uc.protocol_type WHEN 'openai_compatible' THEN 0 ELSE 1 END`)
-    .all(group.id).map(item => item.protocol_type);
-  const protocolTypes = configuredProtocols.length
-    ? configuredProtocols
-    : [group.protocol_type || 'openai_compatible'];
-  const protocolDocs = protocolTypes.map(protocolType =>
-    generateDocs(baseUrl, channel_name, keyPrefix, models, protocolType));
+  const protocolTypes = listRoutingGroupProtocolTypes(db, group.id);
+  const protocolDocs = protocolTypes.map(protocolType => {
+    const protocolModels = models.filter(model => protocolType === 'anthropic'
+      ? model.capabilities?.anthropic_messages
+      : model.capabilities?.chat_completions);
+    return {
+      ...generateDocs(baseUrl, channel_name, keyPrefix, protocolModels, protocolType),
+      models: protocolModels.map(model => ({
+        model_code: model.model_code,
+        model_name: model.model_name,
+      })),
+    };
+  });
   const docs = protocolDocs[0];
   res.json({
     channel_name,

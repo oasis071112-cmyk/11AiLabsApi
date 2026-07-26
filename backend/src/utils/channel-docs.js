@@ -63,6 +63,7 @@ console.log(response.choices[0].message.content);`
     label: 'Anthropic Messages',
     authHeader: (key) => key,
     endpoint: '/v1/messages',
+    additionalEndpoints: ['/v1/messages/count_tokens'],
     curl: (baseUrl, model, keyPrefix) =>
 `curl ${baseUrl}/v1/messages \\
   -H "Content-Type: application/json" \\
@@ -247,6 +248,8 @@ function generateDocs(baseUrl, channelName, keyPrefix, models, protocolType = ''
     protocol_type: protocol.type,
     protocol_label: protocol.label,
     endpoint: protocol.endpoint.replace('{model}', sampleModel),
+    additional_endpoints: (protocol.additionalEndpoints || [])
+      .map(endpoint => endpoint.replace('{model}', sampleModel)),
     curl: protocol.curl(baseUrl, sampleModel, keyPrefix),
     python: protocol.python(baseUrl, sampleModel, keyPrefix),
     nodejs: protocol.nodejs(baseUrl, sampleModel, keyPrefix),

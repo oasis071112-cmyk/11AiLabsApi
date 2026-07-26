@@ -10,12 +10,14 @@ function defaultChannelCapabilities(protocolType = 'openai_compatible') {
 }
 
 function parseChannelCapabilities(value, protocolType = 'openai_compatible') {
-  if (Array.isArray(value)) return value.filter(item => ALLOWED_CHANNEL_CAPABILITIES.has(item));
+  const protocolCapabilities = CHANNEL_CAPABILITIES_BY_PROTOCOL[protocolType]
+    || DEFAULT_CHANNEL_CAPABILITIES;
+  if (Array.isArray(value)) return value.filter(item => protocolCapabilities.includes(item));
   if (typeof value !== 'string' || !value.trim()) return defaultChannelCapabilities(protocolType);
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed)
-      ? parsed.filter(item => ALLOWED_CHANNEL_CAPABILITIES.has(item))
+      ? parsed.filter(item => protocolCapabilities.includes(item))
       : [];
   } catch (error) {
     return [];
@@ -29,7 +31,7 @@ function serializeChannelCapabilities(value, protocolType = 'openai_compatible')
   if (!Array.isArray(value)) throw new Error('渠道接口能力必须是数组');
   if (value.some(item => !ALLOWED_CHANNEL_CAPABILITIES.has(item))) throw new Error('包含不支持的渠道接口能力');
   if (value.some(item => !protocolCapabilities.includes(item))) throw new Error('接口能力与渠道协议不匹配');
-  const capabilities = parseChannelCapabilities(value);
+  const capabilities = parseChannelCapabilities(value, protocolType);
   if (capabilities.length === 0) throw new Error('渠道至少需要启用一种接口能力');
   return JSON.stringify([...new Set(capabilities)]);
 }

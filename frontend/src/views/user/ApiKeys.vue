@@ -140,8 +140,8 @@
     <div v-if="docsLoading" style="text-align:center;padding:40px"><Loader2 :size="28" color="#0EA5E9" style="animation:spin 1s linear infinite"/><p style="color:#a3a3a3;margin-top:12px">加载文档...</p></div>
     <template v-else>
       <div v-if="docsData.protocol_docs?.length>1" style="margin-bottom:12px"><span style="font-size:12px;color:#737373;margin-right:8px">该分组支持：</span><el-radio-group v-model="docsProtocol" size="small"><el-radio-button v-for="item in docsData.protocol_docs" :key="item.protocol_type" :value="item.protocol_type">{{ item.protocol_label }}</el-radio-button></el-radio-group></div>
-      <div style="margin-bottom:12px"><el-tag type="success" size="small" style="margin-right:8px">{{ displayedDocs.protocol_label }}</el-tag><span style="font-size:12px;color:#a3a3a3">端点：<code>{{ displayedDocs.endpoint }}</code></span></div>
-      <div v-if="docsData.models?.length" style="margin-bottom:12px;font-size:12px;color:#525252">可用模型：<el-tag v-for="m in docsData.models" :key="m.model_code" size="small" style="margin:2px">{{ m.model_code }}</el-tag></div>
+      <div style="margin-bottom:12px"><el-tag type="success" size="small" style="margin-right:8px">{{ displayedDocs.protocol_label }}</el-tag><span style="font-size:12px;color:#a3a3a3">端点：<code>{{ displayedDocs.endpoint }}</code><template v-for="endpoint in displayedDocs.additional_endpoints||[]" :key="endpoint">、<code>{{ endpoint }}</code></template></span></div>
+      <div v-if="displayedDocs.models?.length" style="margin-bottom:12px;font-size:12px;color:#525252">可用模型：<el-tag v-for="m in displayedDocs.models" :key="m.model_code" size="small" style="margin:2px">{{ m.model_code }}</el-tag></div>
       <div style="display:flex;gap:0;margin-bottom:0;border-bottom:2px solid #000">
         <button v-for="tab in tabs" :key="tab.key" @click="activeTab=tab.key" :style="{background:activeTab===tab.key?'#000':'#f5f5f5',color:activeTab===tab.key?'#fff':'#525252',border:'none',padding:'8px 20px',cursor:'pointer',fontSize:'13px',fontWeight:activeTab===tab.key?600:400}" type="button">{{ tab.label }}</button>
       </div>

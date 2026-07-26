@@ -20,12 +20,24 @@ function billingModeForRequest(channel, isImageRequest = false) {
   return isImageRequest ? 'image' : 'token';
 }
 
+function withProviderCachePricing(official, model, { explicitCacheWrite = false } = {}) {
+  const prices = { ...official };
+  if (String(model?.official_provider || '').trim().toLowerCase() === 'anthropic'
+      && !explicitCacheWrite) {
+    const input = finitePrice(prices.input) ?? 0;
+    prices.cacheCreation = input * 1.25;
+    prices.cacheCreation5m = input * 1.25;
+    prices.cacheCreation1h = input * 2;
+  }
+  return prices;
+}
+
 function channelTokenOfficial(model, channel = {}, usdCnyRate = 7) {
   const input = finitePrice(channel.input_price)
     ?? modelPricePerToken(model, 'official_input_price', '', usdCnyRate);
   const output = finitePrice(channel.output_price)
     ?? modelPricePerToken(model, 'official_output_price', '', usdCnyRate);
-  const official = {
+  let official = {
     currency: 'USD',
     unitTokens: 1,
     input,
@@ -40,6 +52,9 @@ function channelTokenOfficial(model, channel = {}, usdCnyRate = 7) {
       && String(model?.model_code || '').toLowerCase().replace(/^openai\//, '').startsWith('gpt-5.6')) {
     delete official.cacheCreation;
   }
+  official = withProviderCachePricing(official, model, {
+    explicitCacheWrite: finitePrice(channel.cache_write_price) !== null,
+  });
   return official;
 }
 
@@ -71,4 +86,5 @@ module.exports = {
   channelTokenOfficial,
   resolveBillingModel,
   resolveFixedUnitPrice,
+  withProviderCachePricing,
 };

@@ -59,6 +59,15 @@ function calculateDimensions({
   const input = Math.max(number(inputTokens), 0);
   const cached = Math.min(Math.max(number(cachedInputTokens), 0), input);
   const cacheCreation = Math.min(Math.max(number(cacheCreationTokens), 0), Math.max(input - cached, 0));
+  const cacheCreation5m = Math.min(
+    Math.max(number(cacheCreation5mTokens), 0),
+    cacheCreation,
+  );
+  const cacheCreation1h = Math.min(
+    Math.max(number(cacheCreation1hTokens), 0),
+    Math.max(cacheCreation - cacheCreation5m, 0),
+  );
+  const undifferentiatedCacheCreation = cacheCreation - cacheCreation5m - cacheCreation1h;
   const ordinaryInput = Math.max(input - cached - cacheCreation, 0);
   const imageInput = Math.min(Math.max(number(imageInputTokens), 0), ordinaryInput);
   const textInput = ordinaryInput - imageInput;
@@ -77,11 +86,19 @@ function calculateDimensions({
   let cacheCreationPrice = priorityTier && Number(prices.priorityCacheCreation) > 0
     ? prices.priorityCacheCreation
     : hasNumericPrice(prices, 'cacheCreation') ? prices.cacheCreation : inputPrice;
+  let cacheCreation5mPrice = priorityTier && Number(prices.priorityCacheCreation) > 0
+    ? prices.priorityCacheCreation
+    : hasNumericPrice(prices, 'cacheCreation5m') ? prices.cacheCreation5m : cacheCreationPrice;
+  let cacheCreation1hPrice = priorityTier && Number(prices.priorityCacheCreation) > 0
+    ? prices.priorityCacheCreation
+    : hasNumericPrice(prices, 'cacheCreation1h') ? prices.cacheCreation1h : cacheCreationPrice;
   let outputPrice = priorityTier && Number(prices.priorityOutput) > 0 ? prices.priorityOutput : prices.output;
   let imageInputPrice = hasNumericPrice(prices, 'imageInput') ? prices.imageInput : inputPrice;
   let imageOutputPrice = hasNumericPrice(prices, 'imageOutput') ? prices.imageOutput : outputPrice;
   if (!hasNumericPrice(prices, 'cacheCreation') && normalizedModelCode(modelCode).startsWith('gpt-5.6')) {
     cacheCreationPrice = number(inputPrice) * 1.25;
+    if (!hasNumericPrice(prices, 'cacheCreation5m')) cacheCreation5mPrice = cacheCreationPrice;
+    if (!hasNumericPrice(prices, 'cacheCreation1h')) cacheCreation1hPrice = cacheCreationPrice;
   }
 
   const longContext = usesSub2ApiLongContextPricing(modelCode)
@@ -91,6 +108,8 @@ function calculateDimensions({
     imageInputPrice = number(imageInputPrice) * 2;
     cachedInputPrice = number(cachedInputPrice) * 2;
     cacheCreationPrice = number(cacheCreationPrice) * 2;
+    cacheCreation5mPrice = number(cacheCreation5mPrice) * 2;
+    cacheCreation1hPrice = number(cacheCreation1hPrice) * 2;
     outputPrice = number(outputPrice) * 1.5;
     imageOutputPrice = number(imageOutputPrice) * 1.5;
   }
@@ -100,13 +119,23 @@ function calculateDimensions({
   const imageInputPriceCny = toCny(number(imageInputPrice), currency, usdCnyRate);
   const cachedInputPriceCny = toCny(number(cachedInputPrice), currency, usdCnyRate);
   const cacheCreationPriceCny = toCny(number(cacheCreationPrice), currency, usdCnyRate);
+  const cacheCreation5mPriceCny = toCny(number(cacheCreation5mPrice), currency, usdCnyRate);
+  const cacheCreation1hPriceCny = toCny(number(cacheCreation1hPrice), currency, usdCnyRate);
   const outputPriceCny = toCny(number(outputPrice), currency, usdCnyRate);
   const imageOutputPriceCny = toCny(number(imageOutputPrice), currency, usdCnyRate);
 
   const inputCost = (textInput / unit) * inputPriceCny * inputMultiplier * tierMultiplier;
   const imageInputCost = (imageInput / unit) * imageInputPriceCny * inputMultiplier * tierMultiplier;
   const cachedInputCost = (cached / unit) * cachedInputPriceCny * inputMultiplier * tierMultiplier;
-  const cacheCreationCost = (cacheCreation / unit) * cacheCreationPriceCny * inputMultiplier * tierMultiplier;
+  const cacheCreationUndifferentiatedCost = (undifferentiatedCacheCreation / unit)
+    * cacheCreationPriceCny * inputMultiplier * tierMultiplier;
+  const cacheCreation5mCost = (cacheCreation5m / unit)
+    * cacheCreation5mPriceCny * inputMultiplier * tierMultiplier;
+  const cacheCreation1hCost = (cacheCreation1h / unit)
+    * cacheCreation1hPriceCny * inputMultiplier * tierMultiplier;
+  const cacheCreationCost = cacheCreationUndifferentiatedCost
+    + cacheCreation5mCost
+    + cacheCreation1hCost;
   const outputCost = (textOutput / unit) * outputPriceCny * outputMultiplier * tierMultiplier;
   const imageOutputCost = (imageOutput / unit) * imageOutputPriceCny * outputMultiplier * tierMultiplier;
   const totalCost = inputCost + imageInputCost + cachedInputCost + cacheCreationCost + outputCost + imageOutputCost;
@@ -117,8 +146,8 @@ function calculateDimensions({
     imageInputTokens: imageInput,
     cachedInputTokens: cached,
     cacheCreationTokens: cacheCreation,
-    cacheCreation5mTokens: Math.max(number(cacheCreation5mTokens), 0),
-    cacheCreation1hTokens: Math.max(number(cacheCreation1hTokens), 0),
+    cacheCreation5mTokens: cacheCreation5m,
+    cacheCreation1hTokens: cacheCreation1h,
     uncachedInputTokens: ordinaryInput,
     outputTokens: output,
     textOutputTokens: textOutput,
@@ -127,6 +156,15 @@ function calculateDimensions({
     imageInputCost,
     cachedInputCost,
     cacheCreationCost,
+    cacheCreation5mCost,
+    cacheCreation1hCost,
+    cacheCreationEffectivePrice: cacheCreation > 0
+      ? (
+        undifferentiatedCacheCreation * number(cacheCreationPrice)
+        + cacheCreation5m * number(cacheCreation5mPrice)
+        + cacheCreation1h * number(cacheCreation1hPrice)
+      ) / cacheCreation
+      : number(cacheCreationPrice),
     outputCost,
     imageOutputCost,
     totalCost,
@@ -245,10 +283,12 @@ function extractUsage(usage = {}) {
   );
   const cacheCreation5mTokens = number(
     usage.cache_creation_5m_input_tokens
+    ?? usage.cache_creation?.ephemeral_5m_input_tokens
     ?? details.cache_creation_5m_tokens,
   );
   const cacheCreation1hTokens = number(
     usage.cache_creation_1h_input_tokens
+    ?? usage.cache_creation?.ephemeral_1h_input_tokens
     ?? details.cache_creation_1h_tokens,
   );
   const nestedCacheWriteField = ['cache_write_tokens', 'cache_creation_tokens']
