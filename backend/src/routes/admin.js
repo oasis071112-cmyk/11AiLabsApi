@@ -10,16 +10,12 @@ const { parseChannelCapabilities, serializeChannelCapabilities } = require('../u
 const { encrypt, desensitize } = require('../utils/crypto');
 const { normalizedBaseUrl, supportedPaymentMethods } = require('../utils/easypay');
 const { grantQuotaOrder } = require('../utils/quota-orders');
+const { positiveMultiplier } = require('../utils/channel-multipliers');
 
 const SUPPORTED_PROVIDERS = ['openai', 'deepseek', 'anthropic'];
 function supportedProvider(value) {
   const provider = String(value || '').trim().toLowerCase();
   return SUPPORTED_PROVIDERS.includes(provider) ? provider : null;
-}
-
-function positiveMultiplier(value) {
-  const multiplier = Number(value);
-  return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : null;
 }
 
 const CHANNEL_MULTIPLIER_FIELDS = [

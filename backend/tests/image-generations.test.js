@@ -172,27 +172,34 @@ describe('图片生成端点计费', () => {
   });
 
   it('Responses 原生图片工具按实际 image_generation_call 结果计费', async () => {
-    const response = await request('/v1/responses', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: modelCode,
-        input: 'draw',
-        tools: [{ type: 'image_generation', model: modelCode, size: '1024x1024' }],
-      }),
-    });
+    const db = getDatabase();
+    db.prepare('UPDATE upstream_channels SET billing_multiplier_image=? WHERE id=?').run(1.8, channelId);
+    try {
+      const response = await request('/v1/responses', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: modelCode,
+          input: 'draw',
+          tools: [{ type: 'image_generation', model: modelCode, size: '1024x1024' }],
+        }),
+      });
 
-    expect(response.status).toBe(200);
-    expect((await response.json()).output[0]).toMatchObject({ type: 'image_generation_call' });
-    const log = getDatabase().prepare("SELECT * FROM api_request_logs WHERE api_key_id=? AND billing_mode='image' AND status='success' ORDER BY id DESC").get(apiKeyId);
-    expect(log).toMatchObject({
-      model_code: modelCode,
-      billing_model: modelCode,
-      billing_model_source: 'requested',
-      image_count: 1,
-      image_size: '1K',
-    });
-    expect(log.total_cost).toBeCloseTo(0.336, 8);
+      expect(response.status).toBe(200);
+      expect((await response.json()).output[0]).toMatchObject({ type: 'image_generation_call' });
+      const log = db.prepare("SELECT * FROM api_request_logs WHERE api_key_id=? AND billing_mode='image' AND status='success' ORDER BY id DESC").get(apiKeyId);
+      expect(log).toMatchObject({
+        model_code: modelCode,
+        billing_model: modelCode,
+        billing_model_source: 'requested',
+        image_count: 1,
+        image_size: '1K',
+        billing_multiplier_image: 1.8,
+      });
+      expect(log.total_cost).toBeCloseTo(0.504, 8);
+    } finally {
+      db.prepare('UPDATE upstream_channels SET billing_multiplier_image=NULL WHERE id=?').run(channelId);
+    }
   });
 
   it('Responses 主模型与图片工具模型不同时使用图片模型映射的计费配置', async () => {

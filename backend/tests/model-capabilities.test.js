@@ -478,14 +478,26 @@ describe('模型能力与图片请求边界', () => {
     expect(blocked.status).toBe(503);
     expect(await blocked.json()).toMatchObject({ error: { type: 'no_channel' } });
 
-    expect((await updateCapabilities(['chat_completions', 'embeddings'])).status).toBe(200);
-    const allowed = await request('/v1/embeddings', {
-      method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: visionModelCode, input: '你好' }),
-    });
-    expect(allowed.status).toBe(200);
-
     const db = getDatabase();
+    expect((await updateCapabilities(['chat_completions', 'embeddings'])).status).toBe(200);
+    db.prepare('UPDATE upstream_channels SET billing_multiplier_input=? WHERE id=?').run(1.6, channelId);
+    try {
+      const allowed = await request('/v1/embeddings', {
+        method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: visionModelCode, input: '你好' }),
+      });
+      expect(allowed.status).toBe(200);
+      const embeddingLog = db.prepare("SELECT * FROM api_request_logs WHERE model_code=? AND status='success' ORDER BY id DESC").get(visionModelCode);
+      expect(embeddingLog).toMatchObject({
+        input_tokens: 3,
+        billing_multiplier_input: 1.6,
+        billing_multiplier_output: 1,
+      });
+      expect(embeddingLog.total_cost).toBeCloseTo(0.0000336, 10);
+    } finally {
+      db.prepare('UPDATE upstream_channels SET billing_multiplier_input=NULL WHERE id=?').run(channelId);
+    }
+
     const fallbackChannelId = db.prepare(`INSERT INTO upstream_channels
       (channel_name,base_url,api_key,status,capabilities) VALUES (?,?,?,'active',?)`)
       .run('chat-only-fallback', upstreamBaseUrl, 'fallback-test-key', JSON.stringify(['chat_completions'])).lastInsertRowid;
