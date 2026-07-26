@@ -261,14 +261,20 @@ function configuredImageUnitPrice(serializedPrices, sizeTier) {
   return null;
 }
 
-function resolveImageUnitPrice({ serializedPrices, sizeTier = '2K', defaultPrice = 0.134 } = {}) {
+const DEFAULT_IMAGE_UNIT_PRICE_USD = 0.134;
+
+function resolveImageUnitPrice({ serializedPrices, sizeTier = '2K', defaultPrice = DEFAULT_IMAGE_UNIT_PRICE_USD } = {}) {
   const configured = configuredImageUnitPrice(serializedPrices, sizeTier);
   if (configured !== null) return configured;
-  const basePrice = Math.max(number(defaultPrice, 0.134), 0);
+  const basePrice = Math.max(number(defaultPrice, DEFAULT_IMAGE_UNIT_PRICE_USD), 0);
   const tier = String(sizeTier || '2K').trim().toUpperCase();
   if (tier === '4K') return basePrice * 2;
   if (tier === '2K') return basePrice * 1.5;
   return basePrice;
+}
+
+function defaultImageDisplayPricing() {
+  return { unitPrice: resolveImageUnitPrice({ sizeTier: '2K' }), currency: 'USD' };
 }
 
 function extractUsage(usage = {}) {
@@ -327,9 +333,11 @@ function extractUsage(usage = {}) {
 }
 
 module.exports = {
+  DEFAULT_IMAGE_UNIT_PRICE_USD,
   calculateImagePricing,
   calculatePricing,
   configuredImageUnitPrice,
+  defaultImageDisplayPricing,
   extractUsage,
   normalizeCurrency,
   resolveImageUnitPrice,

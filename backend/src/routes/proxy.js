@@ -127,9 +127,12 @@ function buildPricing(db, model, usage, multipliers, { channel = null, serviceTi
 
 function buildImagePricing(db, model, { imageCount, size, multiplier }) {
   const usdCnyRate = getUsdCnyRate(db);
-  const configuredPrice = configuredImageUnitPrice(model.official_image_prices, size);
+  // 生图模型始终采用平台默认兜底价格。历史官方图片价仅为旧账单留存，
+  // 不再参与新的结算；渠道显式价格仍由 buildChannelImagePricing 单独处理。
+  const useDefaultImagePrice = model.model_type === 'image';
+  const configuredPrice = useDefaultImagePrice ? null : configuredImageUnitPrice(model.official_image_prices, size);
   const unitPrice = resolveImageUnitPrice({
-    serializedPrices: model.official_image_prices,
+    serializedPrices: useDefaultImagePrice ? '{}' : model.official_image_prices,
     sizeTier: size,
   });
   const currency = configuredPrice === null ? 'USD' : model.official_currency;

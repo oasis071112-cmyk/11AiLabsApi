@@ -163,8 +163,8 @@ const billingBreakdown = computed(() => {
   return row.billing_detail.dimensions.map(item=>{
     if(item.isAdjustment)return {...item,formula:'用于对齐钱包最终保存的实际扣费金额'}
     if(row.billing_detail.mode==='image_snapshot'){
-      const fx=currency==='USD'?` × 汇率 ${item.fxRate}`:''
-      return {...item,formula:`${number(item.usage)} 张 × ${symbol}${item.unitPrice}/张 × 图片倍率 ${item.multiplier}${fx}（${item.size}，${item.quality}）`}
+      const defaultSymbol=row.default_image_currency==='USD'?'$':'¥'
+      return {...item,formula:`${number(item.usage)} 张；当前默认单价 ${defaultSymbol}${Number(row.default_image_unit_price||0).toFixed(4)}/张（${item.size}，${item.quality}）`}
     }
     if(row.billing_detail.mode==='fixed_snapshot'){
       const fx=currency==='USD'?` × 汇率 ${item.fxRate}`:''

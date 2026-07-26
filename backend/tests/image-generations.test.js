@@ -136,20 +136,23 @@ describe('图片生成端点计费', () => {
       billing_model_source: 'requested',
       image_count: 2,
       image_size: '1K',
-      official_image_unit_price: 0.04,
+      official_image_unit_price: 0.134,
       billing_multiplier_image: 1.2,
     });
-    expect(log.total_cost).toBeCloseTo(0.672, 8);
+    expect(log.total_cost).toBeCloseTo(2.2512, 8);
     expect(db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance)
-      .toBeCloseTo(99.328, 8);
+      .toBeCloseTo(97.7488, 8);
 
     const logsResponse = await request('/api/user/logs?limit=5', {
       headers: { Authorization: `Bearer ${userToken}` },
     });
     const userLog = (await logsResponse.json()).data.find(item => item.request_id === log.request_id);
     expect(userLog.billing_detail).toMatchObject({ mode: 'image_snapshot', reconciled: true });
+    expect(userLog).toMatchObject({ default_image_unit_price: 0.201, default_image_currency: 'USD' });
     expect(userLog).not.toHaveProperty('billing_model');
+    expect(userLog).not.toHaveProperty('official_image_unit_price');
     expect(userLog.billing_detail.dimensions[0]).not.toHaveProperty('billingModel');
+    expect(userLog.billing_detail.dimensions[0]).not.toHaveProperty('unitPrice');
   });
 
   it('渠道图片倍率优先于模型默认倍率并写入本次账单快照', async () => {
@@ -165,7 +168,7 @@ describe('图片生成端点计费', () => {
       expect(response.status).toBe(200);
       const log = db.prepare("SELECT billing_multiplier_image,total_cost FROM api_request_logs WHERE api_key_id=? AND billing_mode='image' AND status='success' ORDER BY id DESC").get(apiKeyId);
       expect(log).toMatchObject({ billing_multiplier_image: 1.8 });
-      expect(log.total_cost).toBeCloseTo(1.008, 8);
+      expect(log.total_cost).toBeCloseTo(3.3768, 8);
     } finally {
       db.prepare('UPDATE upstream_channels SET billing_multiplier_image=NULL WHERE id=?').run(channelId);
     }
@@ -196,7 +199,7 @@ describe('图片生成端点计费', () => {
         image_size: '1K',
         billing_multiplier_image: 1.8,
       });
-      expect(log.total_cost).toBeCloseTo(0.504, 8);
+      expect(log.total_cost).toBeCloseTo(1.6884, 8);
     } finally {
       db.prepare('UPDATE upstream_channels SET billing_multiplier_image=NULL WHERE id=?').run(channelId);
     }

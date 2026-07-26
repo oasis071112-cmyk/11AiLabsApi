@@ -14,6 +14,7 @@ const {
   listUserModelCapabilities,
 } = require('../utils/routing-group-models');
 const { buildEasyPayRequest, supportedPaymentMethods } = require('../utils/easypay');
+const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
 
 router.get('/wallet', authenticate, (req, res) => {
   const db = getDatabase();
@@ -118,7 +119,7 @@ router.get('/quota-orders', authenticate, (req, res) => {
 
 router.get('/models', authenticate, (req, res) => {
   const db = getDatabase();
-  const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,billing_multiplier_input,billing_multiplier_output,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,official_price_updated_at,status FROM models WHERE status='active' ORDER BY sort_order ASC").all();
+  const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,official_price_updated_at,status FROM models WHERE status='active' ORDER BY sort_order ASC").all();
   const now = new Date().toISOString();
   const capabilityByModel = listUserModelCapabilities(db, req.user.id);
   const ruleForModel = db.prepare("SELECT * FROM pricing_rules WHERE (model_code=? OR model_code IS NULL) AND status='active' AND (start_time IS NULL OR start_time<=?) AND (end_time IS NULL OR end_time>=?) AND ((scope_type='user' AND scope_id=?) OR scope_type='platform') ORDER BY CASE scope_type WHEN 'user' THEN 2 WHEN 'platform' THEN 1 END DESC, priority DESC LIMIT 1");
@@ -138,7 +139,25 @@ router.get('/models', authenticate, (req, res) => {
       supports_image_input: capabilities.image_input,
       capabilities,
     };
-    return rule ? { ...normalizedModel, billing_multiplier_input: rule.billing_multiplier_input, billing_multiplier_output: rule.billing_multiplier_output } : normalizedModel;
+    const imageDisplayPricing = model.model_type === 'image' ? defaultImageDisplayPricing() : null;
+    const pricedModel = imageDisplayPricing ? (() => {
+      const {
+        official_currency, official_input_price, official_output_price,
+        official_cached_input_price, official_unit_tokens, official_price_updated_at,
+        ...publicImageModel
+      } = normalizedModel;
+      return {
+        ...publicImageModel,
+        default_image_unit_price: imageDisplayPricing.unitPrice,
+        default_image_currency: imageDisplayPricing.currency,
+      };
+    })() : normalizedModel;
+    return rule ? {
+      ...pricedModel,
+      billing_multiplier_input: rule.billing_multiplier_input,
+      billing_multiplier_output: rule.billing_multiplier_output,
+      billing_multiplier_image: rule.billing_multiplier_image ?? pricedModel.billing_multiplier_image,
+    } : pricedModel;
   });
   res.json({ data });
 });
@@ -263,9 +282,8 @@ router.get('/logs', authenticate, (req, res) => {
     (SELECT base_input_price FROM models WHERE models.model_code=api_request_logs.model_code) as legacy_input_price,
     (SELECT base_output_price FROM models WHERE models.model_code=api_request_logs.model_code) as legacy_output_price
     FROM api_request_logs ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
-  const data = rows.map(row => ({
-    ...row,
-    billing_detail: buildBillingDetail({
+  const data = rows.map(row => {
+    const billingDetail = buildBillingDetail({
       modelCode: row.model_code,
       inputTokens: row.input_tokens,
       cachedInputTokens: row.cached_input_tokens,
@@ -297,8 +315,23 @@ router.get('/logs', authenticate, (req, res) => {
       multipliers: { input: row.billing_multiplier_input, output: row.billing_multiplier_output, image: row.billing_multiplier_image },
       usdCnyRate: row.usd_cny_rate,
       serviceTier: row.service_tier,
-    }),
-  }));
+    });
+    if (row.billing_mode !== 'image') return { ...row, billing_detail: billingDetail };
+    const { official_currency, official_input_price, official_output_price, official_cached_input_price,
+      official_cache_creation_price, official_image_input_price, official_image_output_price,
+      official_unit_tokens, official_image_unit_price, ...publicImageLog } = row;
+    const imageDisplayPricing = defaultImageDisplayPricing();
+    return {
+      ...publicImageLog,
+      default_image_unit_price: imageDisplayPricing.unitPrice,
+      default_image_currency: imageDisplayPricing.currency,
+      billing_detail: {
+        ...billingDetail,
+        dimensions: billingDetail.dimensions.map(({ unitPrice, ...dimension }) => dimension),
+        notice: '当前默认图片单价已在模型页展示；历史账单仅保留实际扣费金额，不展示旧单价。',
+      },
+    };
+  });
   const total = db.prepare(`SELECT COUNT(*) as count FROM api_request_logs ${where}`).get(...p);
   res.json({ data, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
 });

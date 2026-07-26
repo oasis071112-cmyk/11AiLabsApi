@@ -187,6 +187,59 @@ describe('模型能力与图片请求边界', () => {
     expect(JSON.parse(saved.official_image_prices)).toMatchObject({ '1K': 0.04, '2K': 0.08, '4K': 0.16 });
   });
 
+  it('图片模型忽略官方和手动图片价格，用户只取得默认兜底单价', async () => {
+    const imageModelCode = `image-default-${Date.now()}-${Math.random()}`;
+    const response = await request('/api/admin/models', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        model_code: imageModelCode, model_name: 'Default image model', upstream_model_name: imageModelCode,
+        model_type: 'image', context_length: 0, is_multimodal: false, status: 'active', sort_order: 0,
+        official_provider: 'openai', official_model_id: imageModelCode, official_pricing_mode: 'manual',
+        official_currency: 'USD', official_input_price: 1, official_cached_input_price: 0.5, official_output_price: 2,
+        official_image_price_1k: 0.04, official_image_price_2k: 0.08, official_image_price_4k: 0.16,
+        multiplier_input: 1, multiplier_output: 1, multiplier_image: 1.6,
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    const saved = getDatabase().prepare(`SELECT official_pricing_mode,official_input_price,official_output_price,official_image_prices
+      FROM models WHERE model_code=?`).get(imageModelCode);
+    expect(saved).toMatchObject({
+      official_pricing_mode: 'auto', official_input_price: 0, official_output_price: 0, official_image_prices: '{}',
+    });
+
+    const imageModelId = getDatabase().prepare('SELECT id FROM models WHERE model_code=?').get(imageModelCode).id;
+    getDatabase().prepare("UPDATE models SET official_pricing_mode='manual',official_input_price=9,official_output_price=19,official_image_prices=? WHERE id=?")
+      .run(JSON.stringify({ default: 9.99 }), imageModelId);
+    const updateResponse = await request(`/api/admin/models/${imageModelId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        model_name: 'Renamed default image model', upstream_model_name: imageModelCode,
+        context_length: 0, is_multimodal: false, description: '', status: 'active', sort_order: 0,
+        official_provider: 'openai', official_model_id: imageModelCode, official_pricing_mode: 'manual',
+        official_currency: 'USD', official_input_price: 10, official_output_price: 20,
+        official_image_price_1k: 30, multiplier_input: 1, multiplier_output: 1, multiplier_image: 1.6,
+      }),
+    });
+    expect(updateResponse.status).toBe(200);
+    expect(getDatabase().prepare('SELECT official_pricing_mode,official_input_price,official_output_price,official_image_prices FROM models WHERE id=?').get(imageModelId))
+      .toMatchObject({ official_pricing_mode: 'manual', official_input_price: 9, official_output_price: 19, official_image_prices: JSON.stringify({ default: 9.99 }) });
+
+    const userModelsResponse = await request('/api/user/models', { headers: { Authorization: `Bearer ${userToken}` } });
+    const userModel = (await userModelsResponse.json()).data.find(model => model.model_code === imageModelCode);
+    expect(userModel).toMatchObject({
+      default_image_unit_price: 0.201,
+      default_image_currency: 'USD',
+      billing_multiplier_image: 1.6,
+    });
+    expect(userModel).not.toHaveProperty('official_image_prices');
+    expect(userModel).not.toHaveProperty('official_input_price');
+    expect(userModel).not.toHaveProperty('official_output_price');
+    expect(userModel).not.toHaveProperty('official_cached_input_price');
+  });
+
   it('文本模型收到图片时返回明确 400，且不会污染后续文本调用', async () => {
     const imageResponse = await request('/v1/chat/completions', {
       method: 'POST',

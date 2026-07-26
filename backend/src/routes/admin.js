@@ -11,6 +11,7 @@ const { encrypt, desensitize } = require('../utils/crypto');
 const { normalizedBaseUrl, supportedPaymentMethods } = require('../utils/easypay');
 const { grantQuotaOrder } = require('../utils/quota-orders');
 const { positiveMultiplier } = require('../utils/channel-multipliers');
+const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
 const {
   isSupportedChannelProtocol,
   upstreamRequestHeaders,
@@ -124,7 +125,8 @@ function imagePricesPayload(body) {
   return { values, serialized: JSON.stringify(values), configured: Object.values(values).some(value => value > 0) };
 }
 
-function pricingPayload(body) {
+function pricingPayload(body, { preserveExistingPricing = null } = {}) {
+  const isImageModel = body.model_type === 'image';
   const mode = body.official_pricing_mode === 'manual' ? 'manual' : 'auto';
   const provider = supportedProvider(body.official_provider);
   if (!provider) return { error: '官方价格提供方仅支持 OpenAI、DeepSeek、Anthropic' };
@@ -133,6 +135,18 @@ function pricingPayload(body) {
   const input = nonNegativePrice(body.official_input_price ?? 0);
   const cached = nonNegativePrice(body.official_cached_input_price ?? body.official_input_price ?? 0);
   const output = nonNegativePrice(body.official_output_price ?? 0);
+  if (isImageModel) {
+    const preserved = preserveExistingPricing || {};
+    return {
+      mode: preserved.official_pricing_mode || 'auto', provider,
+      currency: preserved.official_currency || currency,
+      input: preserved.official_input_price ?? 0,
+      cached: preserved.official_cached_input_price ?? 0,
+      output: preserved.official_output_price ?? 0,
+      imagePrices: preserved.official_image_prices ?? '{}',
+      unitTokens: preserved.official_unit_tokens ?? 1_000_000,
+    };
+  }
   const imagePrices = imagePricesPayload(body);
   if (imagePrices.error) return imagePrices;
   if (input === null || cached === null || output === null) return { error: '官方价格必须是大于等于 0 的数字' };
@@ -340,7 +354,17 @@ router.get('/models', authenticate, requireAdmin('admin','operator'), (req, res)
     LEFT JOIN upstream_channels uc ON uc.id=cm.channel_id
     GROUP BY m.id ORDER BY CASE WHEN m.status='active' THEN 0 ELSE 1 END,m.sort_order ASC
   `).all();
-  res.json({ data: models.map(model => ({ ...model, is_multimodal: Number(model.is_multimodal) === 1 })) });
+  res.json({ data: models.map(model => {
+    const imageDisplayPricing = model.model_type === 'image' ? defaultImageDisplayPricing() : null;
+    return {
+      ...model,
+      is_multimodal: Number(model.is_multimodal) === 1,
+      ...(imageDisplayPricing ? {
+        default_image_unit_price: imageDisplayPricing.unitPrice,
+        default_image_currency: imageDisplayPricing.currency,
+      } : {}),
+    };
+  }) });
 });
 
 router.post('/models', authenticate, requireAdmin('admin'), (req, res) => {
@@ -369,9 +393,12 @@ router.post('/models', authenticate, requireAdmin('admin'), (req, res) => {
 
 router.put('/models/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
-  const existingModel = db.prepare('SELECT official_image_prices,billing_multiplier_image FROM models WHERE id=?').get(req.params.id);
+  const existingModel = db.prepare(`SELECT model_type,billing_multiplier_image,official_currency,
+    official_input_price,official_cached_input_price,official_output_price,official_image_prices,
+    official_unit_tokens,official_pricing_mode FROM models WHERE id=?`).get(req.params.id);
   if (!existingModel) return res.status(404).json({ error: '模型不存在' });
   const { model_name, upstream_model_name, model_type, context_length, is_multimodal, description, official_model_id, status, sort_order } = req.body;
+  const effectiveModelType = model_type || existingModel.model_type;
   const inputMultiplier = positiveMultiplier(req.body.multiplier_input ?? req.body.billing_multiplier_input ?? 1);
   const outputMultiplier = positiveMultiplier(req.body.multiplier_output ?? req.body.billing_multiplier_output ?? 1);
   const imageMultiplier = positiveMultiplier(
@@ -379,8 +406,9 @@ router.put('/models/:id', authenticate, requireAdmin('admin'), (req, res) => {
   );
   const pricing = pricingPayload({
     ...req.body,
+    model_type: effectiveModelType,
     official_image_prices: req.body.official_image_prices ?? existingModel.official_image_prices,
-  });
+  }, { preserveExistingPricing: existingModel });
   if (pricing.error) return res.status(400).json({ error: pricing.error });
   if (!inputMultiplier || !outputMultiplier || !imageMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
   db.prepare(`UPDATE models SET
@@ -389,7 +417,7 @@ router.put('/models/:id', authenticate, requireAdmin('admin'), (req, res) => {
     official_provider=?,official_model_id=?,official_currency=?,official_input_price=?,official_cached_input_price=?,
     official_output_price=?,official_image_prices=?,official_unit_tokens=?,official_pricing_mode=?,official_price_source=?,
     official_price_updated_at=CURRENT_TIMESTAMP,status=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(
-    model_name, upstream_model_name, model_type, context_length, is_multimodal?1:0, description||'',
+    model_name, upstream_model_name, effectiveModelType, context_length, is_multimodal?1:0, description||'',
     inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier,
     pricing.provider, official_model_id||null, pricing.currency, pricing.input, pricing.cached, pricing.output,
     pricing.imagePrices, pricing.unitTokens, pricing.mode, pricing.mode === 'manual' ? '管理员手动录入' : null,
