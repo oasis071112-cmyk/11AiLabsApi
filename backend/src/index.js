@@ -129,8 +129,8 @@ async function start() {
   // 官方价格每周同步；美元汇率每日同步。失败时保留最近一次成功数据。
   try { const { startPricingSchedules } = require('./utils/pricing-sync'); startPricingSchedules(getDatabase()); } catch(e) { console.error('[计费同步启动失败]', e.message); }
   app.listen(PORT, () => {
-    logger.info(`11AiLabs 已启动 — 端口: ${PORT}, 环境: ${isProduction ? 'production' : 'development'}`);
-    console.log(`\n🚀 11AiLabs 已启动: http://localhost:${PORT}`);
+    logger.info(`IonAiLabs 已启动 — 端口: ${PORT}, 环境: ${isProduction ? 'production' : 'development'}`);
+    console.log(`\n🚀 IonAiLabs 已启动: http://localhost:${PORT}`);
     console.log(`📡 代理端点: http://localhost:${PORT}/v1/chat/completions`);
     console.log(`🌍 运行环境: ${isProduction ? 'production' : 'development'}`);
     console.log(`📋 日志目录: ./logs/\n`);

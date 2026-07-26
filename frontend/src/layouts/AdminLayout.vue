@@ -13,7 +13,7 @@
       <span>管理菜单</span>
       <button type="button" aria-label="关闭管理菜单" @click="closeDrawer"><X :size="20"/></button>
     </div>
-    <div class="admin-logo"><img src="/logo-white.svg" alt="11AiLabs"/><div>11AiLabs</div></div>
+    <div class="admin-logo"><img src="/logo-white.svg" alt="IonAiLabs"/><div>IonAiLabs</div></div>
     <el-menu :default-active="route.path" :collapse="isCompactDesktop" background-color="#111827" text-color="#9ca3af" active-text-color="#C5D5C0" router class="admin-menu" @select="closeDrawer">
       <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path"><el-icon><component :is="item.icon" :size="16"/></el-icon>{{ item.label }}</el-menu-item>
     </el-menu>

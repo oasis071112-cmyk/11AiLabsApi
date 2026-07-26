@@ -532,8 +532,8 @@ function createTables() {
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('new_user_gift_amount', '1.00', '新用户赠送金额')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('new_user_gift_enabled', 'true', '是否开启新用户赠送')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('default_rate_limit', '60', '默认每分钟限速')");
-  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('platform_name', '11AiLabs', '平台名称')");
-  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('platform_announcement', '欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数', '平台公告')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('platform_name', 'IonAiLabs', '平台名称')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('platform_announcement', '欢迎使用 IonAiLabs API调用中心！新用户注册即送 1 额度点数', '平台公告')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('usd_cny_exchange_rate', '7', '美元兑人民币汇率；1点=1人民币')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('usd_cny_rate_updated_at', '', '美元兑人民币汇率最近更新时间')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('official_pricing_last_sync_at', '', '官方价格最近同步时间')");
@@ -544,8 +544,9 @@ function createTables() {
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('payment_max_amount', '10000', '在线支付单笔最高金额')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('payment_order_timeout_minutes', '30', '在线支付订单超时时间（分钟）')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('payment_max_pending_orders', '3', '每位用户最大待支付订单数')");
-  // 确保公告始终为最新
-  sqlDb.run("UPDATE system_config SET config_value='欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数' WHERE config_key='platform_announcement' AND config_value!='欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数'");
+  // 仅迁移历史默认文案，保留管理员已经自定义的品牌与公告。
+  sqlDb.run("UPDATE system_config SET config_value='IonAiLabs' WHERE config_key='platform_name' AND config_value='11AiLabs'");
+  sqlDb.run("UPDATE system_config SET config_value='欢迎使用 IonAiLabs API调用中心！新用户注册即送 1 额度点数' WHERE config_key='platform_announcement' AND config_value='欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数'");
   // 历史上的“展示倍率”现在就是唯一的用户扣费倍率，确保规则保存后立即生效。
   sqlDb.run('UPDATE models SET billing_multiplier_input=display_multiplier_input, billing_multiplier_output=display_multiplier_output');
   sqlDb.run('UPDATE pricing_rules SET billing_multiplier_input=display_multiplier_input, billing_multiplier_output=display_multiplier_output');

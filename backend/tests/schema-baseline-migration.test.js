@@ -152,4 +152,43 @@ describe('第一轮数据库兼容迁移', () => {
       fs.rmSync(migrationDirectory, { recursive: true, force: true });
     }
   });
+
+  it('仅将历史默认品牌迁移为 IonAiLabs，保留管理员自定义值', () => {
+    const migrationDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'ionailabs-brand-migration-'));
+    const migrationDbPath = path.join(migrationDirectory, 'brand.db');
+    try {
+      const script = `
+        const { initDatabase } = require('./src/database/init.js');
+        initDatabase().then(async db => {
+          db.prepare("UPDATE system_config SET config_value='11AiLabs' WHERE config_key='platform_name'").run();
+          db.prepare("UPDATE system_config SET config_value='欢迎使用 11AiLabs API调用中心！新用户注册即送 1 额度点数' WHERE config_key='platform_announcement'").run();
+          await initDatabase();
+          const migrated = {
+            platformName: db.prepare("SELECT config_value FROM system_config WHERE config_key='platform_name'").get().config_value,
+            announcement: db.prepare("SELECT config_value FROM system_config WHERE config_key='platform_announcement'").get().config_value,
+          };
+          db.prepare("UPDATE system_config SET config_value='客户自定义品牌' WHERE config_key='platform_name'").run();
+          db.prepare("UPDATE system_config SET config_value='客户自定义公告' WHERE config_key='platform_announcement'").run();
+          await initDatabase();
+          const customized = {
+            platformName: db.prepare("SELECT config_value FROM system_config WHERE config_key='platform_name'").get().config_value,
+            announcement: db.prepare("SELECT config_value FROM system_config WHERE config_key='platform_announcement'").get().config_value,
+          };
+          console.log('BRAND_RESULT=' + JSON.stringify({ migrated, customized }));
+        }).catch(error => { console.error(error); process.exit(1); });
+      `;
+      const result = runDatabaseScript(migrationDbPath, script, 'BRAND_RESULT');
+
+      expect(result.migrated).toEqual({
+        platformName: 'IonAiLabs',
+        announcement: '欢迎使用 IonAiLabs API调用中心！新用户注册即送 1 额度点数',
+      });
+      expect(result.customized).toEqual({
+        platformName: '客户自定义品牌',
+        announcement: '客户自定义公告',
+      });
+    } finally {
+      fs.rmSync(migrationDirectory, { recursive: true, force: true });
+    }
+  });
 });

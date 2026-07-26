@@ -1,4 +1,4 @@
-# 11AiLabs — AI API 中转平台
+# IonAiLabs — AI API 中转平台
 
 一个面向用户的 OpenAI API 代理中转平台，支持多模型、多渠道池、智能路由、差异化计费、用户钱包和 API Key 管理。
 

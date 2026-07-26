@@ -43,7 +43,7 @@ function paymentTypeFor(provider, paymentMethod) {
   throw new Error('暂仅支持支付宝或微信支付');
 }
 
-function buildEasyPayRequest({ provider, orderNo, amount, paymentMethod, siteUrl, productName = '11AiLabs 额度充值' }) {
+function buildEasyPayRequest({ provider, orderNo, amount, paymentMethod, siteUrl, productName = 'IonAiLabs 额度充值' }) {
   const merchantKey = decrypt(provider.merchant_key_encrypted);
   const baseUrl = normalizedBaseUrl(provider.api_base_url);
   const fields = {

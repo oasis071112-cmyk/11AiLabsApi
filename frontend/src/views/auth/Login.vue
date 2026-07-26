@@ -1,8 +1,8 @@
 <template>
 <div class="auth-page"><section class="auth-shell">
-<aside class="auth-brand-panel"><img src="/logo-icon.svg" alt="11AiLabs"/><div><strong>11AiLabs</strong><span>API 服务管理平台</span></div><p>统一管理模型、密钥、调用与额度。</p></aside>
+<aside class="auth-brand-panel"><img src="/logo-icon.svg" alt="IonAiLabs"/><div><strong>IonAiLabs</strong><span>API 服务管理平台</span></div><p>统一管理模型、密钥、调用与额度。</p></aside>
 <div class="auth-card">
-<div class="auth-card-head"><img src="/logo-icon.svg" alt="11AiLabs"/><div><div>欢迎回来</div><span>登录后继续管理你的 API 服务</span></div></div>
+<div class="auth-card-head"><img src="/logo-icon.svg" alt="IonAiLabs"/><div><div>欢迎回来</div><span>登录后继续管理你的 API 服务</span></div></div>
 <el-form :model="form" :rules="rules" ref="frm" @submit.prevent="handleLogin">
 <el-form-item prop="username"><el-input v-model="form.username" placeholder="用户名" size="large"/></el-form-item>
 <el-form-item prop="password"><el-input v-model="form.password" type="password" placeholder="密码" size="large" show-password @keyup.enter="handleLogin"/></el-form-item>

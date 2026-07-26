@@ -14,7 +14,7 @@ async function seed() {
   const existing = db.prepare("SELECT id FROM users WHERE username='viewer'").get();
   let userId;
   if (existing) { userId = existing.id; } else {
-    db.prepare("INSERT INTO users (username,email,password_hash,role,status) VALUES (?,?,?,?,?)").run('viewer','viewer@11ailabs.com',hash,'user','active');
+    db.prepare("INSERT INTO users (username,email,password_hash,role,status) VALUES (?,?,?,?,?)").run('viewer','viewer@ionailabs.com',hash,'user','active');
     userId = db.prepare("SELECT id FROM users WHERE username='viewer'").get().id;
     db.prepare("INSERT OR IGNORE INTO wallets (user_id,quota_balance,gift_quota,total_spent) VALUES (?,?,?,?)").run(userId, 500.0, 20.0, 0);
     console.log('创建用户 viewer / viewer123, id:', userId);

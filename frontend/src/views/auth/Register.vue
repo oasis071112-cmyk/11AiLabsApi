@@ -1,6 +1,6 @@
 <template>
 <div class="auth-page"><section class="auth-shell">
-<aside class="auth-brand-panel"><img src="/logo-icon.svg" alt="11AiLabs"/><div><strong>11AiLabs</strong><span>API 服务管理平台</span></div><p>创建账号后即可管理自己的模型调用与额度。</p></aside>
+<aside class="auth-brand-panel"><img src="/logo-icon.svg" alt="IonAiLabs"/><div><strong>IonAiLabs</strong><span>API 服务管理平台</span></div><p>创建账号后即可管理自己的模型调用与额度。</p></aside>
 <div class="auth-card">
 <div class="auth-card-head"><UserPlus :size="24"/><div><div>注册账号</div><span>填写基本信息创建你的使用空间</span></div></div>
 <el-form :model="form" :rules="rules" ref="frm">

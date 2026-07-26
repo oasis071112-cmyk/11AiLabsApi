@@ -77,7 +77,7 @@ async function fetchProviderPage(provider, modelId) {
     : PROVIDER_PAGES[provider];
   const response = await axios.get(url, {
     timeout: 30000,
-    headers: { 'User-Agent': '11AiLabs-official-pricing-sync/1.0' },
+    headers: { 'User-Agent': 'IonAiLabs-official-pricing-sync/1.0' },
     responseType: 'text',
   });
   return { html: response.data, url };
