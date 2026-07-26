@@ -9,7 +9,7 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
     ? "JOIN routing_group_models rgm ON rgm.group_id=rgc.group_id AND rgm.model_code=cm.model_code AND rgm.status='active'"
     : '';
   const rows = db.prepare(`SELECT m.model_code,m.model_name,m.sort_order,m.is_multimodal,
-      cm.supports_image_input,uc.capabilities
+      cm.supports_image_input,uc.capabilities,uc.protocol_type
     FROM routing_group_channels rgc
     JOIN upstream_channels uc ON uc.id=rgc.channel_id
     JOIN channel_models cm ON cm.channel_id=uc.id AND cm.status='active'
@@ -22,14 +22,25 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
     const chatCompletions = channelSupportsCapability(row, 'chat_completions');
     const imageGenerations = channelSupportsCapability(row, 'image_generations');
     const responses = channelSupportsCapability(row, 'responses');
+    const anthropicMessages = channelSupportsCapability(row, 'anthropic_messages');
+    const anthropicCountTokens = channelSupportsCapability(row, 'anthropic_count_tokens');
     const existing = byModel.get(row.model_code) || {
       model_code: row.model_code,
       model_name: row.model_name,
       sort_order: row.sort_order,
-      capabilities: { chat_completions: false, image_input: false, image_generations: false, responses: false },
+      capabilities: {
+        chat_completions: false,
+        anthropic_messages: false,
+        anthropic_count_tokens: false,
+        image_input: false,
+        image_generations: false,
+        responses: false,
+      },
     };
     existing.capabilities.chat_completions ||= chatCompletions;
-    existing.capabilities.image_input ||= chatCompletions && channelModelSupportsImageInput(row);
+    existing.capabilities.anthropic_messages ||= anthropicMessages;
+    existing.capabilities.anthropic_count_tokens ||= anthropicCountTokens;
+    existing.capabilities.image_input ||= (chatCompletions || anthropicMessages) && channelModelSupportsImageInput(row);
     existing.capabilities.image_generations ||= imageGenerations;
     existing.capabilities.responses ||= responses;
     byModel.set(row.model_code, existing);
@@ -43,6 +54,8 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
     if (!existing) byCode.set(model.model_code, model);
     else {
       existing.capabilities.chat_completions ||= model.capabilities.chat_completions;
+      existing.capabilities.anthropic_messages ||= model.capabilities.anthropic_messages;
+      existing.capabilities.anthropic_count_tokens ||= model.capabilities.anthropic_count_tokens;
       existing.capabilities.image_input ||= model.capabilities.image_input;
       existing.capabilities.image_generations ||= model.capabilities.image_generations;
       existing.capabilities.responses ||= model.capabilities.responses;
@@ -53,7 +66,7 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
 
 function listModelsForApiKey(db, apiKey) {
   if (!apiKey.routing_group_id) {
-    return db.prepare(`SELECT DISTINCT m.model_code,m.model_name,m.sort_order,m.is_multimodal,uc.capabilities
+    return db.prepare(`SELECT DISTINCT m.model_code,m.model_name,m.sort_order,m.is_multimodal,uc.capabilities,uc.protocol_type
       FROM api_key_permissions permission
       JOIN models m ON m.model_code=permission.model_code AND m.status='active'
       LEFT JOIN upstream_channels uc ON uc.id=m.channel_id AND uc.status='active'
@@ -64,7 +77,12 @@ function listModelsForApiKey(db, apiKey) {
         sort_order: model.sort_order,
         capabilities: {
           chat_completions: channelSupportsCapability(model, 'chat_completions'),
-          image_input: channelSupportsCapability(model, 'chat_completions') && Number(model.is_multimodal) === 1,
+          anthropic_messages: channelSupportsCapability(model, 'anthropic_messages'),
+          anthropic_count_tokens: channelSupportsCapability(model, 'anthropic_count_tokens'),
+          image_input: (
+            channelSupportsCapability(model, 'chat_completions')
+            || channelSupportsCapability(model, 'anthropic_messages')
+          ) && Number(model.is_multimodal) === 1,
           image_generations: channelSupportsCapability(model, 'image_generations'),
           responses: channelSupportsCapability(model, 'responses'),
         },
@@ -82,17 +100,27 @@ function apiKeyCanUseModel(db, apiKey, modelCode) {
 }
 
 function listSystemModelCapabilities(db) {
-  const rows = db.prepare(`SELECT cm.model_code,cm.supports_image_input,m.is_multimodal,uc.capabilities
+  const rows = db.prepare(`SELECT cm.model_code,cm.supports_image_input,m.is_multimodal,uc.capabilities,uc.protocol_type
     FROM channel_models cm
     JOIN models m ON m.model_code=cm.model_code AND m.status='active'
     JOIN upstream_channels uc ON uc.id=cm.channel_id AND uc.status='active'
     WHERE cm.status='active'`).all();
   const capabilities = new Map();
   for (const row of rows) {
-    const current = capabilities.get(row.model_code) || { chat_completions: false, image_input: false, image_generations: false, responses: false };
+    const current = capabilities.get(row.model_code) || {
+      chat_completions: false,
+      anthropic_messages: false,
+      anthropic_count_tokens: false,
+      image_input: false,
+      image_generations: false,
+      responses: false,
+    };
     const supportsChat = channelSupportsCapability(row, 'chat_completions');
+    const supportsAnthropicMessages = channelSupportsCapability(row, 'anthropic_messages');
     current.chat_completions ||= supportsChat;
-    current.image_input ||= supportsChat && channelModelSupportsImageInput(row);
+    current.anthropic_messages ||= supportsAnthropicMessages;
+    current.anthropic_count_tokens ||= channelSupportsCapability(row, 'anthropic_count_tokens');
+    current.image_input ||= (supportsChat || supportsAnthropicMessages) && channelModelSupportsImageInput(row);
     current.image_generations ||= channelSupportsCapability(row, 'image_generations');
     current.responses ||= channelSupportsCapability(row, 'responses');
     capabilities.set(row.model_code, current);
@@ -106,8 +134,17 @@ function listUserModelCapabilities(db, userId) {
   const capabilities = new Map();
   for (const apiKey of apiKeys) {
     for (const model of listModelsForApiKey(db, apiKey)) {
-      const current = capabilities.get(model.model_code) || { chat_completions: false, image_input: false, image_generations: false, responses: false };
+      const current = capabilities.get(model.model_code) || {
+        chat_completions: false,
+        anthropic_messages: false,
+        anthropic_count_tokens: false,
+        image_input: false,
+        image_generations: false,
+        responses: false,
+      };
       current.chat_completions ||= Boolean(model.capabilities?.chat_completions);
+      current.anthropic_messages ||= Boolean(model.capabilities?.anthropic_messages);
+      current.anthropic_count_tokens ||= Boolean(model.capabilities?.anthropic_count_tokens);
       current.image_input ||= Boolean(model.capabilities?.image_input);
       current.image_generations ||= Boolean(model.capabilities?.image_generations);
       current.responses ||= Boolean(model.capabilities?.responses);

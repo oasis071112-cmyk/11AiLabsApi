@@ -139,7 +139,8 @@
   <el-dialog v-model="docsDialog" width="700px" :close-on-click-modal="false" destroy-on-close><template #header><span style="font-weight:700;font-size:16px"><BookOpen :size="18" style="margin-right:6px;vertical-align:middle"/> {{ docsChannelName }} — 使用说明</span></template>
     <div v-if="docsLoading" style="text-align:center;padding:40px"><Loader2 :size="28" color="#0EA5E9" style="animation:spin 1s linear infinite"/><p style="color:#a3a3a3;margin-top:12px">加载文档...</p></div>
     <template v-else>
-      <div style="margin-bottom:12px"><el-tag type="success" size="small" style="margin-right:8px">{{ docsData.protocol_label }}</el-tag><span style="font-size:12px;color:#a3a3a3">端点：<code>{{ docsData.endpoint }}</code></span></div>
+      <div v-if="docsData.protocol_docs?.length>1" style="margin-bottom:12px"><span style="font-size:12px;color:#737373;margin-right:8px">该分组支持：</span><el-radio-group v-model="docsProtocol" size="small"><el-radio-button v-for="item in docsData.protocol_docs" :key="item.protocol_type" :value="item.protocol_type">{{ item.protocol_label }}</el-radio-button></el-radio-group></div>
+      <div style="margin-bottom:12px"><el-tag type="success" size="small" style="margin-right:8px">{{ displayedDocs.protocol_label }}</el-tag><span style="font-size:12px;color:#a3a3a3">端点：<code>{{ displayedDocs.endpoint }}</code></span></div>
       <div v-if="docsData.models?.length" style="margin-bottom:12px;font-size:12px;color:#525252">可用模型：<el-tag v-for="m in docsData.models" :key="m.model_code" size="small" style="margin:2px">{{ m.model_code }}</el-tag></div>
       <div style="display:flex;gap:0;margin-bottom:0;border-bottom:2px solid #000">
         <button v-for="tab in tabs" :key="tab.key" @click="activeTab=tab.key" :style="{background:activeTab===tab.key?'#000':'#f5f5f5',color:activeTab===tab.key?'#fff':'#525252',border:'none',padding:'8px 20px',cursor:'pointer',fontSize:'13px',fontWeight:activeTab===tab.key?600:400}" type="button">{{ tab.label }}</button>
@@ -166,9 +167,10 @@ const selectedChannel=computed(()=>channels.value.find(c=>c.id===selectedChannel
 const exportDialog=ref(false),exportResultDialog=ref(false),exportTarget=ref(null),exportLoading=ref(false),exportedRaw=ref('')
 const exportPwd=ref('')
 const keyCopied=ref(false),exportedCopied=ref(false)
-const docsDialog=ref(false),docsLoading=ref(false),docsTarget=ref(null),docsData=ref({}),docsChannelName=ref(''),docsCopied=ref(false)
+const docsDialog=ref(false),docsLoading=ref(false),docsTarget=ref(null),docsData=ref({}),docsChannelName=ref(''),docsCopied=ref(false),docsProtocol=ref('')
 const tabs=[{key:'curl',label:'cURL'},{key:'python',label:'Python'},{key:'nodejs',label:'Node.js'}]
-const activeTab=ref('curl');const activeCode=computed(()=>docsData.value?.[activeTab.value]||'')
+const displayedDocs=computed(()=>docsData.value.protocol_docs?.find(item=>item.protocol_type===docsProtocol.value)||docsData.value)
+const activeTab=ref('curl');const activeCode=computed(()=>displayedDocs.value?.[activeTab.value]||'')
 const isMobile=useMobile()
 onMounted(()=>{fetchKeys()})
 async function fetchKeys(){loading.value=true;try{keys.value=(await api.get('/api/user/keys')).data.data}catch(e){}loading.value=false}
@@ -181,7 +183,7 @@ async function copyKey(){await showCopied(keyCopied,newKeyRaw.value)}
 function openExport(row){exportTarget.value=row;exportPwd.value='';exportDialog.value=true}
 async function doExport(){if(!exportPwd.value){ElMessage.warning('请输入登录密码');return};exportLoading.value=true;try{const r=await api.post('/api/user/keys/'+exportTarget.value.id+'/export',{password:exportPwd.value});exportedRaw.value=r.data.key_raw;exportDialog.value=false;exportResultDialog.value=true;exportPwd.value=''}catch(e){}exportLoading.value=false}
 async function copyExported(){await showCopied(exportedCopied,exportedRaw.value)}
-async function openDocs(row){docsTarget.value=row;docsDialog.value=true;docsLoading.value=true;docsData.value={};docsChannelName.value=row.channel_name;activeTab.value='curl';docsCopied.value=false;try{const r=await api.get('/api/user/docs/channel?channel_name='+encodeURIComponent(row.channel_name));docsData.value=r.data}catch(e){ElMessage.error('获取文档失败')};docsLoading.value=false}
+async function openDocs(row){docsTarget.value=row;docsDialog.value=true;docsLoading.value=true;docsData.value={};docsProtocol.value='';docsChannelName.value=row.channel_name;activeTab.value='curl';docsCopied.value=false;try{const r=await api.get('/api/user/docs/channel?channel_name='+encodeURIComponent(row.channel_name));docsData.value=r.data;docsProtocol.value=r.data.protocol_docs?.[0]?.protocol_type||r.data.protocol_type||''}catch(e){ElMessage.error('获取文档失败')};docsLoading.value=false}
 async function copyDocsCode(){try{await copyText(activeCode.value);docsCopied.value=true;ElMessage.success('复制成功');setTimeout(()=>docsCopied.value=false,2000)}catch(e){ElMessage.error('复制失败，请长按代码手动复制')}}
 </script>
 

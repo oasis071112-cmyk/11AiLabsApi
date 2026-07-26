@@ -21,6 +21,22 @@ function buildBillingDetail({
   billingMode = 'token', image = {}, official = {}, legacy = {}, multipliers = {}, usdCnyRate = 1,
   serviceTier = '',
 } = {}) {
+  if (billingMode === 'count_tokens') {
+    return {
+      mode: 'count_tokens',
+      dimensions: [{
+        label: '输入 Token 计数',
+        usage: Math.max(number(inputTokens), 0),
+        unit: 'Token',
+        amount: 0,
+      }],
+      priceCalculationTotal: 0,
+      calculatedTotal: 0,
+      actualTotal: 0,
+      reconciled: true,
+      notice: 'Count Tokens 仅返回输入 Token 数量，不改变点数余额。',
+    };
+  }
   if (billingMode === 'per_request') {
     const unitPrice = Math.max(number(image.unitPrice), 0);
     const multiplier = number(multipliers.input, 1);

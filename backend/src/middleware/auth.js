@@ -10,6 +10,24 @@ async function findApiKey(db, rawKey) {
   }
 }
 
+function apiKeyFromRequest(req) {
+  const anthropicKey = String(req.headers['x-api-key'] || '').trim();
+  if (anthropicKey) return anthropicKey;
+  const authHeader = String(req.headers.authorization || '');
+  return authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+}
+
+function apiKeyAuthError(req, res, status, message, type) {
+  if (String(req.path || '').startsWith('/messages')) {
+    const anthropicType = status === 403 ? 'permission_error' : 'authentication_error';
+    return res.status(status).json({
+      type: 'error',
+      error: { type: anthropicType, message },
+    });
+  }
+  return res.status(status).json({ error: { message, type } });
+}
+
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ error: '未提供认证令牌' });
@@ -20,17 +38,16 @@ function authenticate(req, res, next) {
 }
 
 async function authenticateApiKey(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: { message: '未提供 API Key', type: 'invalid_api_key' } });
+  const rawKey = apiKeyFromRequest(req);
+  if (!rawKey) {
+    return apiKeyAuthError(req, res, 401, '未提供 API Key', 'invalid_api_key');
   }
   try {
-    const rawKey = authHeader.split(' ')[1];
     const db = getDatabase();
     const apiKey = await findApiKey(db, rawKey);
-    if (!apiKey) return res.status(401).json({ error: { message: 'API Key 无效', type: 'invalid_api_key' } });
-    if (apiKey.user_status !== 'active') return res.status(403).json({ error: { message: '账户已被禁用', type: 'user_disabled' } });
-    if (apiKey.expired_at && new Date(apiKey.expired_at) < new Date()) return res.status(401).json({ error: { message: 'API Key 已过期', type: 'expired_key' } });
+    if (!apiKey) return apiKeyAuthError(req, res, 401, 'API Key 无效', 'invalid_api_key');
+    if (apiKey.user_status !== 'active') return apiKeyAuthError(req, res, 403, '账户已被禁用', 'user_disabled');
+    if (apiKey.expired_at && new Date(apiKey.expired_at) < new Date()) return apiKeyAuthError(req, res, 401, 'API Key 已过期', 'expired_key');
     req.apiKey = apiKey;
     req.userId = apiKey.user_id;
     next();
@@ -52,4 +69,12 @@ function generateToken(user) {
   return jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
 }
 
-module.exports = { authenticate, authenticateApiKey, requireAdmin, generateToken, findApiKey, JWT_SECRET };
+module.exports = {
+  authenticate,
+  authenticateApiKey,
+  requireAdmin,
+  generateToken,
+  findApiKey,
+  apiKeyFromRequest,
+  JWT_SECRET,
+};

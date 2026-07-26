@@ -162,6 +162,20 @@ describe('用户计费明细', () => {
     expect(detail.reconciled).toBe(true);
   });
 
+  it('Count Tokens 显示计数结果但明确不扣点', () => {
+    const detail = buildBillingDetail({
+      billingMode: 'count_tokens',
+      inputTokens: 37,
+      totalCost: 0,
+    });
+    expect(detail).toMatchObject({
+      mode: 'count_tokens',
+      dimensions: [{ label: '输入 Token 计数', usage: 37, unit: 'Token', amount: 0 }],
+      actualTotal: 0,
+      reconciled: true,
+    });
+  });
+
   it('GPT-5.6 缓存写入缺少独立价格时按输入价格的 1.25 倍回显', () => {
     const detail = buildBillingDetail({
       modelCode: 'gpt-5.6',

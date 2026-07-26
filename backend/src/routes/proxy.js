@@ -34,6 +34,11 @@ const {
   walletBalances,
 } = require('../utils/wallet-billing');
 const { resolveChannelMultipliers } = require('../utils/channel-multipliers');
+const {
+  CHANNEL_PROTOCOLS,
+  DEFAULT_ANTHROPIC_VERSION,
+  upstreamRequestHeaders,
+} = require('../utils/channel-protocols');
 
 function positiveOrOne(value) {
   const number = Number(value);
@@ -178,7 +183,17 @@ function buildRequestPricing(db, model, channel, usage, multipliers, serviceTier
   };
 }
 
-function insertSuccessLog(db, { requestId, userId, apiKeyId, modelCode, channelId, usage, pricing, model, multipliers, requestIp, latencyMs }) {
+function setLogProtocols(db, requestId, requestProtocol = CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE, upstreamProtocol = requestProtocol) {
+  db.prepare('UPDATE api_request_logs SET request_protocol=?,upstream_protocol=? WHERE request_id=?')
+    .run(requestProtocol, upstreamProtocol, requestId);
+}
+
+function insertSuccessLog(db, {
+  requestId, userId, apiKeyId, modelCode, channelId, usage, pricing, model,
+  multipliers, requestIp, latencyMs,
+  requestProtocol = CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
+  upstreamProtocol = requestProtocol,
+}) {
   const channelBilling = db.prepare(`SELECT upstream_model_name,billing_mode,billing_model_source,
     input_price,output_price,cache_write_price,cache_read_price,image_input_price,image_output_price,
     per_request_price,image_price_1k,image_price_2k,image_price_4k
@@ -233,9 +248,15 @@ function insertSuccessLog(db, { requestId, userId, apiKeyId, modelCode, channelI
     pricing.unitPrice || 0,
     requestId,
   );
+  setLogProtocols(db, requestId, requestProtocol, upstreamProtocol);
 }
 
-function insertSettlementFailureLog(db, { requestId, userId, apiKeyId, modelCode, channelId, usage, pricing, model, multipliers, requestIp, latencyMs, error }) {
+function insertSettlementFailureLog(db, {
+  requestId, userId, apiKeyId, modelCode, channelId, usage, pricing, model,
+  multipliers, requestIp, latencyMs, error,
+  requestProtocol = CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
+  upstreamProtocol = requestProtocol,
+}) {
   db.prepare(`INSERT OR IGNORE INTO api_request_logs (
     request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,cached_input_tokens,output_tokens,total_cost,
     official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,
@@ -245,13 +266,17 @@ function insertSettlementFailureLog(db, { requestId, userId, apiKeyId, modelCode
     model.official_provider, model.official_currency, model.official_input_price, model.official_output_price, model.official_cached_input_price, model.official_unit_tokens,
     pricing.usdCnyRate, multipliers.input, multipliers.output, pricing.officialCostCny, error, requestIp, latencyMs,
   );
+  setLogProtocols(db, requestId, requestProtocol, upstreamProtocol);
 }
 
 function insertUpstreamFailureLog(db, {
   requestId, userId, apiKeyId, modelCode, channelId, requestIp, latencyMs, error, billingMode = 'token',
+  requestProtocol = CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
+  upstreamProtocol = requestProtocol,
 }) {
   db.prepare("INSERT OR IGNORE INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,billing_mode,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,?,?,'failed',?,'upstream_error',?,?)")
     .run(requestId, userId, apiKeyId, modelCode, channelId || null, billingMode, error, requestIp, latencyMs);
+  setLogProtocols(db, requestId, requestProtocol, upstreamProtocol);
 }
 
 function insertImageSuccessLog(db, {
@@ -293,6 +318,7 @@ function insertImageSuccessLog(db, {
     tokenMultipliers.input, tokenMultipliers.output,
     requestId,
   );
+  setLogProtocols(db, requestId);
 }
 
 function insertImageSettlementFailureLog(db, {
@@ -309,6 +335,7 @@ function insertImageSettlementFailureLog(db, {
     model.official_provider, model.official_currency, pricing.usdCnyRate, pricing.officialCostCny,
     imageCount, size, quality, pricing.unitPrice, multiplier, error, requestIp, latencyMs,
   );
+  setLogProtocols(db, requestId);
 }
 
 function listModels(req, res) {
@@ -319,7 +346,14 @@ function listModels(req, res) {
     object: 'model',
     created: 0,
     owned_by: 'ai-proxy',
-    capabilities: m.capabilities || { chat_completions: true, image_input: false, image_generations: false, responses: false },
+    capabilities: m.capabilities || {
+      chat_completions: true,
+      anthropic_messages: false,
+      anthropic_count_tokens: false,
+      image_input: false,
+      image_generations: false,
+      responses: false,
+    },
   })) });
 }
 
@@ -334,6 +368,7 @@ function billableTextProjection(value, key = '') {
   if (normalizedKey === 'image_url' || normalizedKey === 'input_image') return '[image]';
   if (Array.isArray(value)) return value.map(item => billableTextProjection(item, key));
   if (!value || typeof value !== 'object') return value;
+  if (value.type === 'image') return '[image]';
   return Object.fromEntries(Object.entries(value)
     .map(([childKey, childValue]) => [childKey, billableTextProjection(childValue, childKey)]));
 }
@@ -372,6 +407,13 @@ function imageDimensionsFromDataUrl(url) {
 
 function listImageInputs(value, key = '') {
   const normalizedKey = String(key).toLowerCase();
+  if (value && typeof value === 'object' && !Array.isArray(value) && value.type === 'image') {
+    const source = value.source || {};
+    const url = source.type === 'base64' && source.data
+      ? `data:${source.media_type || 'image/png'};base64,${source.data}`
+      : (source.url || '');
+    return [{ url, detail: 'auto' }];
+  }
   if (normalizedKey === 'image_url' || normalizedKey === 'input_image') {
     const image = value && typeof value === 'object' ? value : {};
     return [{ url: image.url || image.image_url || image.source?.url || '', detail: image.detail || 'auto' }];
@@ -402,6 +444,11 @@ function estimatedChatInputTokens(requestBody) {
     + estimatedImageReservationTokens(requestBody);
 }
 
+function estimatedAnthropicInputTokens(requestBody) {
+  return estimatedInputTokens(JSON.stringify(billableTextProjection(requestBody)))
+    + estimatedImageReservationTokens(requestBody);
+}
+
 function unsupportedContentError(message) {
   const error = new Error(message);
   error.status = 400;
@@ -414,6 +461,7 @@ function requestContainsImage(value, key = '') {
   if (normalizedKey === 'image_url' || normalizedKey === 'input_image') return true;
   if (Array.isArray(value)) return value.some(item => requestContainsImage(item, key));
   if (!value || typeof value !== 'object') return false;
+  if (value.type === 'image' || value.type === 'document') return true;
   return Object.entries(value).some(([childKey, childValue]) => requestContainsImage(childValue, childKey));
 }
 
@@ -431,7 +479,7 @@ function assertSupportedBillableInput(value, model, key = '') {
   }
   if (!value || typeof value !== 'object') return;
   if (key === 'content' && value.type) {
-    if (['image_url', 'input_image'].includes(value.type)) {
+    if (['image_url', 'input_image', 'image'].includes(value.type)) {
       return;
     }
     if (!['text', 'input_text', 'output_text'].includes(value.type)) {
@@ -483,7 +531,15 @@ function fallbackEmbeddingUsage(requestBody) {
   };
 }
 
-function capChatRequestToReservedBalance(db, model, channel, multipliers, requestBody, availableBalance) {
+function capChatRequestToReservedBalance(
+  db,
+  model,
+  channel,
+  multipliers,
+  requestBody,
+  availableBalance,
+  inputTokenEstimator = estimatedChatInputTokens,
+) {
   if (billingModeForRequest(channel, false) !== 'token') {
     const reservationAmount = buildRequestPricing(
       db, model, channel, {}, multipliers, requestBody.service_tier || '',
@@ -493,7 +549,7 @@ function capChatRequestToReservedBalance(db, model, channel, multipliers, reques
     }
     return { body: { ...requestBody }, reservationAmount };
   }
-  const inputTokens = estimatedChatInputTokens(requestBody);
+  const inputTokens = inputTokenEstimator(requestBody);
   const pricingModel = pricingModelForChannel(db, model, channel);
   const pricingOptions = { channel, serviceTier: requestBody.service_tier || '' };
   const inputCost = buildPricing(db, pricingModel, { inputTokens, cachedInputTokens: 0, outputTokens: 0 }, multipliers, pricingOptions).userCostPoints;
@@ -578,6 +634,485 @@ async function upstreamErrorMessage(error) {
   }
 }
 
+const ANTHROPIC_LOG_CONTEXT = Object.freeze({
+  requestProtocol: CHANNEL_PROTOCOLS.ANTHROPIC,
+  upstreamProtocol: CHANNEL_PROTOCOLS.ANTHROPIC,
+});
+
+function anthropicUpstreamHeaders(req, channel) {
+  return upstreamRequestHeaders(channel, {
+    contentType: 'application/json',
+    anthropicVersion: req.headers['anthropic-version'] || DEFAULT_ANTHROPIC_VERSION,
+    anthropicBeta: req.headers['anthropic-beta'] || '',
+  });
+}
+
+function sendAnthropicError(res, status, type, message) {
+  return res.status(status).json({ type: 'error', error: { type, message } });
+}
+
+function insertBlockedLog(db, {
+  requestId, userId, apiKeyId, modelCode, error, errorType, requestIp, latencyMs,
+  requestProtocol = CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
+}) {
+  db.prepare(`INSERT INTO api_request_logs
+    (request_id,user_id,api_key_id,model_code,status,error_message,error_type,request_ip,latency_ms,request_protocol)
+    VALUES (?,?,?,?,'blocked',?,?,?,?,?)`)
+    .run(requestId, userId, apiKeyId, modelCode || null, error, errorType, requestIp, latencyMs, requestProtocol);
+}
+
+function insertCountTokensSuccessLog(db, {
+  requestId, userId, apiKeyId, modelCode, channelId, inputTokens, requestIp, latencyMs,
+}) {
+  db.prepare(`INSERT INTO api_request_logs (
+    request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,total_cost,billing_mode,status,
+    request_protocol,upstream_protocol,request_ip,latency_ms
+  ) VALUES (?,?,?,?,?,?,0,'count_tokens','success','anthropic','anthropic',?,?)`).run(
+    requestId, userId, apiKeyId, modelCode, channelId, inputTokens, requestIp, latencyMs,
+  );
+}
+
+function mergeAnthropicStreamUsage(current, rawUsage, upstreamModel = '') {
+  if (!rawUsage || typeof rawUsage !== 'object') return current;
+  const parsed = extractUsage(rawUsage);
+  const next = { ...current };
+  if (Object.prototype.hasOwnProperty.call(rawUsage, 'input_tokens')) next.inputTokens = parsed.inputTokens;
+  if (Object.prototype.hasOwnProperty.call(rawUsage, 'output_tokens')) next.outputTokens = parsed.outputTokens;
+  if (Object.prototype.hasOwnProperty.call(rawUsage, 'cache_read_input_tokens')) {
+    next.cachedInputTokens = parsed.cachedInputTokens;
+  }
+  if (Object.prototype.hasOwnProperty.call(rawUsage, 'cache_creation_input_tokens')) {
+    next.cacheCreationTokens = parsed.cacheCreationTokens;
+  }
+  if (upstreamModel) next.upstreamModel = upstreamModel;
+  return next;
+}
+
+function anthropicUsageIsBillable(usage) {
+  return Number(usage.inputTokens || 0) > 0
+    || Number(usage.outputTokens || 0) > 0
+    || Number(usage.cachedInputTokens || 0) > 0
+    || Number(usage.cacheCreationTokens || 0) > 0;
+}
+
+router.post('/messages/count_tokens', authenticateApiKey, async (req, res) => {
+  const db = getDatabase();
+  const requestId = 'req_' + uuidv4().replace(/-/g, '').substring(0, 16);
+  const modelCode = String(req.body.model || '').trim();
+  const startTime = Date.now();
+  let channel = null;
+  const requirements = {
+    protocolType: CHANNEL_PROTOCOLS.ANTHROPIC,
+    endpointCapability: 'anthropic_count_tokens',
+  };
+
+  if (!modelCode || !apiKeyCanUseModel(db, req.apiKey, modelCode)) {
+    const message = modelCode ? `模型 ${modelCode} 未授权` : '请求必须指定模型';
+    insertBlockedLog(db, {
+      requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+      error: message, errorType: 'unauthorized_model', requestIp: req.ip,
+      latencyMs: Date.now() - startTime, requestProtocol: CHANNEL_PROTOCOLS.ANTHROPIC,
+    });
+    return sendAnthropicError(res, modelCode ? 403 : 400, 'permission_error', message);
+  }
+  const model = db.prepare("SELECT id FROM models WHERE model_code=? AND status='active'").get(modelCode);
+  if (!model) return sendAnthropicError(res, 404, 'not_found_error', `模型 ${modelCode} 不可用`);
+
+  channel = selectChannel(
+    db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), requirements,
+  );
+  if (!channel) {
+    return sendAnthropicError(res, 503, 'api_error', '暂无支持 Anthropic Count Tokens 的可用上游渠道');
+  }
+
+  try {
+    const upstreamResult = await postWithSafeFailover({
+      db,
+      modelCode,
+      routingGroupId: req.apiKey.routing_group_id,
+      initialChannel: channel,
+      endpoint: 'messages/count_tokens',
+      body: req.body,
+      requirements,
+      config: selected => ({
+        headers: anthropicUpstreamHeaders(req, selected),
+        timeout: 60000,
+      }),
+    });
+    channel = upstreamResult.channel;
+    insertCountTokensSuccessLog(db, {
+      requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+      channelId: channel.id,
+      inputTokens: Number(upstreamResult.response.data?.input_tokens || 0),
+      requestIp: req.ip,
+      latencyMs: Date.now() - startTime,
+    });
+    db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
+    reportResult(db, channel.id, true);
+    return res.json(upstreamResult.response.data);
+  } catch (error) {
+    if (error.upstreamChannel) channel = error.upstreamChannel;
+    const upstreamValidationError = Number(error.response?.status) >= 400
+      && Number(error.response?.status) < 500
+      && !SAFE_FAILOVER_STATUSES.has(Number(error.response?.status));
+    if (channel?.id && !error.failoverReported && !upstreamValidationError) reportResult(db, channel.id, false);
+    const message = await upstreamErrorMessage(error);
+    insertUpstreamFailureLog(db, {
+      requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+      channelId: channel?.id, requestIp: req.ip, latencyMs: Date.now() - startTime,
+      error: message, billingMode: 'count_tokens', ...ANTHROPIC_LOG_CONTEXT,
+    });
+    return sendAnthropicError(
+      res,
+      error.response?.status || 500,
+      'api_error',
+      `上游 Count Tokens 请求失败: ${message}`,
+    );
+  }
+});
+
+router.post('/messages', authenticateApiKey, async (req, res) => {
+  const db = getDatabase();
+  const requestId = 'req_' + uuidv4().replace(/-/g, '').substring(0, 16);
+  const modelCode = String(req.body.model || '').trim();
+  const startTime = Date.now();
+  const isStream = req.body.stream === true;
+  const requiresImageInput = requestContainsImage(req.body.messages ?? req.body);
+  let channel = null;
+  let reservedAmount = 0;
+  let upstreamConfirmed = false;
+  let upstreamBody;
+
+  if (!modelCode || !apiKeyCanUseModel(db, req.apiKey, modelCode)) {
+    const message = modelCode ? `模型 ${modelCode} 未授权` : '请求必须指定模型';
+    insertBlockedLog(db, {
+      requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+      error: message, errorType: 'unauthorized_model', requestIp: req.ip,
+      latencyMs: Date.now() - startTime, requestProtocol: CHANNEL_PROTOCOLS.ANTHROPIC,
+    });
+    return sendAnthropicError(res, modelCode ? 403 : 400, 'permission_error', message);
+  }
+
+  const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
+  if (!model) return sendAnthropicError(res, 404, 'not_found_error', `模型 ${modelCode} 不可用`);
+  const pricingRule = getEffectiveMultiplier(db, modelCode, req.userId);
+  const fallbackMultipliers = globalMultipliers(pricingRule, model);
+  let multipliers = fallbackMultipliers;
+  const requirements = {
+    protocolType: CHANNEL_PROTOCOLS.ANTHROPIC,
+    endpointCapability: 'anthropic_messages',
+    requiresImageInput,
+  };
+  channel = selectChannel(
+    db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), requirements,
+  );
+  if (!channel) {
+    const message = requiresImageInput
+      ? `模型 ${modelCode} 当前没有支持图片输入的 Anthropic 渠道`
+      : '暂无支持 Anthropic Messages 的可用上游渠道';
+    return sendAnthropicError(res, requiresImageInput ? 400 : 503, 'api_error', message);
+  }
+  multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+  if (billingModeForRequest(channel, false) === 'token'
+      && !channelHasTokenPricing(channel)
+      && Number(model.official_input_price) <= 0
+      && Number(model.official_output_price) <= 0) {
+    return sendAnthropicError(res, 503, 'api_error', '该模型的官方价格尚未同步完成，暂不能计费调用');
+  }
+  if (billingModeForRequest(channel, false) === 'per_request'
+      && resolveFixedUnitPrice(channel, '2K') === null) {
+    return sendAnthropicError(res, 503, 'api_error', '该渠道尚未配置每请求价格');
+  }
+
+  try {
+    const available = availableWalletBalance(db, req.userId);
+    const capped = capChatRequestToReservedBalance(
+      db, model, channel, multipliers, req.body, available, estimatedAnthropicInputTokens,
+    );
+    upstreamBody = capped.body;
+    reservedAmount = reserveWalletBalance(
+      db, req.userId, capped.reservationAmount, requestId,
+    ).reserved;
+  } catch (error) {
+    const message = error.message || '额度不足，请购买额度包后重试';
+    insertBlockedLog(db, {
+      requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+      error: message, errorType: 'insufficient_balance', requestIp: req.ip,
+      latencyMs: Date.now() - startTime, requestProtocol: CHANNEL_PROTOCOLS.ANTHROPIC,
+    });
+    return sendAnthropicError(res, 402, 'permission_error', message);
+  }
+
+  try {
+    if (isStream) {
+      const upstreamResult = await postWithSafeFailover({
+        db,
+        modelCode,
+        routingGroupId: req.apiKey.routing_group_id,
+        initialChannel: channel,
+        endpoint: 'messages',
+        body: upstreamBody,
+        requirements,
+        config: selected => ({
+          headers: anthropicUpstreamHeaders(req, selected),
+          responseType: 'stream',
+          timeout: 300000,
+        }),
+      });
+      const upstreamResponse = upstreamResult.response;
+      channel = upstreamResult.channel;
+      upstreamBody = upstreamResult.requestBody;
+      multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+      upstreamConfirmed = true;
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      let buffer = '';
+      let finalized = false;
+      let usage = {
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedInputTokens: 0,
+        cacheCreationTokens: 0,
+        upstreamModel: channel.upstream_model_name,
+      };
+      let heldMessageStop = '';
+
+      const processEvent = (rawEvent) => {
+        if (!rawEvent.trim()) return;
+        const lines = rawEvent.split(/\r?\n/);
+        const eventName = lines.find(line => line.startsWith('event:'))
+          ?.slice(6).trim();
+        const data = lines.filter(line => line.startsWith('data:'))
+          .map(line => line.slice(5).replace(/^ /, ''))
+          .join('\n');
+        let parsed = null;
+        try { parsed = data ? JSON.parse(data) : null; } catch (error) { /* 原样透传未知事件 */ }
+        if (parsed?.type === 'message_start') {
+          usage = mergeAnthropicStreamUsage(
+            usage,
+            parsed.message?.usage,
+            parsed.message?.model || channel.upstream_model_name,
+          );
+        } else if (parsed?.type === 'message_delta') {
+          usage = mergeAnthropicStreamUsage(
+            usage,
+            parsed.usage,
+            usage.upstreamModel || channel.upstream_model_name,
+          );
+        }
+        if (eventName === 'message_stop' || parsed?.type === 'message_stop') {
+          heldMessageStop = `${rawEvent}\n\n`;
+          return;
+        }
+        res.write(`${rawEvent}\n\n`);
+      };
+
+      const settleStream = () => {
+        if (finalized) return;
+        finalized = true;
+        if (buffer.trim()) processEvent(buffer);
+        if (billingModeForRequest(channel, false) === 'token' && !anthropicUsageIsBillable(usage)) {
+          const pricing = buildRequestPricing(db, model, channel, usage, multipliers);
+          insertSettlementFailureLog(db, {
+            requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+            channelId: channel.id, usage, pricing, model, multipliers,
+            requestIp: req.ip, latencyMs: Date.now() - startTime,
+            error: `Anthropic 上游流未返回真实 usage，已保留 ${reservedAmount} 点冻结额度等待核对`,
+            ...ANTHROPIC_LOG_CONTEXT,
+          });
+          res.write(`event: error\ndata: ${JSON.stringify({
+            type: 'error',
+            error: {
+              type: 'settlement_pending',
+              message: '上游未返回用量，本次调用正在结算；余额已冻结等待核对，请勿重试',
+            },
+          })}\n\n`);
+          res.end();
+          reportResult(db, channel.id, false);
+          return;
+        }
+        const pricing = buildRequestPricing(db, model, channel, usage, multipliers);
+        try {
+          settleWalletReservation(db, {
+            userId: req.userId,
+            reservedAmount,
+            chargeAmount: pricing.userCostPoints,
+            requestId,
+            writeSuccessLog: () => insertSuccessLog(db, {
+              requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+              channelId: channel.id, usage, pricing, model: pricing.pricingModel || model,
+              multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
+              ...ANTHROPIC_LOG_CONTEXT,
+            }),
+          });
+          reservedAmount = 0;
+          if (heldMessageStop) res.write(heldMessageStop);
+          else res.write(`event: message_stop\ndata: ${JSON.stringify({ type: 'message_stop' })}\n\n`);
+          res.end();
+          db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
+          reportResult(db, channel.id, true);
+        } catch (error) {
+          insertSettlementFailureLog(db, {
+            requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+            channelId: channel.id, usage, pricing, model, multipliers,
+            requestIp: req.ip, latencyMs: Date.now() - startTime, error: error.message,
+            ...ANTHROPIC_LOG_CONTEXT,
+          });
+          res.write(`event: error\ndata: ${JSON.stringify({
+            type: 'error',
+            error: {
+              type: 'settlement_pending',
+              message: '本次调用正在结算；余额已冻结等待核对，请勿重试',
+            },
+          })}\n\n`);
+          res.end();
+          reportResult(db, channel.id, false);
+        }
+      };
+
+      upstreamResponse.data.on('data', chunk => {
+        buffer += chunk.toString();
+        const events = buffer.split(/\r?\n\r?\n/);
+        buffer = events.pop();
+        for (const event of events) processEvent(event);
+      });
+      upstreamResponse.data.on('end', settleStream);
+      upstreamResponse.data.on('error', error => {
+        if (finalized) return;
+        finalized = true;
+        const pricing = buildRequestPricing(db, model, channel, usage, multipliers);
+        insertSettlementFailureLog(db, {
+          requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+          channelId: channel.id, usage, pricing, model, multipliers,
+          requestIp: req.ip, latencyMs: Date.now() - startTime,
+          error: `Anthropic 上游流中断，已保留 ${reservedAmount} 点冻结额度等待核对：${error.message}`,
+          ...ANTHROPIC_LOG_CONTEXT,
+        });
+        res.write(`event: error\ndata: ${JSON.stringify({
+          type: 'error',
+          error: { type: 'settlement_pending', message: '上游流中断，本次调用正在结算' },
+        })}\n\n`);
+        res.end();
+        reportResult(db, channel.id, false);
+      });
+      return;
+    }
+
+    const upstreamResult = await postWithSafeFailover({
+      db,
+      modelCode,
+      routingGroupId: req.apiKey.routing_group_id,
+      initialChannel: channel,
+      endpoint: 'messages',
+      body: upstreamBody,
+      requirements,
+      config: selected => ({
+        headers: anthropicUpstreamHeaders(req, selected),
+        timeout: 120000,
+      }),
+    });
+    channel = upstreamResult.channel;
+    upstreamBody = upstreamResult.requestBody;
+    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+    upstreamConfirmed = true;
+    if (billingModeForRequest(channel, false) === 'token'
+        && !hasBillableUsage(upstreamResult.response.data)) {
+      const usage = {
+        inputTokens: estimatedAnthropicInputTokens(upstreamBody),
+        outputTokens: 0,
+        cachedInputTokens: 0,
+      };
+      const pricing = buildRequestPricing(db, model, channel, usage, multipliers);
+      insertSettlementFailureLog(db, {
+        requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+        channelId: channel.id, usage, pricing, model, multipliers,
+        requestIp: req.ip, latencyMs: Date.now() - startTime,
+        error: `Anthropic 上游未返回真实 usage，已保留 ${reservedAmount} 点冻结额度等待核对`,
+        ...ANTHROPIC_LOG_CONTEXT,
+      });
+      reportResult(db, channel.id, false);
+      return sendAnthropicError(
+        res,
+        502,
+        'settlement_pending',
+        '上游未返回用量，本次调用正在结算；余额已冻结等待核对，请勿重试',
+      );
+    }
+    const usage = extractUsage(upstreamResult.response.data?.usage || {});
+    usage.upstreamModel = upstreamResult.response.data?.model || channel.upstream_model_name;
+    const pricing = buildRequestPricing(db, model, channel, usage, multipliers);
+    settleWalletReservation(db, {
+      userId: req.userId,
+      reservedAmount,
+      chargeAmount: pricing.userCostPoints,
+      requestId,
+      writeSuccessLog: () => insertSuccessLog(db, {
+        requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+        channelId: channel.id, usage, pricing, model: pricing.pricingModel || model,
+        multipliers, requestIp: req.ip, latencyMs: Date.now() - startTime,
+        ...ANTHROPIC_LOG_CONTEXT,
+      }),
+    });
+    reservedAmount = 0;
+    db.prepare('UPDATE api_keys SET last_used_at=CURRENT_TIMESTAMP WHERE id=?').run(req.apiKey.id);
+    reportResult(db, channel.id, true);
+    return res.json(upstreamResult.response.data);
+  } catch (error) {
+    if (error.upstreamChannel) channel = error.upstreamChannel;
+    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+    const executionUncertain = !upstreamConfirmed && !error.response;
+    if (reservedAmount > 0 && !upstreamConfirmed && !executionUncertain) {
+      try {
+        releaseWalletReservation(db, req.userId, reservedAmount, requestId);
+        reservedAmount = 0;
+      } catch (releaseError) {
+        console.error('[释放 Anthropic 冻结额度失败]', releaseError);
+      }
+    }
+    const upstreamValidationError = Number(error.response?.status) >= 400
+      && Number(error.response?.status) < 500
+      && !SAFE_FAILOVER_STATUSES.has(Number(error.response?.status));
+    if (channel?.id && !error.failoverReported && !upstreamValidationError) {
+      reportResult(db, channel.id, false);
+    }
+    if (upstreamConfirmed || executionUncertain) {
+      const usage = { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
+      const pricing = buildRequestPricing(db, model, channel, usage, multipliers);
+      insertSettlementFailureLog(db, {
+        requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+        channelId: channel?.id, usage, pricing, model, multipliers,
+        requestIp: req.ip, latencyMs: Date.now() - startTime,
+        error: executionUncertain
+          ? `Anthropic 上游响应不确定，已保留 ${reservedAmount} 点冻结额度等待核对：${error.message}`
+          : error.message,
+        ...ANTHROPIC_LOG_CONTEXT,
+      });
+      return sendAnthropicError(
+        res,
+        executionUncertain ? 504 : 500,
+        'settlement_pending',
+        '本次调用正在结算；余额已冻结等待管理员核对，请勿重试',
+      );
+    }
+    const message = await upstreamErrorMessage(error);
+    insertUpstreamFailureLog(db, {
+      requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
+      channelId: channel?.id, requestIp: req.ip, latencyMs: Date.now() - startTime,
+      error: message, ...ANTHROPIC_LOG_CONTEXT,
+    });
+    return sendAnthropicError(
+      res,
+      error.response?.status || 500,
+      'api_error',
+      `Anthropic 上游请求失败: ${message}`,
+    );
+  }
+});
+
 // 兼容部分客户端直接 GET Base URL 来刷新模型列表。
 router.get('/', authenticateApiKey, listModels);
 router.get('/models', authenticateApiKey, listModels);
@@ -643,6 +1178,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   const fallbackMultipliers = globalMultipliers(pricingRule, pricingModel);
   let imageMultiplier = fallbackMultipliers.image;
   const requirements = {
+    protocolType: CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
     endpointCapability,
     requiredMappedModelCode: intent.billingModel !== modelCode ? intent.billingModel : null,
   };
@@ -841,7 +1377,11 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     return res.status(400).json({ error: { message, type: 'unsupported_content' } });
   }
 
-  const channelRequirements = { endpointCapability: 'chat_completions', requiresImageInput };
+  const channelRequirements = {
+    protocolType: CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
+    endpointCapability: 'chat_completions',
+    requiresImageInput,
+  };
   channel = selectChannel(db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), channelRequirements);
   if (!channel) {
     const type = requiresImageInput ? 'model_capability_unavailable' : 'no_channel';
@@ -1128,7 +1668,10 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
   const pricingRule = getEffectiveMultiplier(db, modelCode, req.userId);
   const fallbackMultipliers = globalMultipliers(pricingRule, model);
   let multipliers = fallbackMultipliers;
-  const channelRequirements = { endpointCapability: 'embeddings' };
+  const channelRequirements = {
+    protocolType: CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
+    endpointCapability: 'embeddings',
+  };
   let channel = selectChannel(db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), channelRequirements);
   if (!channel) return res.status(503).json({ error: { message: '暂无支持向量接口的可用上游渠道', type: 'no_channel' } });
   multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);

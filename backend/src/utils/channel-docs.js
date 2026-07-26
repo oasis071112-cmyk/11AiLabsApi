@@ -79,7 +79,7 @@ console.log(response.choices[0].message.content);`
 `import anthropic
 
 client = anthropic.Anthropic(
-    base_url="${baseUrl}/v1",
+    base_url="${baseUrl}",
     api_key="${keyPrefix}..."  # 替换为你的完整 API Key
 )
 
@@ -95,7 +95,7 @@ print(message.content[0].text)`,
 `import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic({
-  baseURL: "${baseUrl}/v1",
+  baseURL: "${baseUrl}",
   apiKey: "${keyPrefix}..."  // 替换为你的完整 API Key
 });
 
@@ -230,11 +230,17 @@ function getProtocol(channelName) {
   return PROTOCOLS[protocolType];
 }
 
+function getConfiguredProtocol(protocolType, channelName = '') {
+  if (protocolType === 'anthropic') return PROTOCOLS.anthropic;
+  if (protocolType === 'openai_compatible') return PROTOCOLS.openai;
+  return getProtocol(channelName);
+}
+
 /**
  * 生成某渠道下某 API Key 的完整文档数据
  */
-function generateDocs(baseUrl, channelName, keyPrefix, models) {
-  const protocol = getProtocol(channelName);
+function generateDocs(baseUrl, channelName, keyPrefix, models, protocolType = '') {
+  const protocol = getConfiguredProtocol(protocolType, channelName);
   const sampleModel = models.length > 0 ? models[0].model_code : 'your-model';
 
   return {
@@ -247,4 +253,10 @@ function generateDocs(baseUrl, channelName, keyPrefix, models) {
   };
 }
 
-module.exports = { PROTOCOLS, CHANNEL_PROTOCOL_MAP, getProtocol, generateDocs };
+module.exports = {
+  PROTOCOLS,
+  CHANNEL_PROTOCOL_MAP,
+  getProtocol,
+  getConfiguredProtocol,
+  generateDocs,
+};

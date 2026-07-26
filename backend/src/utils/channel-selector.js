@@ -3,6 +3,7 @@
  */
 const axios = require('axios');
 const { channelModelSupportsImageInput, channelSupportsCapability } = require('./channel-capabilities');
+const { upstreamRequestHeaders } = require('./channel-protocols');
 
 // 内置状态（内存中的轮询计数器、熔断状态）
 const state = {
@@ -60,7 +61,7 @@ async function healthCheck(db) {
       try {
         // 轻量检测：GET 渠道根路径或 /models 端点
         const resp = await axios.get(channel.base_url.replace(/\/+$/, '') + '/models', {
-          headers: { 'Authorization': `Bearer ${channel.api_key}`, 'Accept': 'application/json' },
+          headers: upstreamRequestHeaders(channel, { accept: 'application/json' }),
           timeout: 8000,
           validateStatus: s => s < 500,
         });
@@ -137,6 +138,7 @@ function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new
     `).all(routingGroupId, modelCode);
     const eligible = channels.filter(channel => {
       if (excludedChannelIds.has(channel.id)) return false;
+      if (requirements.protocolType && channel.protocol_type !== requirements.protocolType) return false;
       if (requirements.endpointCapability && !channelSupportsCapability(channel, requirements.endpointCapability)) return false;
       if (requirements.requiresImageInput && !channelModelSupportsImageInput(channel)) return false;
       if (requirements.requiredMappedModelCode) {
@@ -168,6 +170,7 @@ function selectChannel(db, modelCode, routingGroupId = null, visitedGroups = new
     .all(model.upstream_model_name || modelCode, modelCode, model.channel_id);
   const eligible = channels.filter(channel => {
     if (excludedChannelIds.has(channel.id)) return false;
+    if (requirements.protocolType && channel.protocol_type !== requirements.protocolType) return false;
     if (requirements.endpointCapability && !channelSupportsCapability(channel, requirements.endpointCapability)) return false;
     if (requirements.requiresImageInput && !channelModelSupportsImageInput({ ...channel, is_multimodal: model.is_multimodal })) return false;
     if (requirements.requiredMappedModelCode) {

@@ -11,6 +11,10 @@ const { encrypt, desensitize } = require('../utils/crypto');
 const { normalizedBaseUrl, supportedPaymentMethods } = require('../utils/easypay');
 const { grantQuotaOrder } = require('../utils/quota-orders');
 const { positiveMultiplier } = require('../utils/channel-multipliers');
+const {
+  isSupportedChannelProtocol,
+  upstreamRequestHeaders,
+} = require('../utils/channel-protocols');
 
 const SUPPORTED_PROVIDERS = ['openai', 'deepseek', 'anthropic'];
 function supportedProvider(value) {
@@ -595,7 +599,7 @@ router.post('/channels/:id/sync-models', authenticate, requireAdmin('admin'), as
   try {
     const baseUrl = channel.base_url.replace(/\/+$/, '');
     const upstream = await axios.get(`${baseUrl}/models`, {
-      headers: { Authorization: `Bearer ${channel.api_key}` },
+      headers: upstreamRequestHeaders(channel, { accept: 'application/json' }),
       timeout: 20000
     });
     const modelCodes = normalizeUpstreamModels(upstream.data);
@@ -748,18 +752,18 @@ router.get('/channels', authenticate, requireAdmin('admin'), (req, res) => {
   res.json({ data: channels.map(channel => ({
       ...channel,
       api_key: desensitize(channel.api_key),
-      capabilities: parseChannelCapabilities(channel.capabilities),
+      capabilities: parseChannelCapabilities(channel.capabilities, channel.protocol_type),
     })) });
 });
 
 router.post('/channels', authenticate, requireAdmin('admin'), (req, res) => {
   const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible', capabilities } = req.body;
   if (!String(channel_name||'').trim() || !String(base_url||'').trim() || !String(api_key||'').trim()) return res.status(400).json({ error: '渠道名称、上游地址和 API Key 不能为空' });
-  if (protocol_type !== 'openai_compatible') return res.status(400).json({ error: '当前版本仅支持 OpenAI 兼容协议' });
+  if (!isSupportedChannelProtocol(protocol_type)) return res.status(400).json({ error: '仅支持 OpenAI 兼容协议或 Anthropic Messages 协议' });
   const multiplierPayload = channelMultiplierPayload(req.body);
   if (multiplierPayload.error) return res.status(400).json({ error: multiplierPayload.error });
   let serializedCapabilities;
-  try { serializedCapabilities = serializeChannelCapabilities(capabilities); }
+  try { serializedCapabilities = serializeChannelCapabilities(capabilities, protocol_type); }
   catch (error) { return res.status(400).json({ error: error.message }); }
   getDatabase().prepare(`INSERT INTO upstream_channels (
     channel_name,base_url,api_key,priority,weight,protocol_type,capabilities,
@@ -810,8 +814,8 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible', capabilities } = req.body;
   const db = getDatabase();
   if (!String(channel_name||'').trim() || !String(base_url||'').trim()) return res.status(400).json({ error: '渠道名称和上游地址不能为空' });
-  if (protocol_type !== 'openai_compatible') return res.status(400).json({ error: '当前版本仅支持 OpenAI 兼容协议' });
-  const existingChannel = db.prepare(`SELECT capabilities,
+  if (!isSupportedChannelProtocol(protocol_type)) return res.status(400).json({ error: '仅支持 OpenAI 兼容协议或 Anthropic Messages 协议' });
+  const existingChannel = db.prepare(`SELECT protocol_type,capabilities,
     billing_multiplier_input,billing_multiplier_output,billing_multiplier_image
     FROM upstream_channels WHERE id=?`).get(req.params.id);
   if (!existingChannel) return res.status(404).json({ error: '渠道不存在' });
@@ -820,8 +824,10 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
   let serializedCapabilities;
   try {
     serializedCapabilities = capabilities === undefined
-      ? (existingChannel.capabilities || JSON.stringify(['chat_completions']))
-      : serializeChannelCapabilities(capabilities);
+      ? (existingChannel.protocol_type === protocol_type
+        ? (existingChannel.capabilities || serializeChannelCapabilities(undefined, protocol_type))
+        : serializeChannelCapabilities(undefined, protocol_type))
+      : serializeChannelCapabilities(capabilities, protocol_type);
   }
   catch (error) { return res.status(400).json({ error: error.message }); }
   if (api_key && api_key.trim()) {
