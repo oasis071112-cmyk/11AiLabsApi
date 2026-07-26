@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { createRequire } from 'node:module';
 import {
   calculateImagePricing,
   calculatePricing,
   extractUsage,
   resolveImageUnitPrice,
 } from '../src/utils/pricing-engine.js';
+
+const require = createRequire(import.meta.url);
+const { channelTokenOfficial } = require('../src/utils/billing-policy.js');
 
 describe('官方定价换算与用户扣费', () => {
   it('美元官方价应先换算为人民币点数，再应用用户倍率', () => {
@@ -166,6 +170,29 @@ describe('官方定价换算与用户扣费', () => {
       cacheCreation1hCost: 28,
       cacheCreationEffectivePrice: 7.75,
     });
+  });
+
+  it('Anthropic 缓存 TTL 价格只作用于原生 Anthropic 渠道', () => {
+    const model = {
+      model_code: 'claude-test',
+      official_provider: 'anthropic',
+      official_currency: 'USD',
+      official_input_price: 1,
+      official_cached_input_price: 0.1,
+      official_output_price: 2,
+      official_unit_tokens: 1_000_000,
+    };
+    const openAiCompatible = channelTokenOfficial(model, {
+      protocol_type: 'openai_compatible',
+    });
+    const nativeAnthropic = channelTokenOfficial(model, {
+      protocol_type: 'anthropic',
+    });
+
+    expect(openAiCompatible.cacheCreation).toBeCloseTo(0.000001, 12);
+    expect(openAiCompatible).not.toHaveProperty('cacheCreation5m');
+    expect(nativeAnthropic.cacheCreation5m).toBeCloseTo(0.00000125, 12);
+    expect(nativeAnthropic.cacheCreation1h).toBeCloseTo(0.000002, 12);
   });
 
   it('解析上游 usage 时保留 Sub2API 使用的缓存和图片 token 桶', () => {

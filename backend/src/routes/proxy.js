@@ -107,7 +107,7 @@ function buildPricing(db, model, usage, multipliers, { channel = null, serviceTi
       output: model.official_output_price,
       cachedInput: model.official_cached_input_price,
       unitTokens: model.official_unit_tokens,
-    }, model);
+    }, model, { nativeAnthropic: channel?.protocol_type === CHANNEL_PROTOCOLS.ANTHROPIC });
   const prices = calculatePricing({
     modelCode: model.model_code,
     ...usage,
@@ -216,7 +216,7 @@ function insertSuccessLog(db, {
       output: model.official_output_price,
       cachedInput: model.official_cached_input_price,
       unitTokens: model.official_unit_tokens,
-      }, model);
+      }, model, { nativeAnthropic: false });
   let billingModelSource = channelBilling.billing_model_source || 'channel_mapped';
   let billingModel = resolveBillingModel(billingModelSource, {
     requested: modelCode,
@@ -423,7 +423,11 @@ function listImageInputs(value, key = '') {
     return [{ url, detail: 'auto' }];
   }
   if (value && typeof value === 'object' && !Array.isArray(value) && value.type === 'document') {
-    return [{ url: '', detail: 'document' }];
+    const source = value.source || {};
+    const data = source.type === 'base64' && typeof source.data === 'string' ? source.data : '';
+    const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0;
+    const decodedBytes = data ? Math.max(0, Math.floor(data.length * 3 / 4) - padding) : 0;
+    return [{ url: source.url || '', detail: 'document', decodedBytes }];
   }
   if (normalizedKey === 'image_url' || normalizedKey === 'input_image') {
     const image = value && typeof value === 'object' ? value : {};
@@ -438,7 +442,13 @@ function estimatedImageReservationTokens(requestBody) {
   return listImageInputs(requestBody.messages ?? requestBody.input ?? requestBody)
     .reduce((total, image) => {
       // PDF/文档的 Base64 是传输载体；按媒体内容预留，不能把它误计为文本 Token。
-      if (String(image.detail).toLowerCase() === 'document') return total + 16_384;
+      if (String(image.detail).toLowerCase() === 'document') {
+        // 本地文档按解码后字节数的 1/4 做保守上界；远程文档无法预读，按 128K Token 预留。
+        const documentTokens = Number(image.decodedBytes) > 0
+          ? Math.ceil(Number(image.decodedBytes) / 4)
+          : 131_072;
+        return total + Math.max(16_384, documentTokens);
+      }
       if (String(image.detail).toLowerCase() === 'low') return total + 512;
       // URL 图片在请求前无法安全取得分辨率，按上游通常会缩放到的 2048px 上限预留。
       const dimensions = imageDimensionsFromDataUrl(image.url) || { width: 2048, height: 2048 };
@@ -460,6 +470,32 @@ function estimatedChatInputTokens(requestBody) {
 function estimatedAnthropicInputTokens(requestBody) {
   return estimatedInputTokens(JSON.stringify(billableTextProjection(requestBody)))
     + estimatedImageReservationTokens(requestBody);
+}
+
+function anthropicReservationUsage(inputTokens, requestBody) {
+  let hasCacheControl = false;
+  let hasOneHourCache = false;
+  const visit = (value, key = '') => {
+    if (hasOneHourCache || value === null || value === undefined) return;
+    if (String(key).toLowerCase() === 'cache_control' && typeof value === 'object') {
+      hasCacheControl = true;
+      if (String(value.ttl || '').toLowerCase() === '1h') hasOneHourCache = true;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, key);
+    } else if (typeof value === 'object') {
+      for (const [childKey, childValue] of Object.entries(value)) visit(childValue, childKey);
+    }
+  };
+  visit(requestBody);
+  if (!hasCacheControl) return { inputTokens, cachedInputTokens: 0 };
+  return {
+    inputTokens,
+    cachedInputTokens: 0,
+    cacheCreationTokens: inputTokens,
+    cacheCreation5mTokens: hasOneHourCache ? 0 : inputTokens,
+    cacheCreation1hTokens: hasOneHourCache ? inputTokens : 0,
+  };
 }
 
 function unsupportedContentError(message) {
@@ -552,6 +588,7 @@ function capChatRequestToReservedBalance(
   requestBody,
   availableBalance,
   inputTokenEstimator = estimatedChatInputTokens,
+  inputReservationUsage = inputTokens => ({ inputTokens, cachedInputTokens: 0 }),
 ) {
   if (billingModeForRequest(channel, false) !== 'token') {
     const reservationAmount = buildRequestPricing(
@@ -563,9 +600,16 @@ function capChatRequestToReservedBalance(
     return { body: { ...requestBody }, reservationAmount };
   }
   const inputTokens = inputTokenEstimator(requestBody);
+  const reservationInputUsage = inputReservationUsage(inputTokens, requestBody);
   const pricingModel = pricingModelForChannel(db, model, channel);
   const pricingOptions = { channel, serviceTier: requestBody.service_tier || '' };
-  const inputCost = buildPricing(db, pricingModel, { inputTokens, cachedInputTokens: 0, outputTokens: 0 }, multipliers, pricingOptions).userCostPoints;
+  const inputCost = buildPricing(
+    db,
+    pricingModel,
+    { ...reservationInputUsage, outputTokens: 0 },
+    multipliers,
+    pricingOptions,
+  ).userCostPoints;
   const outputOneToken = buildPricing(db, pricingModel, { inputTokens: 0, cachedInputTokens: 0, outputTokens: 1 }, multipliers, pricingOptions).userCostPoints;
   if (inputCost + 1e-9 >= availableBalance || outputOneToken <= 0) throw new Error('额度不足以覆盖本次请求的输入与最小输出');
 
@@ -578,8 +622,7 @@ function capChatRequestToReservedBalance(
   });
   body[limitField] = maxTokens;
   const reservationAmount = buildPricing(db, pricingModel, {
-    inputTokens,
-    cachedInputTokens: 0,
+    ...reservationInputUsage,
     outputTokens: maxTokens,
   }, multipliers, pricingOptions).userCostPoints;
   if (reservationAmount <= 0 || reservationAmount > availableBalance + 1e-9) {
@@ -751,6 +794,23 @@ function mergeAnthropicStreamUsage(current, rawUsage, upstreamModel = '') {
     next.cacheCreationTokens = parsed.cacheCreationTokens;
     next.cacheCreation5mTokens = parsed.cacheCreation5mTokens;
     next.cacheCreation1hTokens = parsed.cacheCreation1hTokens;
+  } else {
+    const hasFlat5m = rawUsage.cache_creation_5m_input_tokens !== null
+      && rawUsage.cache_creation_5m_input_tokens !== undefined;
+    const hasFlat1h = rawUsage.cache_creation_1h_input_tokens !== null
+      && rawUsage.cache_creation_1h_input_tokens !== undefined;
+    if (hasFlat5m) {
+      next.cacheCreation5mTokens = parsed.cacheCreation5mTokens;
+    }
+    if (hasFlat1h) {
+      next.cacheCreation1hTokens = parsed.cacheCreation1hTokens;
+    }
+    if ((rawUsage.cache_creation_input_tokens === null
+        || rawUsage.cache_creation_input_tokens === undefined)
+        && (hasFlat5m || hasFlat1h)) {
+      next.cacheCreationTokens = Number(next.cacheCreation5mTokens || 0)
+        + Number(next.cacheCreation1hTokens || 0);
+    }
   }
   next.inputTokens = ordinaryInputTokens
     + Number(next.cachedInputTokens || 0)
@@ -897,7 +957,14 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
   try {
     const available = availableWalletBalance(db, req.userId);
     const capped = capChatRequestToReservedBalance(
-      db, model, channel, multipliers, req.body, available, estimatedAnthropicInputTokens,
+      db,
+      model,
+      channel,
+      multipliers,
+      req.body,
+      available,
+      estimatedAnthropicInputTokens,
+      anthropicReservationUsage,
     );
     upstreamBody = capped.body;
     reservedAmount = reserveWalletBalance(

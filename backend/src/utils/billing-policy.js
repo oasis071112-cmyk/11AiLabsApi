@@ -20,9 +20,13 @@ function billingModeForRequest(channel, isImageRequest = false) {
   return isImageRequest ? 'image' : 'token';
 }
 
-function withProviderCachePricing(official, model, { explicitCacheWrite = false } = {}) {
+function withProviderCachePricing(official, model, {
+  explicitCacheWrite = false,
+  nativeAnthropic = false,
+} = {}) {
   const prices = { ...official };
-  if (String(model?.official_provider || '').trim().toLowerCase() === 'anthropic'
+  if (nativeAnthropic
+      && String(model?.official_provider || '').trim().toLowerCase() === 'anthropic'
       && !explicitCacheWrite) {
     const input = finitePrice(prices.input) ?? 0;
     prices.cacheCreation = input * 1.25;
@@ -54,6 +58,7 @@ function channelTokenOfficial(model, channel = {}, usdCnyRate = 7) {
   }
   official = withProviderCachePricing(official, model, {
     explicitCacheWrite: finitePrice(channel.cache_write_price) !== null,
+    nativeAnthropic: channel.protocol_type === 'anthropic',
   });
   return official;
 }

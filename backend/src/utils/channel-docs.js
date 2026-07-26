@@ -107,7 +107,48 @@ const message = await client.messages.create({
     { role: "user", content: "你好，请介绍一下你自己" }
   ]
 });
-console.log(message.content[0].text);`
+console.log(message.content[0].text);`,
+    countTokensCurl: (baseUrl, model, keyPrefix) =>
+`curl ${baseUrl}/v1/messages/count_tokens \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${keyPrefix}..." \\
+  -H "anthropic-version: 2023-06-01" \\
+  -d '{
+    "model": "${model}",
+    "messages": [
+      {"role": "user", "content": "请统计这段输入的 Token"}
+    ]
+  }'`,
+    countTokensPython: (baseUrl, model, keyPrefix) =>
+`import anthropic
+
+client = anthropic.Anthropic(
+    base_url="${baseUrl}",
+    api_key="${keyPrefix}..."  # 替换为你的完整 API Key
+)
+
+result = client.messages.count_tokens(
+    model="${model}",
+    messages=[
+        {"role": "user", "content": "请统计这段输入的 Token"}
+    ]
+)
+print(result.input_tokens)`,
+    countTokensNodejs: (baseUrl, model, keyPrefix) =>
+`import Anthropic from "@anthropic-ai/sdk";
+
+const client = new Anthropic({
+  baseURL: "${baseUrl}",
+  apiKey: "${keyPrefix}..."  // 替换为你的完整 API Key
+});
+
+const result = await client.messages.countTokens({
+  model: "${model}",
+  messages: [
+    { role: "user", content: "请统计这段输入的 Token" }
+  ]
+});
+console.log(result.input_tokens);`
   },
 
   gemini: {
@@ -240,19 +281,42 @@ function getConfiguredProtocol(protocolType, channelName = '') {
 /**
  * 生成某渠道下某 API Key 的完整文档数据
  */
-function generateDocs(baseUrl, channelName, keyPrefix, models, protocolType = '') {
+function generateDocs(
+  baseUrl,
+  channelName,
+  keyPrefix,
+  models,
+  protocolType = '',
+  enabledCapabilities = [],
+) {
   const protocol = getConfiguredProtocol(protocolType, channelName);
   const sampleModel = models.length > 0 ? models[0].model_code : 'your-model';
+  const capabilities = new Set(enabledCapabilities);
+  const countTokensOnly = protocol.type === 'anthropic'
+    && !capabilities.has('anthropic_messages')
+    && capabilities.has('anthropic_count_tokens');
+  const supportsCountTokens = protocol.type === 'anthropic'
+    && capabilities.has('anthropic_count_tokens');
+  const endpoint = countTokensOnly ? '/v1/messages/count_tokens' : protocol.endpoint;
 
   return {
     protocol_type: protocol.type,
-    protocol_label: protocol.label,
-    endpoint: protocol.endpoint.replace('{model}', sampleModel),
-    additional_endpoints: (protocol.additionalEndpoints || [])
+    protocol_label: countTokensOnly ? 'Anthropic Count Tokens' : protocol.label,
+    endpoint: endpoint.replace('{model}', sampleModel),
+    additional_endpoints: (supportsCountTokens && !countTokensOnly
+      ? protocol.additionalEndpoints || []
+      : [])
       .map(endpoint => endpoint.replace('{model}', sampleModel)),
-    curl: protocol.curl(baseUrl, sampleModel, keyPrefix),
-    python: protocol.python(baseUrl, sampleModel, keyPrefix),
-    nodejs: protocol.nodejs(baseUrl, sampleModel, keyPrefix),
+    enabled_capabilities: [...capabilities],
+    curl: countTokensOnly
+      ? protocol.countTokensCurl(baseUrl, sampleModel, keyPrefix)
+      : protocol.curl(baseUrl, sampleModel, keyPrefix),
+    python: countTokensOnly
+      ? protocol.countTokensPython(baseUrl, sampleModel, keyPrefix)
+      : protocol.python(baseUrl, sampleModel, keyPrefix),
+    nodejs: countTokensOnly
+      ? protocol.countTokensNodejs(baseUrl, sampleModel, keyPrefix)
+      : protocol.nodejs(baseUrl, sampleModel, keyPrefix),
   };
 }
 

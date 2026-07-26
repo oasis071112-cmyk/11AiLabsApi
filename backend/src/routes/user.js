@@ -368,24 +368,55 @@ router.get('/docs/channel', authenticate, (req, res) => {
   const baseUrl = `${protocol}://${host}`;
   const protocolTypes = listRoutingGroupProtocolTypes(db, group.id);
   const protocolDocs = protocolTypes.map(protocolType => {
-    const protocolModels = models.filter(model => protocolType === 'anthropic'
-      ? model.capabilities?.anthropic_messages
-      : model.capabilities?.chat_completions);
+    const messageModels = protocolType === 'anthropic'
+      ? models.filter(model => model.capabilities?.anthropic_messages)
+      : models.filter(model => model.capabilities?.chat_completions);
+    const countTokenModels = protocolType === 'anthropic'
+      ? models.filter(model => model.capabilities?.anthropic_count_tokens)
+      : [];
+    const enabledCapabilities = protocolType === 'anthropic'
+      ? [
+        ...(messageModels.length ? ['anthropic_messages'] : []),
+        ...(countTokenModels.length ? ['anthropic_count_tokens'] : []),
+      ]
+      : ['chat_completions'];
+    if (protocolType === 'anthropic' && enabledCapabilities.length === 0) return null;
+    const protocolModels = messageModels.length ? messageModels : countTokenModels;
+    const documentedModels = protocolType === 'anthropic'
+      ? models.filter(model => model.capabilities?.anthropic_messages
+        || model.capabilities?.anthropic_count_tokens)
+      : protocolModels;
     return {
-      ...generateDocs(baseUrl, channel_name, keyPrefix, protocolModels, protocolType),
-      models: protocolModels.map(model => ({
+      ...generateDocs(
+        baseUrl,
+        channel_name,
+        keyPrefix,
+        protocolModels,
+        protocolType,
+        enabledCapabilities,
+      ),
+      models: documentedModels.map(model => ({
         model_code: model.model_code,
         model_name: model.model_name,
+        capabilities: protocolType === 'anthropic'
+          ? {
+            anthropic_messages: Boolean(model.capabilities?.anthropic_messages),
+            anthropic_count_tokens: Boolean(model.capabilities?.anthropic_count_tokens),
+          }
+          : { chat_completions: Boolean(model.capabilities?.chat_completions) },
       })),
     };
-  });
+  }).filter(Boolean);
+  const documentedProtocolTypes = protocolDocs.map(item => item.protocol_type === 'openai'
+    ? 'openai_compatible'
+    : item.protocol_type);
   const docs = protocolDocs[0];
   res.json({
     channel_name,
     base_url: baseUrl,
     key_prefix_hint: keyPrefix,
     models: models.map(m => ({ model_code: m.model_code, model_name: m.model_name })),
-    supported_protocols: protocolTypes,
+    supported_protocols: documentedProtocolTypes,
     protocol_docs: protocolDocs,
     ...docs
   });

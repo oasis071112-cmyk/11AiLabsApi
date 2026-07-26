@@ -97,10 +97,8 @@ describe('原生 Anthropic 协议', () => {
                 usage: {
                   input_tokens: 200,
                   cache_creation_input_tokens: 20,
-                  cache_creation: {
-                    ephemeral_5m_input_tokens: 12,
-                    ephemeral_1h_input_tokens: 8,
-                  },
+                  cache_creation_5m_input_tokens: 12,
+                  cache_creation_1h_input_tokens: 8,
                   cache_read_input_tokens: 40,
                   output_tokens: 0,
                 },
@@ -412,6 +410,62 @@ describe('原生 Anthropic 协议', () => {
     expect(fallbackDocs.status).toBe(200);
     expect((await fallbackDocs.json()).supported_protocols)
       .toEqual(['openai_compatible', 'anthropic']);
+
+    const createCapabilityDocsGroup = (label, capabilities) => {
+      const channelId = db.prepare(`INSERT INTO upstream_channels
+        (channel_name,base_url,api_key,status,protocol_type,capabilities)
+        VALUES (?,?,?,'active','anthropic',?)`)
+        .run(`${label}-channel`, anthropicBaseUrl, 'anthropic-upstream-secret',
+          JSON.stringify(capabilities)).lastInsertRowid;
+      db.prepare(`INSERT INTO channel_models
+        (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
+        .run(channelId, modelCode, 'claude-anthropic-mapped');
+      const docsGroupName = `${label}-group`;
+      const docsGroupId = db.prepare(`INSERT INTO routing_groups
+        (group_name,status) VALUES (?,'active')`).run(docsGroupName).lastInsertRowid;
+      db.prepare(`INSERT INTO routing_group_channels
+        (group_id,channel_id,status) VALUES (?,?,'active')`).run(docsGroupId, channelId);
+      db.prepare(`INSERT INTO api_keys
+        (user_id,key_name,key_hash,key_prefix,permission_mode,routing_group_id,status)
+        VALUES (?,?,?,?,?,?,'active')`)
+        .run(userId, label, bcrypt.hashSync(`${apiKey}-${label}`, 4),
+          `sk-${label}`, 'group_dynamic', docsGroupId);
+      return docsGroupName;
+    };
+    const messagesOnlyGroup = createCapabilityDocsGroup(
+      `messages-only-${Date.now()}`,
+      ['anthropic_messages'],
+    );
+    const countOnlyGroup = createCapabilityDocsGroup(
+      `count-only-${Date.now()}`,
+      ['anthropic_count_tokens'],
+    );
+
+    const messagesOnlyDocs = await request(
+      `/api/user/docs/channel?channel_name=${encodeURIComponent(messagesOnlyGroup)}`,
+      { headers: { Authorization: `Bearer ${userToken}` } },
+    );
+    const messagesOnlyPayload = await messagesOnlyDocs.json();
+    expect(messagesOnlyPayload.protocol_docs[0]).toMatchObject({
+      endpoint: '/v1/messages',
+      additional_endpoints: [],
+      enabled_capabilities: ['anthropic_messages'],
+    });
+
+    const countOnlyDocs = await request(
+      `/api/user/docs/channel?channel_name=${encodeURIComponent(countOnlyGroup)}`,
+      { headers: { Authorization: `Bearer ${userToken}` } },
+    );
+    const countOnlyPayload = await countOnlyDocs.json();
+    expect(countOnlyPayload.protocol_docs[0]).toMatchObject({
+      endpoint: '/v1/messages/count_tokens',
+      additional_endpoints: [],
+      enabled_capabilities: ['anthropic_count_tokens'],
+      protocol_label: 'Anthropic Count Tokens',
+    });
+    expect(countOnlyPayload.protocol_docs[0].curl).toContain('/v1/messages/count_tokens');
+    expect(countOnlyPayload.protocol_docs[0].python).toContain('messages.count_tokens');
+    expect(countOnlyPayload.protocol_docs[0].nodejs).toContain('messages.countTokens');
   });
 
   it('Anthropic 端点的鉴权失败使用原生错误结构', async () => {
@@ -606,6 +660,7 @@ describe('原生 Anthropic 协议', () => {
   });
 
   it('Base64 document 按媒体预占而不是作为海量文本误判余额不足', async () => {
+    const db = getDatabase();
     const response = await request('/v1/messages', {
       method: 'POST',
       headers: {
@@ -632,6 +687,42 @@ describe('原生 Anthropic 协议', () => {
     const raw = await response.text();
     expect(response.status, raw).toBe(200);
     expect(JSON.parse(raw).type).toBe('message');
+    const latestLog = db.prepare(`SELECT request_id FROM api_request_logs
+      WHERE api_key_id=? AND status='success' ORDER BY id DESC`).get(apiKeyId);
+    const freeze = db.prepare(`SELECT amount FROM wallet_transactions
+      WHERE related_request_id=? AND transaction_type='freeze'`).get(latestLog.request_id);
+    expect(freeze.amount).toBeGreaterThan(0.2);
+  });
+
+  it('包含 1h cache_control 时按缓存写入上界增加预冻结', async () => {
+    const db = getDatabase();
+    const invoke = async (cacheControl = null) => {
+      const systemBlock = { type: 'text', text: 'Use the same reservation input.' };
+      if (cacheControl) systemBlock.cache_control = cacheControl;
+      const response = await request('/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: modelCode,
+          max_tokens: 10,
+          system: [systemBlock],
+          messages: [{ role: 'user', content: 'Compare reservation only.' }],
+        }),
+      });
+      expect(response.status).toBe(200);
+      await response.json();
+      const log = db.prepare(`SELECT request_id FROM api_request_logs
+        WHERE api_key_id=? AND status='success' ORDER BY id DESC`).get(apiKeyId);
+      return db.prepare(`SELECT amount FROM wallet_transactions
+        WHERE related_request_id=? AND transaction_type='freeze'`).get(log.request_id).amount;
+    };
+
+    const ordinaryReservation = await invoke();
+    const oneHourReservation = await invoke({ type: 'ephemeral', ttl: '1h' });
+    expect(oneHourReservation).toBeGreaterThan(ordinaryReservation);
   });
 
   it('模型列表暴露 Anthropic 原生接口能力但不要求用户选择协议', async () => {
