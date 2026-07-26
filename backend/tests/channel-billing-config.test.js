@@ -52,6 +52,18 @@ describe('Sub2API 渠道模型计费配置', () => {
     });
   }
 
+  it('第一轮不在渠道列表接口中提前暴露渠道倍率字段', async () => {
+    const response = await request('/api/admin/channels');
+    expect(response.status).toBe(200);
+
+    const payload = await response.json();
+    const channel = payload.data.find(item => item.id === channelId);
+    expect(channel).toBeTruthy();
+    expect(channel).not.toHaveProperty('billing_multiplier_input');
+    expect(channel).not.toHaveProperty('billing_multiplier_output');
+    expect(channel).not.toHaveProperty('billing_multiplier_image');
+  });
+
   it('保存并返回 token/image/per_request 与计费模型来源配置', async () => {
     const response = await request(`/api/admin/channels/${channelId}/models`, {
       method: 'PUT',

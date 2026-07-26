@@ -724,11 +724,17 @@ router.get('/channels', authenticate, requireAdmin('admin'), (req, res) => {
     LEFT JOIN routing_groups rg ON rg.id=rgc.group_id
     LEFT JOIN channel_models cm ON cm.channel_id=uc.id AND cm.status='active'
     GROUP BY uc.id ORDER BY uc.priority DESC,uc.id ASC`).all();
-  res.json({ data: channels.map(c=>({
-    ...c,
-    api_key: desensitize(c.api_key),
-    capabilities: parseChannelCapabilities(c.capabilities),
-  })) });
+  res.json({ data: channels.map(channel => {
+    const payload = { ...channel };
+    delete payload.billing_multiplier_input;
+    delete payload.billing_multiplier_output;
+    delete payload.billing_multiplier_image;
+    return {
+      ...payload,
+      api_key: desensitize(channel.api_key),
+      capabilities: parseChannelCapabilities(channel.capabilities),
+    };
+  }) });
 });
 
 router.post('/channels', authenticate, requireAdmin('admin'), (req, res) => {
