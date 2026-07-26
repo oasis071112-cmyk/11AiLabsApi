@@ -348,6 +348,7 @@ function createTables() {
     input_tokens INTEGER DEFAULT 0, output_tokens INTEGER DEFAULT 0,
     total_cost REAL DEFAULT 0, status TEXT DEFAULT 'pending' CHECK(status IN ('success','failed','blocked')),
     error_message TEXT, error_type TEXT, request_ip TEXT, latency_ms INTEGER DEFAULT 0,
+    request_protocol TEXT, upstream_protocol TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
   sqlDb.run('CREATE INDEX IF NOT EXISTS idx_arl_user ON api_request_logs(user_id)');
@@ -386,11 +387,14 @@ function createTables() {
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_cache_creation_price REAL'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_image_input_price REAL'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_image_output_price REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN request_protocol TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN upstream_protocol TEXT'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS upstream_channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT, channel_name TEXT NOT NULL,
     base_url TEXT NOT NULL, api_key TEXT NOT NULL, model_mapping TEXT,
     priority INTEGER DEFAULT 0, weight INTEGER DEFAULT 100,
+    billing_multiplier_input REAL, billing_multiplier_output REAL, billing_multiplier_image REAL,
     status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive','error')),
     health_score REAL DEFAULT 100, last_check_time DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -403,6 +407,9 @@ function createTables() {
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_successes INTEGER DEFAULT 0"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN protocol_type TEXT DEFAULT 'openai_compatible'"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN capabilities TEXT DEFAULT '[\"chat_completions\"]'"); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE upstream_channels ADD COLUMN billing_multiplier_input REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE upstream_channels ADD COLUMN billing_multiplier_output REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE upstream_channels ADD COLUMN billing_multiplier_image REAL'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS routing_groups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
