@@ -1,57 +1,109 @@
 <template>
-  <section v-if="showDesktopEmptyState" class="analysis-empty-state">
-    <div class="analysis-empty-icon"><BarChart3 :size="24"/></div>
-    <div>
-      <h3>暂无调用数据</h3>
-      <p>创建 API Key 并完成一次调用后，这里将展示消费趋势、Token 消耗、费用分布和模型排行。</p>
+  <div class="analysis-layout">
+    <section class="metrics-panel" aria-label="调用概览">
+      <div class="metric-item">
+        <div class="metric-icon metric-icon-cost"><TrendingUp :size="18"/></div>
+        <div>
+          <span class="metric-label">累计消费</span>
+          <strong class="metric-value">{{ formatPoints(totalCost) }} <small>点</small></strong>
+        </div>
+      </div>
+      <div class="metric-item">
+        <div class="metric-icon metric-icon-token"><Hash :size="18"/></div>
+        <div>
+          <span class="metric-label">Token 消耗</span>
+          <strong class="metric-value">{{ formatCompact(totalTokens) }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <div class="charts-grid">
+      <section class="chart-card">
+        <div class="chart-header"><ChartPie :size="15"/><span>费用分布</span></div>
+        <div v-if="hasCostData" class="chart-body chart-body-doughnut">
+          <Doughnut :data="costChartData" :options="costChartOptions"/>
+        </div>
+        <div v-else class="empty">暂无费用数据</div>
+      </section>
+      <section class="chart-card">
+        <div class="chart-header"><BarChart3 :size="15"/><span>模型调用排行</span></div>
+        <div v-if="hasCallData" class="chart-body chart-body-bar">
+          <Bar :data="rankChartData" :options="rankChartOptions"/>
+        </div>
+        <div v-else class="empty">暂无调用数据</div>
+      </section>
     </div>
-    <router-link to="/keys" class="analysis-empty-action">前往创建 API Key</router-link>
-  </section>
-  <el-row v-else :gutter="20" class="charts-row">
-    <el-col :xs="24" :sm="12" :lg="6"><ChartShell title="消费趋势" :icon="TrendingUp" color="#409eff" :has-data="dailyData.length>0"><v-chart :option="costGaugeOption" autoresize class="chart"/></ChartShell></el-col>
-    <el-col :xs="24" :sm="12" :lg="6"><ChartShell title="Token 消耗" :icon="Hash" color="#22c55e" :has-data="dailyData.length>0"><v-chart :option="tokenGaugeOption" autoresize class="chart"/></ChartShell></el-col>
-    <el-col :xs="24" :sm="12" :lg="6"><ChartShell title="费用分布" :icon="ChartPie" color="#f59e0b" :has-data="Boolean(stats.model_usage?.length)"><v-chart :option="modelPieOption" autoresize class="chart"/></ChartShell></el-col>
-    <el-col :xs="24" :sm="12" :lg="6"><ChartShell title="调用排行" :icon="BarChart3" color="#8b5cf6" :has-data="Boolean(stats.model_usage?.length)"><v-chart :option="modelRankOption" autoresize class="chart"/></ChartShell></el-col>
-  </el-row>
+  </div>
 </template>
 
 <script setup>
-import { computed, h } from 'vue'
-import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import { GaugeChart, PieChart } from 'echarts/charts'
-import { TooltipComponent } from 'echarts/components'
+import { computed } from 'vue'
+import { Bar, Doughnut } from 'vue-chartjs'
+import {
+  ArcElement,
+  BarElement,
+  CategoryScale,
+  Chart as ChartJS,
+  Legend,
+  LinearScale,
+  Tooltip,
+} from 'chart.js'
 import { TrendingUp, Hash, ChartPie, BarChart3 } from '@lucide/vue'
-import { useMobile } from '@/composables/useMobile'
 
-use([CanvasRenderer, GaugeChart, PieChart, TooltipComponent])
+ChartJS.register(ArcElement,BarElement,CategoryScale,LinearScale,Tooltip,Legend)
+
 const props=defineProps({stats:{type:Object,default:()=>({})},dailyData:{type:Array,default:()=>[]}})
-const isMobile=useMobile()
-const showDesktopEmptyState=computed(()=>!isMobile.value&&!props.dailyData.length&&!props.stats.model_usage?.length&&!Number(props.stats.today_calls||0))
-const ChartShell=(shellProps,{slots})=>h('div',{class:'chart-card'},[
-  h('div',{class:'chart-header'},[h(shellProps.icon,{size:14,color:shellProps.color}),h('span',shellProps.title)]),
-  h('div',{class:'chart-body'},shellProps.hasData?slots.default?.():h('div',{class:'empty'},'暂无数据')),
-])
-ChartShell.props={title:String,icon:Object,color:String,hasData:Boolean}
-
+const palette=['#7D9B76','#C4A35A','#7A8FA3','#9B7E76','#8E83A6','#6E9B91','#B28A6A','#6F8769']
+const modelUsage=computed(()=>(props.stats.model_usage||[]).slice(0,8))
+const totalCost=computed(()=>Number(props.stats.total_consumption||0))
 const totalTokens=computed(()=>Number(props.stats.input_tokens||0)+Number(props.stats.output_tokens||0))
-const costGaugeOption=computed(()=>{
-  const spent=Number(props.stats.total_consumption||0),cap=Math.max(spent*1.5,10),pct=Math.min(spent/cap,1)
-  return {series:[{type:'gauge',radius:'85%',center:['50%','55%'],startAngle:210,endAngle:-30,min:0,max:Number(cap.toFixed(1)),splitNumber:5,axisLine:{lineStyle:{width:14,color:[[pct,'#409eff'],[1,'#f1f5f9']]}},axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},pointer:{length:'65%',width:6,itemStyle:{color:'#1e293b'}},detail:{offsetCenter:[0,'65%'],valueAnimation:true,formatter:'{value} 点',fontSize:14,fontWeight:700,color:'#1e293b'},data:[{value:Number(spent.toFixed(2))}]}]}
+const hasCostData=computed(()=>modelUsage.value.some(item=>Number(item.cost||0)>0))
+const hasCallData=computed(()=>modelUsage.value.some(item=>Number(item.calls||0)>0))
+const formatPoints=value=>Number(value||0).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:4})
+const formatCompact=value=>Intl.NumberFormat('zh-CN',{notation:'compact',maximumFractionDigits:1}).format(Number(value||0))
+
+const costChartData=computed(()=>({
+  labels:modelUsage.value.map(item=>item.model_code),
+  datasets:[{
+    data:modelUsage.value.map(item=>Number(item.cost||0)),
+    backgroundColor:modelUsage.value.map((_,index)=>palette[index%palette.length]),
+    borderColor:'#FFFFFF',
+    borderWidth:3,
+    hoverOffset:4,
+  }],
+}))
+const costChartOptions={
+  responsive:true,
+  maintainAspectRatio:false,
+  cutout:'64%',
+  animation:{duration:220},
+  plugins:{
+    legend:{position:'bottom',labels:{boxWidth:9,boxHeight:9,usePointStyle:true,padding:14,color:'#5C635A',font:{size:11}}},
+    tooltip:{callbacks:{label:context=>` ${context.label}: ${formatPoints(context.raw)} 点`}},
+  },
+}
+const rankChartData=computed(()=>{
+  const ranked=[...modelUsage.value].sort((a,b)=>Number(b.calls||0)-Number(a.calls||0))
+  return {
+    labels:ranked.map(item=>item.model_code),
+    datasets:[{data:ranked.map(item=>Number(item.calls||0)),backgroundColor:'#7D9B76',borderRadius:5,borderSkipped:false,barThickness:14}],
+  }
 })
-const tokenGaugeOption=computed(()=>{
-  const tokens=totalTokens.value,cap=Math.max(tokens*1.2,10000),pct=Math.min(tokens/cap,1),label=tokens>=1e6?`${(tokens/1e6).toFixed(1)}M`:tokens>=1000?`${(tokens/1000).toFixed(1)}K`:String(tokens)
-  return {series:[{type:'gauge',radius:'85%',center:['50%','55%'],startAngle:210,endAngle:-30,min:0,max:100,axisLine:{lineStyle:{width:14,color:[[pct,'#22c55e'],[1,'#f1f5f9']]}},axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},pointer:{show:false},detail:{offsetCenter:[0,'8%'],formatter:`${label}\nToken`,fontSize:16,lineHeight:24,fontWeight:700,color:'#1e293b'},data:[{value:Number((pct*100).toFixed(1))}]}]}
-})
-const modelPieOption=computed(()=>({tooltip:{trigger:'item',formatter:'{b}: {c} 点',confine:true},series:[{type:'pie',radius:['45%','75%'],center:['50%','50%'],itemStyle:{borderRadius:4,borderColor:'#fff',borderWidth:3},label:{show:false},data:(props.stats.model_usage||[]).slice(0,6).map((item,index)=>({name:item.model_code,value:item.cost,itemStyle:{color:['#409eff','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4'][index%6]}}))}]}))
-const modelRankOption=computed(()=>{
-  const top=(props.stats.model_usage||[]).slice(0,8),first=top[0],total=top.reduce((sum,item)=>sum+Number(item.calls||0),0)||1,pct=first?Number(first.calls||0)/total*100:0
-  return {series:[{type:'gauge',radius:'80%',center:['50%','55%'],startAngle:210,endAngle:-30,min:0,max:100,axisLine:{lineStyle:{width:16,color:[[pct/100,'#8b5cf6'],[1,'#f1f5f9']]}},axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},pointer:{length:'60%',width:6,itemStyle:{color:'#1e293b'}},detail:{offsetCenter:[0,'68%'],valueAnimation:true,formatter:`{value}%\n{a|${first?.model_code||''}}`,rich:{a:{fontSize:10,color:'#64748b',padding:[3,0,0,0]}},fontSize:18,fontWeight:800,color:'#8b5cf6'},data:[{value:Number(pct.toFixed(1))}]}]}
-})
+const rankChartOptions={
+  indexAxis:'y',
+  responsive:true,
+  maintainAspectRatio:false,
+  animation:{duration:220},
+  scales:{
+    x:{beginAtZero:true,ticks:{precision:0,color:'#969E94',font:{size:10}},grid:{color:'#EEF1EC'},border:{display:false}},
+    y:{ticks:{color:'#5C635A',font:{size:11},autoSkip:false,callback:function(value){const label=this.getLabelForValue(value);return label.length>18?`${label.slice(0,16)}…`:label}},grid:{display:false},border:{display:false}},
+  },
+  plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>items[0]?.label||'',label:context=>` 调用 ${Number(context.raw||0).toLocaleString()} 次`}}},
+}
 </script>
 
 <style scoped>
-.charts-row{margin-bottom:14px}.chart-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.chart-header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:600;color:#0f172a}.chart-body{display:flex;align-items:center;justify-content:center;min-height:220px;padding:6px 10px}.chart{height:220px;width:100%}.empty{color:#94a3b8;font-size:13px}.analysis-empty-state{min-height:168px;margin-bottom:14px;padding:26px 30px;display:flex;align-items:center;gap:18px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.analysis-empty-icon{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:12px;background:#eff6ff;color:#409eff}.analysis-empty-state h3{margin:0 0 5px;color:#0f172a;font-size:16px}.analysis-empty-state p{margin:0;color:#64748b;font-size:13px;line-height:1.65}.analysis-empty-action{margin-left:auto;flex:0 0 auto;padding:8px 12px;border-radius:8px;background:#409eff;color:#fff;font-size:13px;font-weight:600;text-decoration:none}
-@media(max-width:768px){.charts-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0 0 8px!important}.charts-row>:deep(.el-col){width:auto;max-width:100%;padding:0!important}.chart-card{height:100%;margin:0;border-radius:10px}.chart-header{padding:9px 8px;font-size:12px}.chart-body{min-height:148px;padding:2px}.chart{height:148px}.empty{font-size:12px}}
+.analysis-layout{margin-bottom:14px}.metrics-panel{display:flex;gap:1px;margin-bottom:14px;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius);background:var(--border);box-shadow:var(--shadow-sm)}.metric-item{display:flex;align-items:center;gap:12px;flex:1;min-width:0;padding:16px 18px;background:var(--bg-card)}.metric-icon{width:38px;height:38px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:10px}.metric-icon-cost{background:#eef3ec;color:var(--primary-dark)}.metric-icon-token{background:#f5f0e3;color:#8a713b}.metric-label{display:block;margin-bottom:2px;color:var(--text-muted);font-size:12px;font-weight:600}.metric-value{display:block;color:var(--text-primary);font-size:21px;line-height:1.2;font-variant-numeric:tabular-nums;letter-spacing:-.025em}.metric-value small{font-size:12px;font-weight:600;color:var(--text-secondary)}.charts-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.chart-card{min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-card);box-shadow:var(--shadow-sm)}.chart-header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text-primary);font-size:13px;font-weight:650}.chart-header svg{color:var(--primary-dark)}.chart-body{position:relative;width:100%;padding:14px}.chart-body-doughnut{height:286px}.chart-body-bar{height:286px}.empty{height:286px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px}
+@media(max-width:768px){.analysis-layout{margin-bottom:8px}.metrics-panel{margin-bottom:8px}.metric-item{padding:12px 10px;gap:8px}.metric-icon{width:32px;height:32px;border-radius:8px}.metric-value{font-size:16px}.charts-grid{grid-template-columns:1fr;gap:8px}.chart-body-doughnut,.chart-body-bar,.empty{height:238px}.chart-header{padding:10px 12px}}
+@media(prefers-reduced-motion:reduce){.chart-body{transition:none}}
 </style>

@@ -179,84 +179,6 @@ const billingSum = computed(() => point(selectedBilling.value?.billing_detail?.c
 const billingTitle = computed(()=>({snapshot:'本次调用采用的价格快照',image_snapshot:'本次图片生成价格快照',fixed_snapshot:'本次固定请求价格快照',legacy_zero:'历史 0 扣费计算过程',legacy:'旧版计费计算过程'}[selectedBilling.value?.billing_detail?.mode]||'计费计算过程'))
 const billingVersion = computed(()=>({snapshot:'调用时官方价格',image_snapshot:'按实际图片结果计费',fixed_snapshot:'按每请求固定价计费',legacy_zero:'历史实际 0 扣费',legacy:'旧版价格'}[selectedBilling.value?.billing_detail?.mode]||'未知'))
 
-// ============ 球型 1: 消费仪表盘 ============
-const costGaugeOption = computed(() => {
-  const spent = stats.value.total_consumption || 0
-  const cap = Math.max(spent * 1.5, 10)
-  const pct = Math.min((spent / cap) * 100, 100)
-  return {
-    series: [{
-      type: 'gauge', radius: '85%', center: ['50%', '55%'],
-      startAngle: 210, endAngle: -30,
-      min: 0, max: cap.toFixed(1),
-      splitNumber: 5,
-      axisLine: { lineStyle: { width: 14, color: [[pct/100, '#409eff'], [1, '#f1f5f9']] } },
-      axisTick: { show: false },
-      splitLine: { show: false },
-      axisLabel: { show: false },
-      pointer: { length: '65%', width: 6, itemStyle: { color: '#1e293b' } },
-      detail: { offsetCenter: [0, '65%'], valueAnimation: true, formatter: '{value} 点', fontSize: 14, fontWeight: 700, color: '#1e293b' },
-      data: [{ value: parseFloat(spent.toFixed(2)) }]
-    }]
-  }
-})
-
-// ============ 球型 2: Token 水球 ============
-const tokenLiquidOption = computed(() => {
-  const t = totalTokens.value
-  const max = Math.max(t * 1.2, 10000)
-  const pct = Math.min(t / max, 1)
-  return {
-    series: [{
-      type: 'liquidFill', radius: '75%', center: ['50%', '50%'],
-      data: [pct, pct * 0.9, pct * 0.8],
-      color: [{ type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#22c55e' }, { offset: 1, color: '#16a34a' }] }],
-      backgroundStyle: { color: '#f1f5f9' },
-      outline: { show: false },
-      label: { formatter: () => { const v = totalTokens.value; return (v>=1e6?(v/1e6).toFixed(1)+'M Token':v>=1000?(v/1000).toFixed(1)+'K Token':v+' Token') }, fontSize: 14, fontWeight: 700, color: '#1e293b' },
-      shape: 'circle', waveAnimation: true, animationDuration: 3000, animationDurationUpdate: 1000
-    }]
-  }
-})
-
-// ============ 球型 3: 费用分布 3D 环形 ============
-const modelPie3DOption = computed(() => {
-  const top = stats.value.model_usage?.slice(0, 6) || []
-  const colors = ['#409eff', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
-  return {
-    tooltip: { trigger: 'item', formatter: '{b}: {c} 点', confine: true },
-    series: [{
-      type: 'pie', radius: ['45%', '75%'], center: ['50%', '50%'],
-      avoidLabelOverlap: false, itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 3 },
-      label: { show: false },
-      emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold' }, scaleSize: 8 },
-      data: top.map((m, i) => ({ name: m.model_code, value: m.cost, itemStyle: { color: colors[i % colors.length] } }))
-    }]
-  }
-})
-
-// ============ 球型 4: 调用排行仪表盘 ============
-const modelRankGaugeOption = computed(() => {
-  const top = stats.value.model_usage?.slice(0, 8) || []
-  const top1 = top[0]
-  const total = top.reduce((s, m) => s + m.calls, 0) || 1
-  const pct = top1 ? (top1.calls / total) * 100 : 0
-  return {
-    series: [{
-      type: 'gauge', radius: '80%', center: ['50%', '55%'],
-      startAngle: 210, endAngle: -30,
-      min: 0, max: 100,
-      axisLine: { lineStyle: { width: 16, color: [[pct/100, '#8b5cf6'], [1, '#f1f5f9']] } },
-      axisTick: { show: false },
-      splitLine: { show: false },
-      axisLabel: { show: false },
-      pointer: { length: '60%', width: 6, itemStyle: { color: '#1e293b' } },
-      detail: { offsetCenter: [0, '68%'], valueAnimation: true, formatter: `{value}%\n{a|${top1?.model_code||''}}`, rich: { value: { fontSize: 18, fontWeight: 800, color: '#8b5cf6' }, a: { fontSize: 10, color: '#64748b', padding: [3,0,0,0] } }, fontSize: 18, fontWeight: 800, color: '#8b5cf6' },
-      data: [{ value: parseFloat(pct.toFixed(1)), name: 'TOP1 占比' }]
-    }]
-  }
-})
-
 function statusLabel(s) { const m = { success: '成功', failed: '失败', blocked: '拦截' }; return m[s] || s }
 function billingModeType(mode){return mode==='image'?'warning':mode==='per_request'?'success':'info'}
 function billingModeLabel(row){return row.billing_mode==='image'?`图片 ${row.image_count||0} 张`:row.billing_mode==='per_request'?'每请求':'Token'}
@@ -316,7 +238,7 @@ onUnmounted(()=>{clearInterval(refreshTimer)})
 .chart-body { padding: 8px 12px 8px 12px }
 .no-detail { color: #94a3b8; font-size: 11px; }
 .chart-sphere { display: flex; align-items: center; justify-content: center; min-height: 240px }
-.charts-loading{height:84px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #e2e8f0;border-radius:10px;color:#64748b;margin-bottom:16px}.mobile-log-list{display:none}.mobile-log-card{border:1px solid #e2e8f0;border-radius:12px;padding:13px;background:#fff}.mobile-log-head{display:flex;justify-content:space-between;gap:8px}.mobile-log-time{font-size:11px;color:#94a3b8;margin:7px 0}.mobile-log-usage{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}.mobile-log-usage span{background:#f8fafc;border-radius:8px;padding:7px;font-size:11px;color:#64748b}.mobile-log-usage span:last-child{grid-column:1/-1}.mobile-log-usage strong{display:block;color:#0f172a;font-size:12px}.mobile-log-card .billing-detail-button{width:100%}
+.charts-loading{height:84px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #e2e8f0;border-radius:10px;color:#64748b;margin-bottom:16px}.analysis-empty-state{min-height:168px;margin-bottom:14px;padding:26px 30px;display:flex;align-items:center;gap:18px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}.analysis-empty-icon{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:12px;background:#eef3ec;color:var(--primary-dark)}.analysis-empty-state h3{margin:0 0 5px;color:var(--text-primary);font-size:16px}.analysis-empty-state p{margin:0;color:var(--text-secondary);font-size:13px;line-height:1.65}.analysis-empty-action{margin-left:auto;flex:0 0 auto;padding:8px 12px;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;text-decoration:none}.mobile-log-list{display:none}.mobile-log-card{border:1px solid #e2e8f0;border-radius:12px;padding:13px;background:#fff}.mobile-log-head{display:flex;justify-content:space-between;gap:8px}.mobile-log-time{font-size:11px;color:#94a3b8;margin:7px 0}.mobile-log-usage{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}.mobile-log-usage span{background:#f8fafc;border-radius:8px;padding:7px;font-size:11px;color:#64748b}.mobile-log-usage span:last-child{grid-column:1/-1}.mobile-log-usage strong{display:block;color:#0f172a;font-size:12px}.mobile-log-card .billing-detail-button{width:100%}
 .billing-summary{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:10px;margin-bottom:18px}.billing-summary>div,.snapshot-grid>div{background:#f8fafc;border-radius:9px;padding:11px 12px}.billing-summary span,.snapshot-grid span{display:block;font-size:11px;color:#94a3b8;margin-bottom:4px}.billing-summary strong,.snapshot-grid strong{color:#0f172a;font-size:13px}.billing-total{background:#eff6ff!important}.billing-total strong{color:#2563eb!important;font-size:16px!important}.snapshot-title,.breakdown-title{font-size:13px;font-weight:650;color:#334155;margin:16px 0 9px}.snapshot-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.breakdown-list{display:grid;gap:9px}.breakdown-item{border:1px solid #e2e8f0;border-radius:9px;padding:11px 13px}.breakdown-head{display:flex;justify-content:space-between;margin-bottom:7px;color:#334155}.breakdown-head strong{color:#2563eb}.breakdown-item code{display:block;background:#f8fafc;color:#475569;padding:8px;border-radius:6px;font-size:12px;white-space:normal;line-height:1.6}.billing-result{display:flex;align-items:center;gap:12px;background:#0f172a;color:#fff;border-radius:9px;padding:13px 15px;margin-top:12px}.billing-result strong{font-size:17px;color:#93c5fd}.billing-result .equals{margin-left:auto;color:#cbd5e1;font-size:12px}.billing-note{font-size:11px;color:#94a3b8;margin-top:9px}
 @media(max-width:768px){
   .kpi-row{margin-left:0!important;margin-right:0!important;row-gap:0!important;overflow:hidden;border-radius:12px;margin-bottom:10px}

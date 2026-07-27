@@ -22,12 +22,17 @@ const styleBytes = assetSize(entryStyle)
 const oversizedElementBundle = fs.readdirSync(path.join(distDir, 'assets'))
   .find((name) => /^element-plus-.*\.js$/.test(name))
 const preloadedChartBundle = html.match(/<link[^>]+rel="modulepreload"[^>]+href="[^"]*(?:echarts|chart)[^"]*"/i)?.[0]
+const packageJson = JSON.parse(fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8'))
+const staleChartDependency = ['vue-echarts', 'echarts-liquidfill'].find((name) => packageJson.dependencies?.[name])
 
 if (oversizedElementBundle) {
   throw new Error(`手机首屏不允许整包加载 Element Plus：${oversizedElementBundle}`)
 }
 if (preloadedChartBundle) {
   throw new Error(`登录首屏不允许预加载图表依赖：${preloadedChartBundle}`)
+}
+if (staleChartDependency) {
+  throw new Error(`前端依赖仍包含已废弃的用户图表包：${staleChartDependency}`)
 }
 if (scriptBytes > 250_000) {
   throw new Error(`手机首屏入口 JS 超过 250 KB：${scriptBytes} bytes`)
