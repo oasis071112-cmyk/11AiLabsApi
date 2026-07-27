@@ -184,6 +184,56 @@ function listUserModelCapabilities(db, userId) {
   return capabilities;
 }
 
+function listRoutingGroupChannelsForModel(db, groupId, modelCode, visitedGroups = new Set()) {
+  if (!groupId || visitedGroups.has(groupId)) return [];
+  visitedGroups.add(groupId);
+  const group = db.prepare(`SELECT fallback_group_id,restrict_models
+    FROM routing_groups WHERE id=? AND status='active'`).get(groupId);
+  if (!group) return [];
+  if (Number(group.restrict_models) === 1) {
+    const allowed = db.prepare(`SELECT id FROM routing_group_models
+      WHERE group_id=? AND model_code=? AND status='active'`).get(groupId, modelCode);
+    if (!allowed) {
+      return group.fallback_group_id
+        ? listRoutingGroupChannelsForModel(db, group.fallback_group_id, modelCode, visitedGroups)
+        : [];
+    }
+  }
+  const channels = db.prepare(`SELECT uc.*
+    FROM routing_group_channels rgc
+    JOIN upstream_channels uc ON uc.id=rgc.channel_id AND uc.status='active'
+    JOIN channel_models cm ON cm.channel_id=uc.id AND cm.model_code=? AND cm.status='active'
+    WHERE rgc.group_id=? AND rgc.status='active'
+    ORDER BY rgc.priority DESC,rgc.id ASC`).all(modelCode, groupId);
+  if (!group.fallback_group_id) return channels;
+  const fallbackChannels = listRoutingGroupChannelsForModel(
+    db, group.fallback_group_id, modelCode, visitedGroups,
+  );
+  const byId = new Map(channels.map(channel => [channel.id, channel]));
+  for (const channel of fallbackChannels) byId.set(channel.id, channel);
+  return [...byId.values()];
+}
+
+function findUserChannelForModel(db, userId, modelCode) {
+  const apiKeys = db.prepare(`SELECT id,routing_group_id,permission_mode FROM api_keys
+    WHERE user_id=? AND status='active' ORDER BY id ASC`).all(userId);
+  for (const apiKey of apiKeys) {
+    if (!listModelsForApiKey(db, apiKey).some(model => model.model_code === modelCode)) continue;
+    if (apiKey.routing_group_id) {
+      const channel = listRoutingGroupChannelsForModel(
+        db, apiKey.routing_group_id, modelCode,
+      )[0];
+      if (channel) return channel;
+    }
+  }
+  const legacyModel = db.prepare(`SELECT channel_id FROM models
+    WHERE model_code=? AND status='active'`).get(modelCode);
+  return legacyModel?.channel_id
+    ? db.prepare("SELECT * FROM upstream_channels WHERE id=? AND status='active'")
+      .get(legacyModel.channel_id)
+    : null;
+}
+
 module.exports = {
   listRoutingGroupModels,
   listRoutingGroupProtocolTypes,
@@ -191,4 +241,6 @@ module.exports = {
   apiKeyCanUseModel,
   listSystemModelCapabilities,
   listUserModelCapabilities,
+  listRoutingGroupChannelsForModel,
+  findUserChannelForModel,
 };

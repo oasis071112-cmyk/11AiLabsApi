@@ -13,6 +13,13 @@ const { grantQuotaOrder } = require('../utils/quota-orders');
 const { positiveMultiplier } = require('../utils/channel-multipliers');
 const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
 const {
+  reconcileModelStatus,
+  routedModelCodesForChannels,
+  setChannelModelStatus,
+  validateActiveRoutingPolicies,
+  validateMappingActivation,
+} = require('../utils/channel-model-policy');
+const {
   isSupportedChannelProtocol,
   upstreamRequestHeaders,
 } = require('../utils/channel-protocols');
@@ -70,8 +77,10 @@ function nullableChannelPrice(value) {
 function channelModelPayload(item = {}) {
   const billingMode = String(item.billing_mode || '').trim();
   const billingModelSource = String(item.billing_model_source || 'channel_mapped').trim();
+  const status = item.status || 'active';
   if (!CHANNEL_BILLING_MODES.has(billingMode)) return { error: '计费模式仅支持自动、token、per_request 或 image' };
   if (!BILLING_MODEL_SOURCES.has(billingModelSource)) return { error: '计费模型来源仅支持 requested、channel_mapped 或 upstream' };
+  if (!['active','inactive'].includes(status)) return { error: '渠道模型状态无效' };
   const prices = {};
   for (const field of CHANNEL_PRICE_FIELDS) {
     prices[field] = nullableChannelPrice(item[field]);
@@ -83,6 +92,7 @@ function channelModelPayload(item = {}) {
     supports_image_input: item.supports_image_input === true ? 1 : item.supports_image_input === false ? 0 : null,
     billing_mode: billingMode,
     billing_model_source: billingModelSource,
+    status,
     ...prices,
   };
 }
@@ -156,6 +166,20 @@ function pricingPayload(body, { preserveExistingPricing = null } = {}) {
 
 function supportedPricingScope(value) {
   return ['platform', 'user'].includes(value) ? value : null;
+}
+
+function pricingPolicyModelCodes(records) {
+  const platformRecords = records.filter(record => record?.scope_type === 'platform');
+  if (!platformRecords.length) return [];
+  if (platformRecords.some(record => !record.model_code)) return undefined;
+  return [...new Set(platformRecords.map(record => record.model_code))];
+}
+
+function enforcePricingPolicyConsistency(db, records) {
+  const modelCodes = pricingPolicyModelCodes(records);
+  if (Array.isArray(modelCodes) && modelCodes.length === 0) return;
+  const policyResult = validateActiveRoutingPolicies(db, modelCodes);
+  if (policyResult) throw Object.assign(new Error(policyResult.error), { policyResult });
 }
 
 function routeError(status, code, message) {
@@ -354,11 +378,33 @@ router.get('/models', authenticate, requireAdmin('admin','operator'), (req, res)
     LEFT JOIN upstream_channels uc ON uc.id=cm.channel_id
     GROUP BY m.id ORDER BY CASE WHEN m.status='active' THEN 0 ELSE 1 END,m.sort_order ASC
   `).all();
+  const mappingRows = db.prepare(`SELECT
+    cm.channel_id,cm.model_code,cm.upstream_model_name,cm.supports_image_input,
+    cm.status,uc.channel_name,uc.status AS channel_status,
+    uc.billing_multiplier_input,uc.billing_multiplier_output,uc.billing_multiplier_image,
+    GROUP_CONCAT(DISTINCT rg.group_name) AS routing_group_names
+    FROM channel_models cm
+    JOIN upstream_channels uc ON uc.id=cm.channel_id
+    LEFT JOIN routing_group_channels rgc ON rgc.channel_id=cm.channel_id AND rgc.status='active'
+    LEFT JOIN routing_groups rg ON rg.id=rgc.group_id AND rg.status='active'
+    GROUP BY cm.id
+    ORDER BY uc.channel_name ASC`).all();
   res.json({ data: models.map(model => {
     const imageDisplayPricing = model.model_type === 'image' ? defaultImageDisplayPricing() : null;
     return {
       ...model,
       is_multimodal: Number(model.is_multimodal) === 1,
+      channel_mappings: mappingRows
+        .filter(mapping => mapping.model_code === model.model_code)
+        .map(mapping => ({
+          ...mapping,
+          supports_image_input: mapping.supports_image_input === null
+            ? null
+            : Number(mapping.supports_image_input) === 1,
+          routing_group_names: mapping.routing_group_names
+            ? mapping.routing_group_names.split(',')
+            : [],
+        })),
       ...(imageDisplayPricing ? {
         default_image_unit_price: imageDisplayPricing.unitPrice,
         default_image_currency: imageDisplayPricing.currency,
@@ -381,8 +427,8 @@ router.post('/models', authenticate, requireAdmin('admin'), (req, res) => {
     model_code,model_name,upstream_model_name,model_type,context_length,is_multimodal,description,
     display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image,
     official_provider,official_model_id,official_currency,official_input_price,official_cached_input_price,
-    official_output_price,official_image_prices,official_unit_tokens,official_pricing_mode,official_price_source,official_price_updated_at,sort_order
-  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?)`).run(
+    official_output_price,official_image_prices,official_unit_tokens,official_pricing_mode,official_price_source,official_price_updated_at,status,sort_order
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,'inactive',?)`).run(
     model_code, model_name, upstream_model_name||model_code, model_type||'llm', context_length||4096,
     is_multimodal?1:0, description||'', inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier,
     pricing.provider, official_model_id||model_code, pricing.currency, pricing.input, pricing.cached, pricing.output,
@@ -393,11 +439,11 @@ router.post('/models', authenticate, requireAdmin('admin'), (req, res) => {
 
 router.put('/models/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
-  const existingModel = db.prepare(`SELECT model_type,billing_multiplier_image,official_currency,
+  const existingModel = db.prepare(`SELECT model_code,model_type,status,billing_multiplier_image,official_currency,
     official_input_price,official_cached_input_price,official_output_price,official_image_prices,
     official_unit_tokens,official_pricing_mode FROM models WHERE id=?`).get(req.params.id);
   if (!existingModel) return res.status(404).json({ error: '模型不存在' });
-  const { model_name, upstream_model_name, model_type, context_length, is_multimodal, description, official_model_id, status, sort_order } = req.body;
+  const { model_name, upstream_model_name, model_type, context_length, is_multimodal, description, official_model_id, sort_order } = req.body;
   const effectiveModelType = model_type || existingModel.model_type;
   const inputMultiplier = positiveMultiplier(req.body.multiplier_input ?? req.body.billing_multiplier_input ?? 1);
   const outputMultiplier = positiveMultiplier(req.body.multiplier_output ?? req.body.billing_multiplier_output ?? 1);
@@ -411,25 +457,33 @@ router.put('/models/:id', authenticate, requireAdmin('admin'), (req, res) => {
   }, { preserveExistingPricing: existingModel });
   if (pricing.error) return res.status(400).json({ error: pricing.error });
   if (!inputMultiplier || !outputMultiplier || !imageMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
-  db.prepare(`UPDATE models SET
-    model_name=?,upstream_model_name=?,model_type=?,context_length=?,is_multimodal=?,description=?,
-    display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
-    official_provider=?,official_model_id=?,official_currency=?,official_input_price=?,official_cached_input_price=?,
-    official_output_price=?,official_image_prices=?,official_unit_tokens=?,official_pricing_mode=?,official_price_source=?,
-    official_price_updated_at=CURRENT_TIMESTAMP,status=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(
-    model_name, upstream_model_name, effectiveModelType, context_length, is_multimodal?1:0, description||'',
-    inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier,
-    pricing.provider, official_model_id||null, pricing.currency, pricing.input, pricing.cached, pricing.output,
-    pricing.imagePrices, pricing.unitTokens, pricing.mode, pricing.mode === 'manual' ? '管理员手动录入' : null,
-    status, sort_order, req.params.id
-  );
-  res.json({ message: '模型更新成功' });
+  try {
+    db.transaction(() => {
+      db.prepare(`UPDATE models SET
+        model_name=?,upstream_model_name=?,model_type=?,context_length=?,is_multimodal=?,description=?,
+        display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
+        official_provider=?,official_model_id=?,official_currency=?,official_input_price=?,official_cached_input_price=?,
+        official_output_price=?,official_image_prices=?,official_unit_tokens=?,official_pricing_mode=?,official_price_source=?,
+        official_price_updated_at=CURRENT_TIMESTAMP,status=?,sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(
+        model_name, upstream_model_name, effectiveModelType, context_length, is_multimodal?1:0, description||'',
+        inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier,
+        pricing.provider, official_model_id||null, pricing.currency, pricing.input, pricing.cached, pricing.output,
+        pricing.imagePrices, pricing.unitTokens, pricing.mode, pricing.mode === 'manual' ? '管理员手动录入' : null,
+        existingModel.status, sort_order, req.params.id
+      );
+      reconcileModelStatus(db, existingModel.model_code);
+      const policyResult = validateActiveRoutingPolicies(db, [existingModel.model_code]);
+      if (policyResult) throw Object.assign(new Error(policyResult.error), { policyResult });
+    });
+    res.json({ message: '模型更新成功' });
+  } catch (error) {
+    if (error.policyResult) return res.status(error.policyResult.status).json({ error: error.policyResult.error });
+    throw error;
+  }
 });
 
 router.patch('/models/:id/status', authenticate, requireAdmin('admin','operator'), (req, res) => {
-  const db = getDatabase();
-  db.prepare('UPDATE models SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.body.status, req.params.id);
-  res.json({ message: '状态已更新' });
+  res.status(409).json({ error: '模型状态由渠道模型映射自动决定，请在渠道子行中上下架' });
 });
 
 router.get('/pricing-sync/status', authenticate, requireAdmin('admin','operator'), (req, res) => {
@@ -458,12 +512,22 @@ router.post('/pricing-rules', authenticate, requireAdmin('admin','operator'), (r
   if (!inputMultiplier || !outputMultiplier || !imageMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
   const scope = supportedPricingScope(scope_type || 'platform');
   if (!scope || (scope === 'user' && !scope_id)) return res.status(400).json({ error: '仅支持平台默认或指定用户的倍率规则' });
-  db.prepare('INSERT INTO pricing_rules (rule_name,model_code,scope_type,scope_id,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image,priority,start_time,end_time,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(rule_name, model_code||null, scope, scope === 'user' ? scope_id : null, inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier, priority||0, start_time||null, end_time||null, status||'active');
-  res.status(201).json({ message: '倍率规则创建成功' });
+  try {
+    db.transaction(() => {
+      db.prepare('INSERT INTO pricing_rules (rule_name,model_code,scope_type,scope_id,display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image,priority,start_time,end_time,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(rule_name, model_code||null, scope, scope === 'user' ? scope_id : null, inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier, priority||0, start_time||null, end_time||null, status||'active');
+      enforcePricingPolicyConsistency(db, [{ scope_type: scope, model_code: model_code || null }]);
+    });
+    res.status(201).json({ message: '倍率规则创建成功' });
+  } catch (error) {
+    if (error.policyResult) return res.status(error.policyResult.status).json({ error: error.policyResult.error });
+    throw error;
+  }
 });
 
 router.put('/pricing-rules/:id', authenticate, requireAdmin('admin','operator'), (req, res) => {
   const db = getDatabase();
+  const existingRule = db.prepare('SELECT scope_type,model_code FROM pricing_rules WHERE id=?').get(req.params.id);
+  if (!existingRule) return res.status(404).json({ error: '倍率规则不存在' });
   const { rule_name, model_code, scope_type, scope_id, priority, start_time, end_time, status } = req.body;
   const inputMultiplier = positiveMultiplier(req.body.multiplier_input ?? req.body.billing_multiplier_input ?? 1);
   const outputMultiplier = positiveMultiplier(req.body.multiplier_output ?? req.body.billing_multiplier_output ?? 1);
@@ -472,13 +536,35 @@ router.put('/pricing-rules/:id', authenticate, requireAdmin('admin','operator'),
   if (!inputMultiplier || !outputMultiplier || !imageMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
   const scope = supportedPricingScope(scope_type || 'platform');
   if (!scope || (scope === 'user' && !scope_id)) return res.status(400).json({ error: '仅支持平台默认或指定用户的倍率规则' });
-  db.prepare('UPDATE pricing_rules SET rule_name=?,model_code=?,scope_type=?,scope_id=?,display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,priority=?,start_time=?,end_time=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(rule_name, model_code||null, scope, scope === 'user' ? scope_id : null, inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier, priority, start_time, end_time, status, req.params.id);
-  res.json({ message: '倍率规则更新成功' });
+  try {
+    db.transaction(() => {
+      db.prepare('UPDATE pricing_rules SET rule_name=?,model_code=?,scope_type=?,scope_id=?,display_multiplier_input=?,display_multiplier_output=?,billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,priority=?,start_time=?,end_time=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(rule_name, model_code||null, scope, scope === 'user' ? scope_id : null, inputMultiplier, outputMultiplier, inputMultiplier, outputMultiplier, imageMultiplier, priority||0, start_time||null, end_time||null, status||'active', req.params.id);
+      enforcePricingPolicyConsistency(db, [
+        existingRule,
+        { scope_type: scope, model_code: model_code || null },
+      ]);
+    });
+    res.json({ message: '倍率规则更新成功' });
+  } catch (error) {
+    if (error.policyResult) return res.status(error.policyResult.status).json({ error: error.policyResult.error });
+    throw error;
+  }
 });
 
 router.delete('/pricing-rules/:id', authenticate, requireAdmin('admin'), (req, res) => {
-  getDatabase().prepare('DELETE FROM pricing_rules WHERE id=?').run(req.params.id);
-  res.json({ message: '已删除' });
+  const db = getDatabase();
+  const existingRule = db.prepare('SELECT scope_type,model_code FROM pricing_rules WHERE id=?').get(req.params.id);
+  if (!existingRule) return res.status(404).json({ error: '倍率规则不存在' });
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM pricing_rules WHERE id=?').run(req.params.id);
+      enforcePricingPolicyConsistency(db, [existingRule]);
+    });
+    res.json({ message: '已删除' });
+  } catch (error) {
+    if (error.policyResult) return res.status(error.policyResult.status).json({ error: error.policyResult.error });
+    throw error;
+  }
 });
 
 router.get('/keys', authenticate, requireAdmin('admin','operator'), (req, res) => {
@@ -574,6 +660,29 @@ router.get('/channels/:id/models', authenticate, requireAdmin('admin'), (req, re
   res.json({ data: models, channel_model_codes: mappings.filter(m=>m.status==='active').map(m=>m.model_code), mappings });
 });
 
+router.patch('/channels/:id/models/:modelCode/status', authenticate, requireAdmin('admin','operator'), (req, res) => {
+  if (!['active','inactive'].includes(req.body.status)) {
+    return res.status(400).json({ error: '渠道模型状态无效' });
+  }
+  const db = getDatabase();
+  try {
+    const result = db.transaction(() => {
+      const policyResult = setChannelModelStatus(
+        db, Number(req.params.id), req.params.modelCode, req.body.status,
+      );
+      if (policyResult?.error) {
+        throw Object.assign(new Error(policyResult.error), { policyResult });
+      }
+      return policyResult;
+    });
+    res.json({ message: '渠道模型状态已更新', model_status: result.modelStatus });
+  } catch (error) {
+    const policyResult = error.policyResult;
+    if (policyResult) return res.status(policyResult.status).json({ error: policyResult.error });
+    throw error;
+  }
+});
+
 router.put('/channels/:id/models', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
   const { model_codes, mappings = {}, models } = req.body;
@@ -591,33 +700,47 @@ router.put('/channels/:id/models', authenticate, requireAdmin('admin'), (req, re
     });
   const invalid = requestedModels.find(item => item.error);
   if (invalid) return res.status(400).json({ error: invalid.error });
-  db.transaction(() => {
-    db.prepare('UPDATE channel_models SET status=\'inactive\',updated_at=CURRENT_TIMESTAMP WHERE channel_id=?').run(req.params.id);
-    const upsert = db.prepare(`INSERT INTO channel_models (
-      channel_id,model_code,upstream_model_name,supports_image_input,billing_mode,billing_model_source,
-      input_price,output_price,cache_write_price,cache_read_price,image_input_price,image_output_price,
-      per_request_price,image_price_1k,image_price_2k,image_price_4k,status
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active') ON CONFLICT(channel_id,model_code) DO UPDATE SET
-      upstream_model_name=excluded.upstream_model_name,supports_image_input=excluded.supports_image_input,
-      billing_mode=excluded.billing_mode,billing_model_source=excluded.billing_model_source,
-      input_price=excluded.input_price,output_price=excluded.output_price,
-      cache_write_price=excluded.cache_write_price,cache_read_price=excluded.cache_read_price,
-      image_input_price=excluded.image_input_price,image_output_price=excluded.image_output_price,
-      per_request_price=excluded.per_request_price,image_price_1k=excluded.image_price_1k,
-      image_price_2k=excluded.image_price_2k,image_price_4k=excluded.image_price_4k,
-      status='active',updated_at=CURRENT_TIMESTAMP`);
-    for (const item of requestedModels) {
-      if (!item.model_code) continue;
-      upsert.run(
-        req.params.id, item.model_code, item.upstream_model_name, item.supports_image_input,
-        item.billing_mode, item.billing_model_source,
-        item.input_price, item.output_price, item.cache_write_price, item.cache_read_price,
-        item.image_input_price, item.image_output_price, item.per_request_price,
-        item.image_price_1k, item.image_price_2k, item.image_price_4k,
-      );
-    }
-  });
-  res.json({ message: '渠道模型已更新' });
+  try {
+    db.transaction(() => {
+      const upsert = db.prepare(`INSERT INTO channel_models (
+        channel_id,model_code,upstream_model_name,supports_image_input,billing_mode,billing_model_source,
+        input_price,output_price,cache_write_price,cache_read_price,image_input_price,image_output_price,
+        per_request_price,image_price_1k,image_price_2k,image_price_4k,status
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(channel_id,model_code) DO UPDATE SET
+        upstream_model_name=excluded.upstream_model_name,supports_image_input=excluded.supports_image_input,
+        billing_mode=excluded.billing_mode,billing_model_source=excluded.billing_model_source,
+        input_price=excluded.input_price,output_price=excluded.output_price,
+        cache_write_price=excluded.cache_write_price,cache_read_price=excluded.cache_read_price,
+        image_input_price=excluded.image_input_price,image_output_price=excluded.image_output_price,
+        per_request_price=excluded.per_request_price,image_price_1k=excluded.image_price_1k,
+        image_price_2k=excluded.image_price_2k,image_price_4k=excluded.image_price_4k,
+        status=excluded.status,updated_at=CURRENT_TIMESTAMP`);
+      for (const item of requestedModels) {
+        if (!item.model_code) continue;
+        if (item.status === 'active') {
+          const policyResult = validateMappingActivation(
+            db, Number(req.params.id), item.model_code,
+          );
+          if (policyResult) {
+            throw Object.assign(new Error(policyResult.error), { policyResult });
+          }
+        }
+        upsert.run(
+          req.params.id, item.model_code, item.upstream_model_name, item.supports_image_input,
+          item.billing_mode, item.billing_model_source,
+          item.input_price, item.output_price, item.cache_write_price, item.cache_read_price,
+          item.image_input_price, item.image_output_price, item.per_request_price,
+          item.image_price_1k, item.image_price_2k, item.image_price_4k, item.status,
+        );
+        reconcileModelStatus(db, item.model_code);
+      }
+    });
+    res.json({ message: '渠道模型已更新' });
+  } catch (error) {
+    const policyResult = error.policyResult;
+    if (policyResult) return res.status(policyResult.status).json({ error: policyResult.error });
+    throw error;
+  }
 });
 
 router.post('/channels/:id/sync-models', authenticate, requireAdmin('admin'), async (req, res) => {
@@ -641,22 +764,23 @@ router.post('/channels/:id/sync-models', authenticate, requireAdmin('admin'), as
       if (existing) {
         db.prepare(`UPDATE models SET upstream_model_name=COALESCE(upstream_model_name,?),
           channel_id=COALESCE(channel_id,?),official_provider=COALESCE(?,official_provider),
-          official_model_id=COALESCE(official_model_id,?),status='active',updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+          official_model_id=COALESCE(official_model_id,?),updated_at=CURRENT_TIMESTAMP WHERE id=?`)
           .run(modelCode, channel.id, provider, modelCode, existing.id);
         updated++;
       } else {
         db.prepare(`INSERT INTO models (model_code,model_name,upstream_model_name,model_type,context_length,
           display_multiplier_input,display_multiplier_output,billing_multiplier_input,billing_multiplier_output,
           official_provider,official_model_id,official_pricing_mode,channel_id,status,sort_order)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'active',?)`)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'inactive',?)`)
           .run(modelCode, modelCode, modelCode, inferModelType(modelCode), 128000, 1, 1, 1, 1,
             provider || 'manual', modelCode, provider ? 'auto' : 'manual', channel.id, 1000 + created);
         created++;
       }
       db.prepare(`INSERT INTO channel_models (channel_id,model_code,upstream_model_name,status)
-        VALUES (?,?,?,'active') ON CONFLICT(channel_id,model_code) DO UPDATE SET
-        upstream_model_name=excluded.upstream_model_name,status='active',updated_at=CURRENT_TIMESTAMP`)
+        VALUES (?,?,?,'inactive') ON CONFLICT(channel_id,model_code) DO UPDATE SET
+        upstream_model_name=excluded.upstream_model_name,updated_at=CURRENT_TIMESTAMP`)
         .run(channel.id, modelCode, modelCode);
+      reconcileModelStatus(db, modelCode);
     }
 
     res.json({ message: `同步完成：新增 ${created}，更新 ${updated}`, created, updated, models: modelCodes });
@@ -712,10 +836,15 @@ router.post('/routing-groups', authenticate, requireAdmin('admin'), (req, res) =
       for (const channel of channels) insert.run(result.lastInsertRowid, channel.channel_id, channel.priority??0, channel.weight??100, channel.status||'active');
       const insertModel = db.prepare("INSERT INTO routing_group_models (group_id,model_code,status) VALUES (?,?,'active')");
       for (const modelCode of model_codes) insertModel.run(result.lastInsertRowid, modelCode);
+      const policyResult = validateActiveRoutingPolicies(
+        db, routedModelCodesForChannels(db, channels.map(channel => channel.channel_id)),
+      );
+      if (policyResult) throw Object.assign(new Error(policyResult.error), { policyResult });
       return result.lastInsertRowid;
     });
     res.status(201).json({ message: '路由分组创建成功', id });
   } catch (error) {
+    if (error.policyResult) return res.status(error.policyResult.status).json({ error: error.policyResult.error });
     res.status(409).json({ error: error.message.includes('UNIQUE') ? '分组名称已存在' : '路由分组创建失败' });
   }
 });
@@ -738,17 +867,39 @@ router.put('/routing-groups/:id', authenticate, requireAdmin('admin'), (req, res
       db.prepare('DELETE FROM routing_group_models WHERE group_id=?').run(req.params.id);
       const insertModel = db.prepare("INSERT INTO routing_group_models (group_id,model_code,status) VALUES (?,?,'active')");
       for (const modelCode of model_codes) insertModel.run(req.params.id, modelCode);
+      const policyResult = validateActiveRoutingPolicies(
+        db, routedModelCodesForChannels(db, channels.map(channel => channel.channel_id)),
+      );
+      if (policyResult) throw Object.assign(new Error(policyResult.error), { policyResult });
     });
     res.json({ message: '路由分组已更新' });
   } catch (error) {
+    if (error.policyResult) return res.status(error.policyResult.status).json({ error: error.policyResult.error });
     res.status(409).json({ error: error.message.includes('UNIQUE') ? '分组名称已存在' : '路由分组更新失败' });
   }
 });
 
 router.patch('/routing-groups/:id/status', authenticate, requireAdmin('admin'), (req, res) => {
   if (!['active','inactive'].includes(req.body.status)) return res.status(400).json({ error: '分组状态无效' });
-  getDatabase().prepare('UPDATE routing_groups SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.body.status, req.params.id);
-  res.json({ message: '分组状态已更新' });
+  const db = getDatabase();
+  const channelIds = db.prepare('SELECT channel_id FROM routing_group_channels WHERE group_id=?')
+    .all(req.params.id).map(row => row.channel_id);
+  try {
+    db.transaction(() => {
+      db.prepare('UPDATE routing_groups SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')
+        .run(req.body.status, req.params.id);
+      if (req.body.status === 'active') {
+        const policyResult = validateActiveRoutingPolicies(
+          db, routedModelCodesForChannels(db, channelIds),
+        );
+        if (policyResult) throw Object.assign(new Error(policyResult.error), { policyResult });
+      }
+    });
+    res.json({ message: '分组状态已更新' });
+  } catch (error) {
+    if (error.policyResult) return res.status(error.policyResult.status).json({ error: error.policyResult.error });
+    throw error;
+  }
 });
 
 router.delete('/routing-groups/:id', authenticate, requireAdmin('admin'), (req, res) => {
@@ -806,8 +957,24 @@ router.post('/channels', authenticate, requireAdmin('admin'), (req, res) => {
 });
 
 router.patch('/channels/:id/status', authenticate, requireAdmin('admin'), (req, res) => {
-  getDatabase().prepare('UPDATE upstream_channels SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.body.status, req.params.id);
-  res.json({ message: '状态已更新' });
+  if (!['active','inactive'].includes(req.body.status)) return res.status(400).json({ error: '渠道状态无效' });
+  const db = getDatabase();
+  try {
+    db.transaction(() => {
+      db.prepare('UPDATE upstream_channels SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+        .run(req.body.status, req.params.id);
+      if (req.body.status === 'active') {
+        const policyResult = validateActiveRoutingPolicies(
+          db, routedModelCodesForChannels(db, [req.params.id]),
+        );
+        if (policyResult) throw Object.assign(new Error(policyResult.error), { policyResult });
+      }
+    });
+    res.json({ message: '状态已更新' });
+  } catch (error) {
+    if (error.policyResult) return res.status(error.policyResult.status).json({ error: error.policyResult.error });
+    throw error;
+  }
 });
 
 router.delete('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
@@ -858,28 +1025,39 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
       : serializeChannelCapabilities(capabilities, protocol_type);
   }
   catch (error) { return res.status(400).json({ error: error.message }); }
-  if (api_key && api_key.trim()) {
-    db.prepare(`UPDATE upstream_channels SET
-      channel_name=?,base_url=?,api_key=?,priority=?,weight=?,protocol_type=?,capabilities=?,
-      billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
-      health_score=50,consecutive_failures=0,circuit_breaker_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, serializedCapabilities,
-        multiplierPayload.values.billing_multiplier_input,
-        multiplierPayload.values.billing_multiplier_output,
-        multiplierPayload.values.billing_multiplier_image,
-        req.params.id);
-  } else {
-    db.prepare(`UPDATE upstream_channels SET
-      channel_name=?,base_url=?,priority=?,weight=?,protocol_type=?,capabilities=?,
-      billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
-      health_score=50,consecutive_failures=0,circuit_breaker_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-      .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), priority||0, weight||100, protocol_type, serializedCapabilities,
-        multiplierPayload.values.billing_multiplier_input,
-        multiplierPayload.values.billing_multiplier_output,
-        multiplierPayload.values.billing_multiplier_image,
-        req.params.id);
+  try {
+    db.transaction(() => {
+      if (api_key && api_key.trim()) {
+        db.prepare(`UPDATE upstream_channels SET
+          channel_name=?,base_url=?,api_key=?,priority=?,weight=?,protocol_type=?,capabilities=?,
+          billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
+          health_score=50,consecutive_failures=0,circuit_breaker_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+          .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, serializedCapabilities,
+            multiplierPayload.values.billing_multiplier_input,
+            multiplierPayload.values.billing_multiplier_output,
+            multiplierPayload.values.billing_multiplier_image,
+            req.params.id);
+      } else {
+        db.prepare(`UPDATE upstream_channels SET
+          channel_name=?,base_url=?,priority=?,weight=?,protocol_type=?,capabilities=?,
+          billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
+          health_score=50,consecutive_failures=0,circuit_breaker_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+          .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), priority||0, weight||100, protocol_type, serializedCapabilities,
+            multiplierPayload.values.billing_multiplier_input,
+            multiplierPayload.values.billing_multiplier_output,
+            multiplierPayload.values.billing_multiplier_image,
+            req.params.id);
+      }
+      const policyResult = validateActiveRoutingPolicies(
+        db, routedModelCodesForChannels(db, [req.params.id]),
+      );
+      if (policyResult) throw Object.assign(new Error(policyResult.error), { policyResult });
+    });
+    res.json({ message: '渠道已更新' });
+  } catch (error) {
+    if (error.policyResult) return res.status(error.policyResult.status).json({ error: error.policyResult.error });
+    throw error;
   }
-  res.json({ message: '渠道已更新' });
 });
 
 function publicPaymentProvider(provider) {

@@ -184,4 +184,28 @@ describe('Sub2API 渠道模型计费配置', () => {
       image_price_4k: 0.3,
     });
   });
+
+  it('批量保存只修改明确提交的映射，不下架未提交的已有映射', async () => {
+    const db = getDatabase();
+    const untouchedModel = `untouched-${Date.now()}-${Math.random()}`;
+    db.prepare("INSERT INTO models (model_code,model_name,status) VALUES (?,?,'active')")
+      .run(untouchedModel, untouchedModel);
+    db.prepare(`INSERT INTO channel_models
+      (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
+      .run(channelId, untouchedModel, untouchedModel);
+
+    const response = await request(`/api/admin/channels/${channelId}/models`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        models: [{
+          model_code: modelCode,
+          upstream_model_name: 'only-this-model-is-updated',
+          status: 'active',
+        }],
+      }),
+    });
+    expect(response.status).toBe(200);
+    expect(db.prepare(`SELECT status FROM channel_models
+      WHERE channel_id=? AND model_code=?`).get(channelId, untouchedModel).status).toBe('active');
+  });
 });

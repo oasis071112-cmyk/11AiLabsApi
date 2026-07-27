@@ -34,7 +34,7 @@ const {
   settleWalletReservation,
   walletBalances,
 } = require('../utils/wallet-billing');
-const { resolveChannelMultipliers } = require('../utils/channel-multipliers');
+const { resolveModelMultiplierPolicy } = require('../utils/channel-multipliers');
 const {
   CHANNEL_PROTOCOLS,
   DEFAULT_ANTHROPIC_VERSION,
@@ -46,22 +46,9 @@ function positiveOrOne(value) {
   return Number.isFinite(number) && number > 0 ? number : 1;
 }
 
-function globalMultipliers(pricingRule, model) {
-  return {
-    input: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_input : model.billing_multiplier_input),
-    output: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_output : model.billing_multiplier_output),
-    image: positiveOrOne(pricingRule ? pricingRule.billing_multiplier_image : model.billing_multiplier_image),
-  };
-}
-
-function getEffectiveMultiplier(db, modelCode, userId) {
-  const now = new Date().toISOString();
-  const rules = db.prepare("SELECT * FROM pricing_rules WHERE (model_code=? OR model_code IS NULL) AND status='active' AND (start_time IS NULL OR start_time<=?) AND (end_time IS NULL OR end_time>=?) AND ((scope_type='user' AND scope_id=?) OR scope_type='platform') ORDER BY CASE scope_type WHEN 'user' THEN 2 WHEN 'platform' THEN 1 END DESC, priority DESC").all(modelCode, now, now, userId);
-  for (const rule of rules) {
-    if (rule.scope_type === 'user' && String(rule.scope_id) === String(userId)) return rule;
-    if (rule.scope_type === 'platform') return rule;
-  }
-  return null;
+function requestMultipliers(db, model, userId, channel = null) {
+  const policy = resolveModelMultiplierPolicy(db, { model, userId, channel });
+  return { ...policy.multipliers, sources: policy.sources };
 }
 
 function getUsdCnyRate(db) {
@@ -198,6 +185,24 @@ function setLogProtocols(db, requestId, requestProtocol = CHANNEL_PROTOCOLS.OPEN
     .run(requestProtocol, upstreamProtocol, requestId);
 }
 
+function setLogBillingAudit(db, requestId, channelId, multipliers = {}) {
+  const channel = channelId
+    ? db.prepare('SELECT channel_name FROM upstream_channels WHERE id=?').get(channelId)
+    : null;
+  db.prepare(`UPDATE api_request_logs SET
+    upstream_channel_name=?,
+    billing_multiplier_source_input=?,
+    billing_multiplier_source_output=?,
+    billing_multiplier_source_image=?
+    WHERE request_id=?`).run(
+    channel?.channel_name || null,
+    multipliers.sources?.input || null,
+    multipliers.sources?.output || null,
+    multipliers.sources?.image || null,
+    requestId,
+  );
+}
+
 function insertSuccessLog(db, {
   requestId, userId, apiKeyId, modelCode, channelId, usage, pricing, model,
   multipliers, requestIp, latencyMs,
@@ -259,6 +264,7 @@ function insertSuccessLog(db, {
     requestId,
   );
   setLogProtocols(db, requestId, requestProtocol, upstreamProtocol);
+  setLogBillingAudit(db, requestId, channelId, multipliers);
 }
 
 function insertSettlementFailureLog(db, {
@@ -277,6 +283,7 @@ function insertSettlementFailureLog(db, {
     pricing.usdCnyRate, multipliers.input, multipliers.output, pricing.officialCostCny, error, requestIp, latencyMs,
   );
   setLogProtocols(db, requestId, requestProtocol, upstreamProtocol);
+  setLogBillingAudit(db, requestId, channelId, multipliers);
 }
 
 function insertUpstreamFailureLog(db, {
@@ -287,6 +294,7 @@ function insertUpstreamFailureLog(db, {
   db.prepare("INSERT OR IGNORE INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,billing_mode,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,?,?,'failed',?,'upstream_error',?,?)")
     .run(requestId, userId, apiKeyId, modelCode, channelId || null, billingMode, error, requestIp, latencyMs);
   setLogProtocols(db, requestId, requestProtocol, upstreamProtocol);
+  setLogBillingAudit(db, requestId, channelId);
 }
 
 function insertImageSuccessLog(db, {
@@ -329,11 +337,12 @@ function insertImageSuccessLog(db, {
     requestId,
   );
   setLogProtocols(db, requestId);
+  setLogBillingAudit(db, requestId, channelId, tokenMultipliers);
 }
 
 function insertImageSettlementFailureLog(db, {
   requestId, userId, apiKeyId, modelCode, billingModel, channelId, imageCount, size, quality,
-  pricing, model, multiplier, requestIp, latencyMs, error,
+  pricing, model, multiplier, multiplierSources = {}, requestIp, latencyMs, error,
 }) {
   db.prepare(`INSERT OR IGNORE INTO api_request_logs (
     request_id,user_id,api_key_id,model_code,billing_model,upstream_channel_id,total_cost,
@@ -346,6 +355,7 @@ function insertImageSettlementFailureLog(db, {
     imageCount, size, quality, pricing.unitPrice, multiplier, error, requestIp, latencyMs,
   );
   setLogProtocols(db, requestId);
+  setLogBillingAudit(db, requestId, channelId, { sources: multiplierSources });
 }
 
 function listModels(req, res) {
@@ -928,9 +938,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
 
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return sendAnthropicError(res, 404, 'not_found_error', `模型 ${modelCode} 不可用`);
-  const pricingRule = getEffectiveMultiplier(db, modelCode, req.userId);
-  const fallbackMultipliers = globalMultipliers(pricingRule, model);
-  let multipliers = fallbackMultipliers;
+  let multipliers = requestMultipliers(db, model, req.userId);
   const requirements = {
     protocolType: CHANNEL_PROTOCOLS.ANTHROPIC,
     endpointCapability: 'anthropic_messages',
@@ -945,7 +953,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
       : '暂无支持 Anthropic Messages 的可用上游渠道';
     return sendAnthropicError(res, requiresImageInput ? 400 : 503, 'api_error', message);
   }
-  multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+  multipliers = requestMultipliers(db, model, req.userId, channel);
   if (billingModeForRequest(channel, false) === 'token'
       && !channelHasTokenPricing(channel)
       && Number(model.official_input_price) <= 0
@@ -1002,7 +1010,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
       const upstreamResponse = upstreamResult.response;
       channel = upstreamResult.channel;
       upstreamBody = upstreamResult.requestBody;
-      multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+      multipliers = requestMultipliers(db, model, req.userId, channel);
       upstreamConfirmed = true;
       copyAnthropicResponseHeaders(res, upstreamResponse.headers);
 
@@ -1187,7 +1195,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
     });
     channel = upstreamResult.channel;
     upstreamBody = upstreamResult.requestBody;
-    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+    multipliers = requestMultipliers(db, model, req.userId, channel);
     upstreamConfirmed = true;
     copyAnthropicResponseHeaders(res, upstreamResult.response.headers);
     if (billingModeForRequest(channel, false) === 'token'
@@ -1234,7 +1242,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
     return res.json(upstreamResult.response.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
-    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+    multipliers = requestMultipliers(db, model, req.userId, channel);
     const executionUncertain = !upstreamConfirmed && !error.response;
     if (reservedAmount > 0 && !upstreamConfirmed && !executionUncertain) {
       try {
@@ -1340,9 +1348,8 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     ? db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(intent.billingModel)
     : null;
   const pricingModel = billingModelCandidate || model;
-  const pricingRule = getEffectiveMultiplier(db, pricingModel.model_code, req.userId);
-  const fallbackMultipliers = globalMultipliers(pricingRule, pricingModel);
-  let imageMultiplier = fallbackMultipliers.image;
+  let tokenMultipliers = requestMultipliers(db, pricingModel, req.userId);
+  let imageMultiplier = tokenMultipliers.image;
   const requirements = {
     protocolType: CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
     endpointCapability,
@@ -1352,7 +1359,8 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   if (!channel) {
     return res.status(503).json({ error: { message: `暂无支持 ${endpoint} 的可用上游渠道`, type: 'no_channel' } });
   }
-  imageMultiplier = resolveChannelMultipliers(channel, fallbackMultipliers).image;
+  tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, channel);
+  imageMultiplier = tokenMultipliers.image;
   billingChannel = channelBillingForModel(db, channel, intent.billingModel);
   billingMode = billingModeForRequest(billingChannel, true);
   const reservationPricingModel = pricingModelForChannel(db, pricingModel, billingChannel);
@@ -1404,7 +1412,8 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       }),
     });
     channel = upstreamResult.channel;
-    imageMultiplier = resolveChannelMultipliers(channel, fallbackMultipliers).image;
+    tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, channel);
+    imageMultiplier = tokenMultipliers.image;
     billingChannel = channelBillingForModel(db, channel, intent.billingModel);
     billingMode = billingModeForRequest(billingChannel, true);
     upstreamConfirmed = true;
@@ -1441,7 +1450,6 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       confirmedBillingModel = settlementPricingModel.model_code;
       effectiveBillingModelSource = 'requested';
     }
-    const tokenMultipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
     settlementPricing = billingMode === 'token'
       ? buildPricing(db, settlementPricingModel, usage, tokenMultipliers, {
         channel: billingChannel, serviceTier: usage.serviceTier,
@@ -1474,7 +1482,8 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     return res.json(upstreamResult.response.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
-    imageMultiplier = resolveChannelMultipliers(channel, fallbackMultipliers).image;
+    tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, channel);
+    imageMultiplier = tokenMultipliers.image;
     if (reservedAmount > 0 && !upstreamConfirmed && error.response) {
       try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放图片冻结额度失败]', releaseError); }
     }
@@ -1488,7 +1497,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
         billingModel: confirmedBillingModel, channelId: channel?.id, imageCount: actualImageCount,
         size: intent.size, quality: intent.quality, pricing: settlementPricing || reservationPricing,
-        model: pricingModel, multiplier: imageMultiplier,
+        model: pricingModel, multiplier: imageMultiplier, multiplierSources: tokenMultipliers.sources,
         requestIp: req.ip, latencyMs: Date.now() - startTime, error: message,
       });
       return res.status(executionUncertain ? 504 : 500).json({ error: {
@@ -1531,9 +1540,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
 
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
-  const pricingRule = getEffectiveMultiplier(db, modelCode, req.userId);
-  const fallbackMultipliers = globalMultipliers(pricingRule, model);
-  let multipliers = fallbackMultipliers;
+  let multipliers = requestMultipliers(db, model, req.userId);
   try {
     assertSupportedBillableInput(req.body.messages ?? req.body.input ?? req.body, model);
   } catch (error) {
@@ -1556,7 +1563,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       .run(requestId, req.userId, req.apiKey.id, modelCode, message, type, req.ip, Date.now() - startTime);
     return res.status(requiresImageInput ? 400 : 503).json({ error: { message, type } });
   }
-  multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+  multipliers = requestMultipliers(db, model, req.userId, channel);
   if (billingModeForRequest(channel, false) === 'token'
       && !channelHasTokenPricing(channel)
       && Number(model.official_input_price) <= 0
@@ -1600,7 +1607,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       const upstreamResp = upstreamResult.response;
       channel = upstreamResult.channel;
       upstreamBody = upstreamResult.requestBody;
-      multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+      multipliers = requestMultipliers(db, model, req.userId, channel);
 
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -1755,7 +1762,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     normalizeVisibleChatContent(upstreamResponse.data, false, true);
     channel = upstreamResult.channel;
     upstreamBody = upstreamResult.requestBody;
-    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+    multipliers = requestMultipliers(db, model, req.userId, channel);
     upstreamConfirmed = true;
     if (billingModeForRequest(channel, false) === 'token' && !hasBillableUsage(upstreamResponse.data)) {
       const usage = fallbackChatUsage(upstreamBody, upstreamResponse.data);
@@ -1788,7 +1795,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     return res.json(upstreamResponse.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
-    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+    multipliers = requestMultipliers(db, model, req.userId, channel);
     // 只有明确收到上游 HTTP 错误响应，才可确认本次没有成功结果并释放额度。
     // 网络超时/断连时上游可能已执行，必须保留冻结额度，不能免费放行。
     const executionUncertain = !upstreamConfirmed && !error.response;
@@ -1831,16 +1838,14 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
   if (!apiKeyCanUseModel(db, req.apiKey, modelCode)) return res.status(403).json({ error: { message: `模型 ${modelCode} 未授权`, type: 'unauthorized_model' } });
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
-  const pricingRule = getEffectiveMultiplier(db, modelCode, req.userId);
-  const fallbackMultipliers = globalMultipliers(pricingRule, model);
-  let multipliers = fallbackMultipliers;
+  let multipliers = requestMultipliers(db, model, req.userId);
   const channelRequirements = {
     protocolType: CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
     endpointCapability: 'embeddings',
   };
   let channel = selectChannel(db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), channelRequirements);
   if (!channel) return res.status(503).json({ error: { message: '暂无支持向量接口的可用上游渠道', type: 'no_channel' } });
-  multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+  multipliers = requestMultipliers(db, model, req.userId, channel);
   if (billingModeForRequest(channel, false) === 'token'
       && !channelHasTokenPricing(channel)
       && Number(model.official_input_price) <= 0) {
@@ -1872,7 +1877,7 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
     });
     const upstreamResponse = upstreamResult.response;
     channel = upstreamResult.channel;
-    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+    multipliers = requestMultipliers(db, model, req.userId, channel);
     upstreamConfirmed = true;
     if (billingModeForRequest(channel, false) === 'token' && !hasBillableUsage(upstreamResponse.data)) {
       const usage = fallbackEmbeddingUsage(req.body);
@@ -1902,7 +1907,7 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
     return res.json(upstreamResponse.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
-    multipliers = resolveChannelMultipliers(channel, fallbackMultipliers);
+    multipliers = requestMultipliers(db, model, req.userId, channel);
     const executionUncertain = !upstreamConfirmed && !error.response;
     if (reservedAmount > 0 && !upstreamConfirmed && !executionUncertain) {
       try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放冻结额度失败]', releaseError); }

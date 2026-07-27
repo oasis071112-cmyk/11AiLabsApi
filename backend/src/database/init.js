@@ -389,6 +389,10 @@ function createTables() {
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN official_image_output_price REAL'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN request_protocol TEXT'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN upstream_protocol TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN upstream_channel_name TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_multiplier_source_input TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_multiplier_source_output TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_multiplier_source_image TEXT'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS upstream_channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT, channel_name TEXT NOT NULL,
@@ -585,6 +589,22 @@ async function initDatabase() {
     db.prepare(`INSERT OR REPLACE INTO system_config
       (config_key,config_value,description,updated_at)
       VALUES ('routing_groups_v1','done','旧渠道、模型与 API Key 已迁移到路由分组',CURRENT_TIMESTAMP)`).run();
+  }
+  const channelModelStatusMigration = db.prepare(
+    "SELECT config_value FROM system_config WHERE config_key='channel_model_status_source_v1'",
+  ).get();
+  if (channelModelStatusMigration?.config_value !== 'done') {
+    db.transaction(() => {
+      db.prepare(`UPDATE models SET status=CASE
+        WHEN EXISTS (
+          SELECT 1 FROM channel_models cm
+          WHERE cm.model_code=models.model_code AND cm.status='active'
+        ) THEN 'active' ELSE 'inactive' END,
+        updated_at=CURRENT_TIMESTAMP`).run();
+      db.prepare(`INSERT OR REPLACE INTO system_config
+        (config_key,config_value,description,updated_at)
+        VALUES ('channel_model_status_source_v1','done','模型状态已改为由渠道模型映射派生',CURRENT_TIMESTAMP)`).run();
+    });
   }
   console.log('✅ 数据库初始化完成');
   return db;

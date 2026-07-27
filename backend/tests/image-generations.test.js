@@ -166,10 +166,43 @@ describe('图片生成端点计费', () => {
       });
 
       expect(response.status).toBe(200);
-      const log = db.prepare("SELECT billing_multiplier_image,total_cost FROM api_request_logs WHERE api_key_id=? AND billing_mode='image' AND status='success' ORDER BY id DESC").get(apiKeyId);
-      expect(log).toMatchObject({ billing_multiplier_image: 1.8 });
+      const log = db.prepare("SELECT billing_multiplier_image,billing_multiplier_source_image,upstream_channel_name,total_cost FROM api_request_logs WHERE api_key_id=? AND billing_mode='image' AND status='success' ORDER BY id DESC").get(apiKeyId);
+      expect(log).toMatchObject({
+        billing_multiplier_image: 1.8,
+        billing_multiplier_source_image: 'channel',
+        upstream_channel_name: expect.stringContaining('image-channel-'),
+      });
       expect(log.total_cost).toBeCloseTo(3.3768, 8);
     } finally {
+      db.prepare('UPDATE upstream_channels SET billing_multiplier_image=NULL WHERE id=?').run(channelId);
+    }
+  });
+
+  it('用户专属图片倍率优先于渠道倍率并写入来源快照', async () => {
+    const db = getDatabase();
+    db.prepare('UPDATE upstream_channels SET billing_multiplier_image=? WHERE id=?').run(1.8, channelId);
+    const ruleId = db.prepare(`INSERT INTO pricing_rules
+      (rule_name,model_code,scope_type,scope_id,billing_multiplier_input,billing_multiplier_output,
+       billing_multiplier_image,priority,status)
+      VALUES (?,?, 'user',?,1,1,0.7,10,'active')`)
+      .run(`image-user-rate-${Date.now()}`, modelCode, userId).lastInsertRowid;
+    try {
+      const response = await request('/v1/images/generations', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: modelCode, prompt: 'user multiplier', size: '1024x1024', n: 1 }),
+      });
+
+      expect(response.status).toBe(200);
+      const log = db.prepare(`SELECT billing_multiplier_image,billing_multiplier_source_image
+        FROM api_request_logs WHERE api_key_id=? AND billing_mode='image'
+        AND status='success' ORDER BY id DESC`).get(apiKeyId);
+      expect(log).toMatchObject({
+        billing_multiplier_image: 0.7,
+        billing_multiplier_source_image: 'user',
+      });
+    } finally {
+      db.prepare('DELETE FROM pricing_rules WHERE id=?').run(ruleId);
       db.prepare('UPDATE upstream_channels SET billing_multiplier_image=NULL WHERE id=?').run(channelId);
     }
   });

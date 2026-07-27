@@ -12,9 +12,11 @@ const {
   listRoutingGroupModels,
   listRoutingGroupProtocolTypes,
   listUserModelCapabilities,
+  findUserChannelForModel,
 } = require('../utils/routing-group-models');
 const { buildEasyPayRequest, supportedPaymentMethods } = require('../utils/easypay');
 const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
+const { resolveModelMultiplierPolicy } = require('../utils/channel-multipliers');
 
 router.get('/wallet', authenticate, (req, res) => {
   const db = getDatabase();
@@ -120,11 +122,8 @@ router.get('/quota-orders', authenticate, (req, res) => {
 router.get('/models', authenticate, (req, res) => {
   const db = getDatabase();
   const models = db.prepare("SELECT model_code,model_name,model_type,context_length,is_multimodal,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image,official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,official_price_updated_at,status FROM models WHERE status='active' ORDER BY sort_order ASC").all();
-  const now = new Date().toISOString();
   const capabilityByModel = listUserModelCapabilities(db, req.user.id);
-  const ruleForModel = db.prepare("SELECT * FROM pricing_rules WHERE (model_code=? OR model_code IS NULL) AND status='active' AND (start_time IS NULL OR start_time<=?) AND (end_time IS NULL OR end_time>=?) AND ((scope_type='user' AND scope_id=?) OR scope_type='platform') ORDER BY CASE scope_type WHEN 'user' THEN 2 WHEN 'platform' THEN 1 END DESC, priority DESC LIMIT 1");
-  const data = models.map(model => {
-    const rule = ruleForModel.get(model.model_code, now, now, req.user.id);
+  const data = models.filter(model => capabilityByModel.has(model.model_code)).map(model => {
     const capabilities = capabilityByModel.get(model.model_code) || {
       chat_completions: false,
       anthropic_messages: false,
@@ -140,6 +139,12 @@ router.get('/models', authenticate, (req, res) => {
       capabilities,
     };
     const imageDisplayPricing = model.model_type === 'image' ? defaultImageDisplayPricing() : null;
+    const channel = findUserChannelForModel(db, req.user.id, model.model_code);
+    const multiplierPolicy = resolveModelMultiplierPolicy(db, {
+      model,
+      userId: req.user.id,
+      channel,
+    });
     const pricedModel = imageDisplayPricing ? (() => {
       const {
         official_currency, official_input_price, official_output_price,
@@ -152,12 +157,12 @@ router.get('/models', authenticate, (req, res) => {
         default_image_currency: imageDisplayPricing.currency,
       };
     })() : normalizedModel;
-    return rule ? {
+    return {
       ...pricedModel,
-      billing_multiplier_input: rule.billing_multiplier_input,
-      billing_multiplier_output: rule.billing_multiplier_output,
-      billing_multiplier_image: rule.billing_multiplier_image ?? pricedModel.billing_multiplier_image,
-    } : pricedModel;
+      billing_multiplier_input: multiplierPolicy.multipliers.input,
+      billing_multiplier_output: multiplierPolicy.multipliers.output,
+      billing_multiplier_image: multiplierPolicy.multipliers.image,
+    };
   });
   res.json({ data });
 });

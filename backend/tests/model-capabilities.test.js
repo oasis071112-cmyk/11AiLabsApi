@@ -226,6 +226,15 @@ describe('模型能力与图片请求边界', () => {
     expect(updateResponse.status).toBe(200);
     expect(getDatabase().prepare('SELECT official_pricing_mode,official_input_price,official_output_price,official_image_prices FROM models WHERE id=?').get(imageModelId))
       .toMatchObject({ official_pricing_mode: 'manual', official_input_price: 9, official_output_price: 19, official_image_prices: JSON.stringify({ default: 9.99 }) });
+    getDatabase().prepare(`INSERT INTO channel_models
+      (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
+      .run(channelId, imageModelCode, imageModelCode);
+    const activateMapping = await request(`/api/admin/channels/${channelId}/models/${encodeURIComponent(imageModelCode)}/status`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ status: 'active' }),
+    });
+    expect(activateMapping.status).toBe(200);
 
     const userModelsResponse = await request('/api/user/models', { headers: { Authorization: `Bearer ${userToken}` } });
     const userModel = (await userModelsResponse.json()).data.find(model => model.model_code === imageModelCode);

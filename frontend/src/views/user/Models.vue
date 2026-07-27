@@ -1,6 +1,6 @@
 <template>
 <div class="models-page">
-  <div class="page-title"><div><h2>模型与价格</h2><p>查看官方价格和当前用户扣费倍率，实际费用以调用记录为准</p></div><div class="model-total">共 {{ models.length }} 个模型</div></div>
+  <div class="page-title"><div><h2>模型与价格</h2><p>仅展示当前账号真正可用的模型及最终有效倍率，实际费用以调用记录为准</p></div><div class="model-total">共 {{ models.length }} 个模型</div></div>
   <div class="provider-switch">
     <button v-for="provider in providerTabs" :key="provider.value" :class="['provider-button',{active:activeProvider===provider.value}]" @click="selectProvider(provider.value)"><span>{{ provider.label }}</span><b>{{ provider.count }}</b></button>
   </div>
@@ -12,7 +12,7 @@
       <div class="model-facts"><span><small>上下文</small>{{ contextLabel(model.context_length) }}</span><span><small>图片输入</small>{{ model.supports_image_input?'当前可用':'暂不可用' }}</span></div>
       <div v-if="model.model_type==='image'" class="price-box"><div class="price-title">默认图片价格 <span>/ 单张（2K）</span></div><div class="price-row"><span>默认</span><strong>{{ price(model.default_image_unit_price,model.default_image_currency) }}</strong><em>×{{ model.billing_multiplier_image }}</em></div></div>
       <div v-else class="price-box"><div class="price-title">官方价格 <span>/ 每 1M Token</span></div><div class="price-row"><span>输入</span><strong>{{ price(model.official_input_price,model.official_currency) }}</strong><em>×{{ model.billing_multiplier_input }}</em></div><div class="price-row"><span>输出</span><strong>{{ price(model.official_output_price,model.official_currency) }}</strong><em>×{{ model.billing_multiplier_output }}</em></div></div>
-      <div class="cost-note">{{ model.model_type==='image'?'图片默认价格按 2K 展示；实际扣费以生成尺寸、渠道配置与当前倍率为准。':`用户扣费 = 官方价格 × 当前倍率${model.official_currency==='USD'?' × 调用时汇率':''}` }}</div>
+      <div class="cost-note">{{ model.model_type==='image'?'图片默认价格按 2K 展示；倍率已按用户专属、启用渠道和平台兜底规则解析。':`用户扣费 = 官方价格 × 当前有效倍率${model.official_currency==='USD'?' × 调用时汇率':''}` }}</div>
     </article>
   </div>
   <el-empty v-if="!loading&&!filteredModels.length" description="该分类暂无模型"/>
