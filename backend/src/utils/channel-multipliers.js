@@ -54,34 +54,34 @@ function activeRule(db, {
   scopeId = null,
   modelCode,
   exactModel,
+  atTime = new Date().toISOString(),
 }) {
-  const now = new Date().toISOString();
   const scopeClause = scopeType === 'user' ? 'AND scope_id=?' : '';
   const modelClause = exactModel ? 'model_code=?' : 'model_code IS NULL';
   const params = [scopeType];
   if (scopeType === 'user') params.push(scopeId);
   if (exactModel) params.push(modelCode);
-  params.push(now, now);
+  params.push(atTime, atTime);
   return db.prepare(`SELECT * FROM pricing_rules
     WHERE scope_type=? ${scopeClause} AND ${modelClause}
       AND status='active'
-      AND (start_time IS NULL OR start_time<=?)
-      AND (end_time IS NULL OR end_time>=?)
+      AND (start_time IS NULL OR datetime(start_time)<=datetime(?))
+      AND (end_time IS NULL OR datetime(end_time)>=datetime(?))
     ORDER BY priority DESC,id DESC LIMIT 1`).get(...params);
 }
 
-function multiplierPolicyContext(db, modelCode, userId) {
+function multiplierPolicyContext(db, modelCode, userId, atTime = new Date().toISOString()) {
   return {
     userRule: activeRule(db, {
-      scopeType: 'user', scopeId: userId, modelCode, exactModel: true,
+      scopeType: 'user', scopeId: userId, modelCode, exactModel: true, atTime,
     }) || activeRule(db, {
-      scopeType: 'user', scopeId: userId, modelCode, exactModel: false,
+      scopeType: 'user', scopeId: userId, modelCode, exactModel: false, atTime,
     }),
     platformModelRule: activeRule(db, {
-      scopeType: 'platform', modelCode, exactModel: true,
+      scopeType: 'platform', modelCode, exactModel: true, atTime,
     }),
     platformDefaultRule: activeRule(db, {
-      scopeType: 'platform', modelCode, exactModel: false,
+      scopeType: 'platform', modelCode, exactModel: false, atTime,
     }),
   };
 }
@@ -90,9 +90,10 @@ function resolveModelMultiplierPolicy(db, {
   model,
   userId = null,
   channel = null,
+  atTime = new Date().toISOString(),
 }) {
   return resolveEffectiveMultiplierPolicy({
-    ...multiplierPolicyContext(db, model.model_code, userId),
+    ...multiplierPolicyContext(db, model.model_code, userId, atTime),
     channel,
     model,
   });

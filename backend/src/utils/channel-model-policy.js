@@ -9,13 +9,39 @@ function reconcileModelStatus(db, modelCode) {
   return status;
 }
 
-function multiplierTuple(db, model, channel) {
-  const { multipliers } = resolveModelMultiplierPolicy(db, { model, channel });
+function multiplierTuple(db, model, channel, atTime) {
+  const { multipliers } = resolveModelMultiplierPolicy(db, { model, channel, atTime });
   return [multipliers.input, multipliers.output, multipliers.image];
 }
 
 function sameTuple(left, right) {
   return left.every((value, index) => Math.abs(value - right[index]) < 1e-12);
+}
+
+function policyValidationMoments(db, modelCode) {
+  const now = Date.now();
+  const moments = new Set([new Date(now).toISOString()]);
+  const rules = db.prepare(`SELECT start_time,end_time FROM pricing_rules
+    WHERE scope_type='platform' AND status='active'
+      AND (model_code=? OR model_code IS NULL)`).all(modelCode);
+  for (const rule of rules) {
+    const start = Date.parse(rule.start_time);
+    if (Number.isFinite(start) && start >= now) moments.add(new Date(start).toISOString());
+    const end = Date.parse(rule.end_time);
+    if (Number.isFinite(end) && end >= now) moments.add(new Date(end + 1000).toISOString());
+  }
+  return [...moments].sort();
+}
+
+function findMultiplierMismatch(db, model, firstChannel, otherChannels) {
+  for (const atTime of policyValidationMoments(db, model.model_code)) {
+    const expected = multiplierTuple(db, model, firstChannel, atTime);
+    const channel = otherChannels.find(other => (
+      !sameTuple(expected, multiplierTuple(db, model, other, atTime))
+    ));
+    if (channel) return { channel, atTime };
+  }
+  return null;
 }
 
 function routedModelCodesForChannels(db, channelIds) {
@@ -61,14 +87,11 @@ function validateActiveRoutingPolicies(db, modelCodes) {
       JOIN routing_groups rg ON rg.id=rgc.group_id AND rg.status='active'
       WHERE uc.status='active' ORDER BY uc.id`).all(modelCode);
     if (channels.length < 2) continue;
-    const expected = multiplierTuple(db, model, channels[0]);
-    const mismatch = channels.slice(1).find(channel => (
-      !sameTuple(expected, multiplierTuple(db, model, channel))
-    ));
+    const mismatch = findMultiplierMismatch(db, model, channels[0], channels.slice(1));
     if (mismatch) {
       return {
         status: 409,
-        error: `模型 ${modelCode} 在渠道“${channels[0].channel_name}”与“${mismatch.channel_name}”的最终倍率不一致`,
+        error: `模型 ${modelCode} 在渠道“${channels[0].channel_name}”与“${mismatch.channel.channel_name}”的当前或定时最终倍率不一致`,
       };
     }
   }
@@ -105,7 +128,6 @@ function validateMappingActivation(db, channelId, modelCode) {
     WHERE rgc.channel_id=? AND rgc.status='active' LIMIT 1`).get(channelId);
   if (!candidateGroups) return null;
 
-  const candidateTuple = multiplierTuple(db, model, channel);
   const otherChannels = db.prepare(`SELECT DISTINCT uc.*
     FROM channel_models cm
     JOIN upstream_channels uc ON uc.id=cm.channel_id AND uc.status='active'
@@ -113,13 +135,11 @@ function validateMappingActivation(db, channelId, modelCode) {
     JOIN routing_groups rg ON rg.id=rgc.group_id AND rg.status='active'
     WHERE cm.model_code=? AND cm.status='active' AND cm.channel_id<>?`)
     .all(modelCode, channelId);
-  const mismatch = otherChannels.find(other => (
-    !sameTuple(candidateTuple, multiplierTuple(db, model, other))
-  ));
+  const mismatch = findMultiplierMismatch(db, model, channel, otherChannels);
   if (mismatch) {
     return {
       status: 409,
-      error: `模型 ${modelCode} 在渠道“${channel.channel_name}”与“${mismatch.channel_name}”的最终倍率不一致`,
+      error: `模型 ${modelCode} 在渠道“${channel.channel_name}”与“${mismatch.channel.channel_name}”的当前或定时最终倍率不一致`,
     };
   }
   return null;

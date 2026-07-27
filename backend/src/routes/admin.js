@@ -997,8 +997,12 @@ router.delete('/channels/:id', authenticate, requireAdmin('admin'), (req, res) =
     return res.status(409).json({ error: '该渠道仍被旧版直连 API Key 使用，不能删除' });
   }
   db.transaction(() => {
+    const affectedModels = db.prepare(
+      'SELECT DISTINCT model_code FROM channel_models WHERE channel_id=?',
+    ).all(req.params.id);
     db.prepare('UPDATE models SET channel_id=NULL WHERE channel_id=?').run(req.params.id);
     db.prepare('DELETE FROM channel_models WHERE channel_id=?').run(req.params.id);
+    for (const model of affectedModels) reconcileModelStatus(db, model.model_code);
     db.prepare('DELETE FROM upstream_channels WHERE id=?').run(req.params.id);
   });
   res.json({ message: '渠道已删除' });

@@ -282,4 +282,101 @@ describe('渠道模型状态联动', () => {
     expect(db.prepare('SELECT billing_multiplier_image FROM pricing_rules WHERE id=?')
       .get(ruleId).billing_multiplier_image).toBe(0.35);
   });
+
+  it('删除最后一个渠道映射时同步下架父模型', async () => {
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const modelCode = createModel(db, suffix, 'active');
+    const channelId = createChannel(db, suffix);
+    db.prepare(`INSERT INTO channel_models
+      (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
+      .run(channelId, modelCode, modelCode);
+
+    const response = await request(`/api/admin/channels/${channelId}`, {
+      method: 'DELETE',
+    });
+
+    expect(response.status).toBe(200);
+    expect(db.prepare('SELECT status FROM models WHERE model_code=?').get(modelCode).status)
+      .toBe('inactive');
+  });
+
+  it('拒绝未来生效后会造成跨分组倍率不一致的平台规则', async () => {
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const modelCode = createModel(db, suffix, 'active');
+    const explicitChannelId = createChannel(db, `${suffix}-explicit`, 0.35);
+    const fallbackChannelId = createChannel(db, `${suffix}-fallback`, null);
+    for (const channelId of [explicitChannelId, fallbackChannelId]) {
+      db.prepare(`INSERT INTO channel_models
+        (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
+        .run(channelId, modelCode, modelCode);
+      const groupId = db.prepare("INSERT INTO routing_groups (group_name,status) VALUES (?,'active')")
+        .run(`scheduled-group-${suffix}-${channelId}`).lastInsertRowid;
+      db.prepare(`INSERT INTO routing_group_channels
+        (group_id,channel_id,status) VALUES (?,?,'active')`).run(groupId, channelId);
+    }
+    db.prepare(`INSERT INTO pricing_rules
+      (rule_name,model_code,scope_type,billing_multiplier_input,billing_multiplier_output,
+       billing_multiplier_image,priority,status)
+      VALUES (?,?,'platform',1,1,0.35,10,'active')`)
+      .run(`scheduled-baseline-${suffix}`, modelCode);
+
+    const response = await request('/api/admin/pricing-rules', {
+      method: 'POST',
+      body: JSON.stringify({
+        rule_name: `scheduled-future-${suffix}`,
+        model_code: modelCode,
+        scope_type: 'platform',
+        multiplier_input: 1,
+        multiplier_output: 1,
+        multiplier_image: 0.3,
+        priority: 20,
+        start_time: new Date(Date.now() + 86_400_000).toISOString(),
+        status: 'active',
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain('倍率');
+    expect(db.prepare('SELECT id FROM pricing_rules WHERE rule_name=?')
+      .get(`scheduled-future-${suffix}`)).toBeNull();
+  });
+
+  it('拒绝到期后会造成跨分组倍率不一致的平台规则', async () => {
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const modelCode = createModel(db, suffix, 'active');
+    const explicitChannelId = createChannel(db, `${suffix}-explicit`, 0.35);
+    const fallbackChannelId = createChannel(db, `${suffix}-fallback`, null);
+    for (const channelId of [explicitChannelId, fallbackChannelId]) {
+      db.prepare(`INSERT INTO channel_models
+        (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
+        .run(channelId, modelCode, modelCode);
+      const groupId = db.prepare("INSERT INTO routing_groups (group_name,status) VALUES (?,'active')")
+        .run(`expiring-group-${suffix}-${channelId}`).lastInsertRowid;
+      db.prepare(`INSERT INTO routing_group_channels
+        (group_id,channel_id,status) VALUES (?,?,'active')`).run(groupId, channelId);
+    }
+
+    const response = await request('/api/admin/pricing-rules', {
+      method: 'POST',
+      body: JSON.stringify({
+        rule_name: `expiring-rule-${suffix}`,
+        model_code: modelCode,
+        scope_type: 'platform',
+        multiplier_input: 1,
+        multiplier_output: 1,
+        multiplier_image: 0.35,
+        priority: 10,
+        end_time: new Date(Date.now() + 86_400_000).toISOString(),
+        status: 'active',
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain('倍率');
+    expect(db.prepare('SELECT id FROM pricing_rules WHERE rule_name=?')
+      .get(`expiring-rule-${suffix}`)).toBeNull();
+  });
 });
