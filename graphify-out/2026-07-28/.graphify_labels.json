@@ -20,6 +20,7 @@
   "18": "src/views/admin/Settings.vue",
   "19": "easypay-payment.test.js",
   "20": "user/Models.vue",
+  "21": "Proposed Changes",
   "22": "model-capabilities.test.js",
   "23": "AdminLayout.vue",
   "24": "src/views/admin/Pricing.vue",
@@ -71,12 +72,13 @@
   "70": "Sub2API balance-billing parity",
   "71": "Round 1: Schema Baseline",
   "72": "schema-baseline-migration.test.js",
+  "73": "Sub2API 与 IonAiLabs 用户端性能体验对比报告",
   "74": "image-billing.js",
+  "75": "easypay.js",
   "76": "handleImageBilledRequest",
   "77": "billing.test.js",
   "78": "anthropic-protocol.test.js",
   "79": "loadAll",
-  "83": "request-limits.js",
   "84": "loadGroups",
   "85": "emptyChannel"
 }

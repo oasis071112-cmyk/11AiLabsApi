@@ -12,12 +12,13 @@
   <div class="filter-bar">
     <div class="filter-left">
       <el-radio-group v-model="datePreset" @change="onPresetChange" size="small">
+        <el-radio-button value="1d">近1天</el-radio-button>
         <el-radio-button value="7d">近7天</el-radio-button>
         <el-radio-button value="30d">近30天</el-radio-button>
-        <el-radio-button value="90d">近90天</el-radio-button>
         <el-radio-button value="custom">自定义</el-radio-button>
       </el-radio-group>
-      <el-date-picker v-if="datePreset==='custom'" v-model="customRange" type="daterange" range-separator="~" start-placeholder="开始" end-placeholder="结束" size="small" @change="onCustomChange" style="width:260px;margin-left:12px"/>
+      <el-date-picker v-if="datePreset==='custom'&&!isMobile" v-model="customRange" type="daterange" value-format="YYYY-MM-DD" range-separator="~" start-placeholder="开始" end-placeholder="结束" size="small" @change="onCustomChange" class="custom-range"/>
+      <div v-if="datePreset==='custom'&&isMobile" class="mobile-date-range"><el-date-picker v-model="customRange[0]" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small" @change="onCustomChange(customRange)"/><el-date-picker v-model="customRange[1]" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small" @change="onCustomChange(customRange)"/></div>
       <el-select v-model="filterModel" clearable placeholder="全部模型" size="small" style="width:160px;margin-left:12px" @change="fetchAll">
         <el-option v-for="m in modelList" :key="m.model_code" :label="m.model_code" :value="m.model_code"/>
       </el-select>
@@ -60,13 +61,15 @@
   </div>
 
   <!-- 全部日志弹窗 -->
-  <el-dialog v-model="showAllLogs" title="全部调用记录" width="90%" top="3vh" destroy-on-close>
-    <div style="margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap">
-      <el-select v-model="logFilter.model" clearable placeholder="模型" size="small" style="width:150px" @change="fetchLogs"><el-option v-for="m in modelList" :key="m.model_code" :label="m.model_code" :value="m.model_code"/></el-select>
-      <el-date-picker v-model="logFilter.dateRange" type="daterange" range-separator="~" start-placeholder="开始" end-placeholder="结束" size="small" @change="fetchLogs"/>
-      <el-button size="small" @click="fetchLogs">查询</el-button>
+  <el-dialog v-model="showAllLogs" title="全部调用记录" width="90%" top="3vh" destroy-on-close class="all-logs-dialog">
+    <div class="log-filter-bar">
+      <el-select v-model="logFilter.model" clearable placeholder="模型" size="small" @change="onLogFilterChange"><el-option v-for="m in modelList" :key="m.model_code" :label="m.model_code" :value="m.model_code"/></el-select>
+      <el-date-picker v-if="!isMobile" v-model="logFilter.dateRange" type="daterange" value-format="YYYY-MM-DD" range-separator="~" start-placeholder="开始" end-placeholder="结束" size="small" @change="onLogFilterChange"/>
+      <div v-else class="mobile-date-range"><el-date-picker v-model="logFilter.dateRange[0]" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small" @change="onLogFilterChange"/><el-date-picker v-model="logFilter.dateRange[1]" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small" @change="onLogFilterChange"/></div>
+      <el-button size="small" @click="onLogFilterChange">查询</el-button>
+      <el-button size="small" type="primary" :loading="exportLoading" :disabled="!logRangeValid" @click="exportLogs">导出 CSV</el-button>
     </div>
-    <el-table :data="allLogs" stripe size="small" v-loading="logLoading" max-height="60vh">
+    <el-table v-if="!isMobile" :data="allLogs" stripe size="small" v-loading="logLoading" max-height="60vh">
       <el-table-column label="时间" width="170"><template #default="{row}">{{ formatBeijingTime(row.created_at) }}</template></el-table-column>
       <el-table-column prop="request_id" label="请求ID" width="180" show-overflow-tooltip/>
       <el-table-column prop="model_code" label="模型" width="130"/>
@@ -78,10 +81,22 @@
       <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
       <el-table-column prop="error_message" label="错误信息" min-width="160" show-overflow-tooltip/>
     </el-table>
+    <div v-else class="all-logs-mobile-list" v-loading="logLoading">
+      <article v-for="row in allLogs" :key="row.request_id" class="mobile-log-card">
+        <div class="mobile-log-head"><div><el-tag size="small" effect="plain">{{ row.model_code }}</el-tag><el-tag size="small" :type="billingModeType(row.billing_mode)">{{ billingModeLabel(row) }}</el-tag></div><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></div>
+        <div class="mobile-log-time">{{ formatBeijingTime(row.created_at) }}</div>
+        <div class="mobile-log-request">{{ row.request_id }}</div>
+        <div class="mobile-log-usage"><span>输入 <strong>{{ number(row.input_tokens) }}</strong></span><span>输出 <strong>{{ number(row.output_tokens) }}</strong></span><span>扣费 <strong>{{ point(row.total_cost) }} 点</strong></span></div>
+        <div v-if="row.error_message" class="mobile-log-error">{{ row.error_message }}</div>
+        <el-button v-if="hasBillingDetail(row)" class="billing-detail-button" type="primary" size="small" @click="openBilling(row)">查看扣费计算过程</el-button>
+        <span v-else class="no-detail">历史记录无快照</span>
+      </article>
+      <el-empty v-if="!logLoading&&!allLogs.length" description="暂无调用记录" :image-size="50"/>
+    </div>
     <el-pagination v-model:current-page="logPage" :page-size="20" :total="logTotal" layout="prev,pager,next" @current-change="fetchLogs" style="margin-top:16px;justify-content:center" small/>
   </el-dialog>
 
-  <el-dialog v-model="billingDialog" title="计费明细" width="680px" top="8vh">
+  <el-dialog v-model="billingDialog" title="计费明细" width="680px" top="8vh" class="billing-dialog-modal">
     <div v-if="selectedBilling" class="billing-dialog">
       <div class="billing-summary">
         <div><span>模型</span><strong>{{ selectedBilling.model_code }}</strong></div>
@@ -120,9 +135,11 @@
 <script setup>
 import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 import { DollarSign, Activity, Coins, Target, ClipboardList, RefreshCw } from '@lucide/vue'
+import { ElMessage } from 'element-plus'
 import api from '@/api'
 import dayjs from 'dayjs'
-import { formatBeijingTime } from '@/utils/time'
+import { formatBeijingDate, formatBeijingTime } from '@/utils/time'
+import { createLatestRequest } from '@/utils/latest-request'
 
 const UsageCharts=defineAsyncComponent(()=>import('@/components/logs/UsageCharts.vue'))
 
@@ -141,17 +158,24 @@ const logLoading = ref(false)
 const logPage = ref(1)
 const logTotal = ref(0)
 const logFilter = ref({ model: '', dateRange: [] })
+const exportLoading = ref(false)
+const isMobile = ref(false)
 const billingDialog = ref(false)
 const selectedBilling = ref(null)
 const autoRefresh = ref(false)
 const chartsReady = ref(false)
 let refreshTimer = null
+let mobileMedia = null
+const fetchAllRequest = createLatestRequest()
+const fetchLogsRequest = createLatestRequest()
+function syncMobile(){isMobile.value=mobileMedia.matches}
 
 const successRate = computed(() => {
   if (!stats.value.today_calls) return '0.0'
   const success = stats.value.today_status?.find(s => s.status === 'success')?.count || 0
   return ((success / stats.value.today_calls) * 100).toFixed(1)
 })
+const logRangeValid = computed(() => validateRange(logFilter.value.dateRange, false))
 
 const totalTokens = computed(() => (stats.value.input_tokens || 0) + (stats.value.output_tokens || 0))
 
@@ -183,21 +207,29 @@ function statusLabel(s) { const m = { success: '成功', failed: '失败', block
 function billingModeType(mode){return mode==='image'?'warning':mode==='per_request'?'success':'info'}
 function billingModeLabel(row){return row.billing_mode==='image'?`图片 ${row.image_count||0} 张`:row.billing_mode==='per_request'?'每请求':'Token'}
 function openBilling(row){selectedBilling.value=row;billingDialog.value=true}
-function openAllLogs(){showAllLogs.value=true;fetchLogs()}
+function openAllLogs(){logFilter.value={model:filterModel.value,dateRange:[...dateRange.value]};logPage.value=1;showAllLogs.value=true;fetchLogs()}
 function hasBillingDetail(row){return Boolean(row?.billing_detail)}
 function number(value){return Number(value||0).toLocaleString()}
 function formatTokenUnit(value){return Number(value)===1000000?'1M':number(value)}
 function point(value){return Number(value||0).toFixed(6)}
-function getPresetRange(preset) { const end = dayjs().format('YYYY-MM-DD'); const start = dayjs().subtract(preset === '30d' ? 29 : preset === '90d' ? 89 : 6, 'day').format('YYYY-MM-DD'); return [start, end] }
+function getPresetRange(preset) { const end = formatBeijingDate(); const start = dayjs(end).subtract(preset === '1d' ? 0 : preset === '30d' ? 29 : 6, 'day').format('YYYY-MM-DD'); return [start, end] }
+function normalizeRange(range){return Array.isArray(range)?range.map(value=>value?dayjs(value).format('YYYY-MM-DD'):''):[]}
+function validateRange(range, notify=true){const normalized=normalizeRange(range);let message='';if(normalized.length!==2||!normalized[0]||!normalized[1])message='请选择完整的开始和结束日期';else if(!dayjs(normalized[0],'YYYY-MM-DD',true).isValid()||!dayjs(normalized[1],'YYYY-MM-DD',true).isValid())message='日期格式无效';else if(dayjs(normalized[0]).isAfter(dayjs(normalized[1])))message='开始日期不能晚于结束日期';else if(dayjs(normalized[1]).diff(dayjs(normalized[0]),'day')+1>90)message='日期范围不能超过 90 个自然日';if(message&&notify)ElMessage.warning(message);return !message}
+function logParams(){const range=normalizeRange(logFilter.value.dateRange);return {model:logFilter.value.model||undefined,start_date:range[0],end_date:range[1]}}
+function onLogFilterChange(){if(!validateRange(logFilter.value.dateRange))return;logPage.value=1;fetchLogs()}
 
 async function fetchAll() {
+  const version=fetchAllRequest.begin()
+  const range=[...dateRange.value]
+  const model=filterModel.value||undefined
   loading.value = true
   const results=await Promise.allSettled([
     api.get('/api/user/models'),
     api.get('/api/user/stats'),
-    api.get('/api/user/stats/daily',{params:{start_date:dateRange.value[0],end_date:dateRange.value[1]}}),
-    api.get('/api/user/logs',{params:{limit:10,model:filterModel.value||undefined}}),
+    api.get('/api/user/stats/daily',{params:{start_date:range[0],end_date:range[1]}}),
+    api.get('/api/user/logs',{params:{limit:10,model,start_date:range[0],end_date:range[1]}}),
   ])
+  if(!fetchAllRequest.isLatest(version))return
   if(results[0].status==='fulfilled')modelList.value=results[0].value.data.data||[]
   if(results[1].status==='fulfilled')stats.value=results[1].value.data||{}
   if(results[2].status==='fulfilled')dailyData.value=results[2].value.data.data||[]
@@ -205,9 +237,10 @@ async function fetchAll() {
   loading.value=false
   scheduleCharts()
 }
-async function fetchLogs(){logLoading.value=true;try{const p={page:logPage.value,limit:20};if(logFilter.value.model)p.model=logFilter.value.model;if(logFilter.value.dateRange?.length===2){p.start_date=logFilter.value.dateRange[0];p.end_date=logFilter.value.dateRange[1]}const r=await api.get('/api/user/logs',{params:p});allLogs.value=r.data.data;logTotal.value=r.data.pagination.total}catch(e){}logLoading.value=false}
-function onPresetChange(val){if(val!=='custom'){dateRange.value=getPresetRange(val);fetchAll()}}
-function onCustomChange(val){if(val?.length===2){dateRange.value=val;fetchAll()}}
+async function fetchLogs(){if(!validateRange(logFilter.value.dateRange))return;const version=fetchLogsRequest.begin();const p={page:logPage.value,limit:20,...logParams()};logLoading.value=true;try{const r=await api.get('/api/user/logs',{params:p});if(!fetchLogsRequest.isLatest(version))return;allLogs.value=r.data.data;logTotal.value=r.data.pagination.total}catch(e){}finally{if(fetchLogsRequest.isLatest(version))logLoading.value=false}}
+async function exportLogs(){if(!validateRange(logFilter.value.dateRange))return;exportLoading.value=true;try{const r=await api.get('/api/user/logs/export',{params:logParams(),responseType:'blob'});const disposition=r.headers['content-disposition']||'';const encoded=disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];const fallback=`调用记录_${logFilter.value.dateRange[0]}_${logFilter.value.dateRange[1]}.csv`;const filename=encoded?decodeURIComponent(encoded):fallback;const url=URL.createObjectURL(r.data);const link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);ElMessage.success('CSV 导出成功')}catch(e){}exportLoading.value=false}
+function onPresetChange(val){if(val!=='custom'){dateRange.value=getPresetRange(val);customRange.value=[...dateRange.value];fetchAll()}else{customRange.value=[...dateRange.value]}}
+function onCustomChange(val){const range=normalizeRange(val);if(validateRange(range)){customRange.value=range;dateRange.value=range;fetchAll()}}
 function toggleAutoRefresh(){autoRefresh.value=!autoRefresh.value;if(autoRefresh.value){refreshTimer=setInterval(fetchAll,5000)}else{clearInterval(refreshTimer)}}
 function scheduleCharts(){
   if(chartsReady.value)return
@@ -215,8 +248,8 @@ function scheduleCharts(){
   if('requestIdleCallback' in window)window.requestIdleCallback(show,{timeout:800})
   else window.setTimeout(show,80)
 }
-onMounted(()=>{dateRange.value=getPresetRange('7d');fetchAll()})
-onUnmounted(()=>{clearInterval(refreshTimer)})
+onMounted(()=>{mobileMedia=window.matchMedia('(max-width: 768px)');syncMobile();mobileMedia.addEventListener('change',syncMobile);dateRange.value=getPresetRange('7d');customRange.value=[...dateRange.value];fetchAll()})
+onUnmounted(()=>{fetchAllRequest.invalidate();fetchLogsRequest.invalidate();clearInterval(refreshTimer);mobileMedia?.removeEventListener('change',syncMobile)})
 </script>
 
 <style scoped>
@@ -231,6 +264,7 @@ onUnmounted(()=>{clearInterval(refreshTimer)})
 .kpi-value { font-size: 24px; font-weight: 700; color: #0f172a; white-space: nowrap }
 .filter-bar { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 20px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04) }
 .filter-left { display: flex; align-items: center; flex-wrap: wrap; gap: 8px }
+.custom-range{width:260px;margin-left:12px}.mobile-date-range{display:flex;gap:8px}.log-filter-bar{margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap}.log-filter-bar>.el-select{width:150px}
 .charts-row { margin-bottom: 16px }
 .chart-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04) }
 .chart-header { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 600; color: #0f172a }
@@ -252,9 +286,13 @@ onUnmounted(()=>{clearInterval(refreshTimer)})
   .kpi-label{font-size:11px;margin-bottom:1px;text-transform:none}
   .kpi-value{font-size:15px}
   .filter-bar{padding:9px 10px;margin-bottom:10px;gap:8px;box-shadow:none}
-  .filter-left{width:100%;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+  .filter-left{width:100%;flex-wrap:wrap;overflow:visible;padding-bottom:2px}
   .filter-left>*{max-width:none;flex-shrink:0}
-  .filter-left .el-select{width:120px!important;margin-left:0!important}
+  .filter-left .el-radio-group{width:100%;display:flex}.filter-left .el-radio-button{flex:1}.filter-left :deep(.el-radio-button__inner){width:100%;padding:8px 6px}
+  .filter-left .el-select{width:100%!important;margin-left:0!important}
+  .mobile-date-range{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px}.mobile-date-range .el-date-editor{width:100%;min-height:44px}.log-filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:8px}.log-filter-bar>.el-select,.log-filter-bar>.mobile-date-range{grid-column:1/-1;width:100%}.log-filter-bar>.el-button{margin:0;min-height:44px}
+  :deep(.all-logs-dialog),:deep(.billing-dialog-modal){width:calc(100% - 16px)!important;margin-top:8px!important}.all-logs-dialog :deep(.el-dialog__body),.billing-dialog-modal :deep(.el-dialog__body){padding:12px;overflow:hidden}.all-logs-dialog :deep(.el-pagination){overflow-x:auto;justify-content:flex-start!important}
+  .all-logs-mobile-list{display:grid;gap:8px;max-height:58vh;overflow-y:auto}.all-logs-mobile-list .mobile-log-card{border-radius:10px;padding:11px}.mobile-log-request,.mobile-log-error{overflow-wrap:anywhere;font-size:11px;color:#64748b;margin-bottom:8px}.mobile-log-error{padding:7px;background:#fef2f2;border-radius:7px;color:#b91c1c}
   .filter-right{display:flex;width:100%;gap:8px}
   .filter-right .el-button{flex:1;min-height:40px;margin:0}
   .charts-row{margin-bottom:4px}

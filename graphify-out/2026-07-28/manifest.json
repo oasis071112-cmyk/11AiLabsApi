@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/user.js": {
-    "mtime": 1785160025.4944568,
-    "ast_hash": "3b8beeccee3306f01ffaad7fe32261a9",
+    "mtime": 1785170817.3077674,
+    "ast_hash": "4746d49397486dc0b6850ba965106ead",
     "semantic_hash": ""
   },
   "backend/src/utils/billing-detail.js": {
@@ -260,19 +260,19 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1785161987.174929,
+    "mtime": 1785171230.1124878,
     "ast_hash": "6b8d14708b6271bee11c056cc10bca38",
     "semantic_hash": "6b8d14708b6271bee11c056cc10bca38"
   },
   "frontend/components.d.ts": {
-    "mtime": 1785074866.7956636,
+    "mtime": 1785167796.3774092,
     "ast_hash": "ce47651595557e71ad7e1e4e67892bfa",
     "semantic_hash": "ce47651595557e71ad7e1e4e67892bfa"
   },
   "frontend/package.json": {
-    "mtime": 1784357838.9831524,
-    "ast_hash": "8afbb0f986826d65f421b1c2f2e8a62a",
-    "semantic_hash": "8afbb0f986826d65f421b1c2f2e8a62a"
+    "mtime": 1785167281.961084,
+    "ast_hash": "19b7addccb2d24f9448f7113abac2e09",
+    "semantic_hash": ""
   },
   "frontend/scripts/check-login-error-ui.mjs": {
     "mtime": 1784357836.6496356,
@@ -280,9 +280,9 @@
     "semantic_hash": "ede1edbb6cb548873627fbd3034bad5d"
   },
   "frontend/scripts/check-mobile-bundle.mjs": {
-    "mtime": 1784206928.4880676,
-    "ast_hash": "8e64629562c7d9ae899daf04b447cfc4",
-    "semantic_hash": "8e64629562c7d9ae899daf04b447cfc4"
+    "mtime": 1785167618.9067562,
+    "ast_hash": "1791894a226daca9dc6de95b6b6e97d8",
+    "semantic_hash": ""
   },
   "frontend/src/App.vue": {
     "mtime": 1784205707.2758226,
@@ -300,14 +300,14 @@
     "semantic_hash": "8999793463e33a6980fe17516e1f9155"
   },
   "frontend/src/components/DashboardCharts.vue": {
-    "mtime": 1784376312.3230035,
-    "ast_hash": "e90629c6862f0baead4b0889155e3eed",
-    "semantic_hash": "e90629c6862f0baead4b0889155e3eed"
+    "mtime": 1785167400.995514,
+    "ast_hash": "40ec7254acdba993350ade9b72d2d457",
+    "semantic_hash": ""
   },
   "frontend/src/components/logs/UsageCharts.vue": {
-    "mtime": 1784376314.5886517,
-    "ast_hash": "7c9c3925b85b0eaec7470f6af7b43eda",
-    "semantic_hash": "7c9c3925b85b0eaec7470f6af7b43eda"
+    "mtime": 1785167344.0181627,
+    "ast_hash": "e714ade2d374a87f06305f996c6f6bdb",
+    "semantic_hash": ""
   },
   "frontend/src/composables/useMobile.js": {
     "mtime": 1784203002.5547142,
@@ -435,8 +435,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/user/Logs.vue": {
-    "mtime": 1785077327.3164036,
-    "ast_hash": "4cc6d2778d468cf5c2076c8e9ed04f8f",
+    "mtime": 1785171052.987371,
+    "ast_hash": "b211f9408f2aa4c7facb7a6df77d0d63",
     "semantic_hash": ""
   },
   "frontend/src/views/user/Models.vue": {
@@ -572,6 +572,21 @@
   "backend/tests/user-model-multipliers.test.js": {
     "mtime": 1785159946.5240726,
     "ast_hash": "9168502da39f7fa96b83c1221d4037c5",
+    "semantic_hash": ""
+  },
+  ".trae/documents/\u7528\u6237\u7aef\u56fe\u8868\u8fc1\u79fb\u81f3ChartJS\u8ba1\u5212.md": {
+    "mtime": 1785166850.6492379,
+    "ast_hash": "dd75ab5d26f03d4e979034c201b9d2ce",
+    "semantic_hash": ""
+  },
+  "docs/sub2api-ux-performance-comparison-2026-07-27.md": {
+    "mtime": 1785165393.9359834,
+    "ast_hash": "671581bedc0d96859416e83a1831502e",
+    "semantic_hash": ""
+  },
+  "backend/tests/user-logs.test.js": {
+    "mtime": 1785171182.6032376,
+    "ast_hash": "223e21e83bae04292d1f7636c7a9f982",
     "semantic_hash": ""
   }
 }

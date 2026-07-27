@@ -79,11 +79,9 @@
   "77": "billing.test.js",
   "78": "anthropic-protocol.test.js",
   "79": "loadAll",
-  "80": "payment.js",
-  "81": "easypay-payment.test.js",
-  "82": "billing-detail.js",
-  "83": "request-limits.js",
+  "80": "user-model-multipliers.test.js",
+  "81": "fetchAll",
+  "82": "formatTokenUnit",
   "84": "loadGroups",
-  "85": "emptyChannel",
-  "86": "crypto.js"
+  "85": "emptyChannel"
 }

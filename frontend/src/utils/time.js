@@ -8,13 +8,25 @@ function parseStoredTime(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function beijingParts(date, options) {
+  return Object.fromEntries(new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai', ...options,
+  }).formatToParts(date).map(part => [part.type, part.value]));
+}
+
 export function formatBeijingTime(value, fallback = '—') {
   const date = parseStoredTime(value);
   if (!date) return value ? String(value) : fallback;
-  const parts = new Intl.DateTimeFormat('zh-CN', {
-    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+  const lookup = beijingParts(date, {
+    year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  }).formatToParts(date);
-  const lookup = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  });
   return `${lookup.year}-${lookup.month}-${lookup.day} ${lookup.hour}:${lookup.minute}:${lookup.second}`;
+}
+
+export function formatBeijingDate(value = new Date()) {
+  const date = parseStoredTime(value);
+  if (!date) return '';
+  const lookup = beijingParts(date, { year: 'numeric', month: '2-digit', day: '2-digit' });
+  return `${lookup.year}-${lookup.month}-${lookup.day}`;
 }

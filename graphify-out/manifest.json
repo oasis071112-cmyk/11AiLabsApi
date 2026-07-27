@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/user.js": {
-    "mtime": 1785160025.4944568,
-    "ast_hash": "3b8beeccee3306f01ffaad7fe32261a9",
+    "mtime": 1785171796.786369,
+    "ast_hash": "a6cec15b2555feacdf22bc0c158e3e20",
     "semantic_hash": ""
   },
   "backend/src/utils/billing-detail.js": {
@@ -260,7 +260,7 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1785167792.9745872,
+    "mtime": 1785172323.8950655,
     "ast_hash": "6b8d14708b6271bee11c056cc10bca38",
     "semantic_hash": "6b8d14708b6271bee11c056cc10bca38"
   },
@@ -270,8 +270,8 @@
     "semantic_hash": "ce47651595557e71ad7e1e4e67892bfa"
   },
   "frontend/package.json": {
-    "mtime": 1785167281.961084,
-    "ast_hash": "19b7addccb2d24f9448f7113abac2e09",
+    "mtime": 1785172097.4524157,
+    "ast_hash": "7e3508c083a595a2f17ce7b0226cb19d",
     "semantic_hash": ""
   },
   "frontend/scripts/check-login-error-ui.mjs": {
@@ -355,9 +355,9 @@
     "semantic_hash": "dbd79376c210e3fea398789a8eb7b815"
   },
   "frontend/src/utils/time.js": {
-    "mtime": 1783947318.953262,
-    "ast_hash": "2beb0d6119db26c261369fe8f699dfd3",
-    "semantic_hash": "2beb0d6119db26c261369fe8f699dfd3"
+    "mtime": 1785171867.4708848,
+    "ast_hash": "8db4a26b7d4c81ef4c00c21ab576e064",
+    "semantic_hash": ""
   },
   "frontend/src/views/admin/Channels.vue": {
     "mtime": 1785161220.5622885,
@@ -435,8 +435,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/user/Logs.vue": {
-    "mtime": 1785168000.763539,
-    "ast_hash": "c209d1fcd3c8e3d92bbf485785734de5",
+    "mtime": 1785172071.793205,
+    "ast_hash": "cd13f4e6133891780fb56e17c4eb32f3",
     "semantic_hash": ""
   },
   "frontend/src/views/user/Models.vue": {
@@ -582,6 +582,21 @@
   "docs/sub2api-ux-performance-comparison-2026-07-27.md": {
     "mtime": 1785165393.9359834,
     "ast_hash": "671581bedc0d96859416e83a1831502e",
+    "semantic_hash": ""
+  },
+  "backend/tests/user-logs.test.js": {
+    "mtime": 1785171718.696485,
+    "ast_hash": "2d70e5f717caeea73f450376a2f0a3a0",
+    "semantic_hash": ""
+  },
+  "frontend/scripts/check-user-logs.mjs": {
+    "mtime": 1785172086.9951115,
+    "ast_hash": "39478ec82747a45141973df4896c6a75",
+    "semantic_hash": ""
+  },
+  "frontend/src/utils/latest-request.js": {
+    "mtime": 1785172008.5594294,
+    "ast_hash": "3ace8b397b49183b7035150baabfd102",
     "semantic_hash": ""
   }
 }

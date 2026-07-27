@@ -267,16 +267,113 @@ router.patch('/keys/:id/toggle', authenticate, (req, res) => {
   res.json({ message: `API Key 已${ns==='active'?'启用':'禁用'}`, status: ns });
 });
 
+function parseLogDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return null;
+  const [year, month, day] = String(value).split('-').map(Number);
+  const timestamp = Date.UTC(year, month - 1, day);
+  const date = new Date(timestamp);
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return { value: String(value), timestamp };
+}
+
+function sqliteUtcTime(timestamp) {
+  return new Date(timestamp).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+function buildLogFilters(userId, query, requireDates = false, requiredDateMessage = '导出必须提供完整的开始和结束日期') {
+  const hasStart = query.start_date !== undefined && query.start_date !== '';
+  const hasEnd = query.end_date !== undefined && query.end_date !== '';
+  if (requireDates && (!hasStart || !hasEnd)) throw new Error(requiredDateMessage);
+  if (hasStart !== hasEnd) throw new Error('开始和结束日期必须同时提供');
+  let startDate = null;
+  let endDate = null;
+  let where = 'WHERE user_id=?';
+  const params = [userId];
+  if (query.model) { where += ' AND model_code=?'; params.push(String(query.model)); }
+  if (query.key_id) { where += ' AND api_key_id=?'; params.push(query.key_id); }
+  if (hasStart && hasEnd) {
+    startDate = parseLogDate(query.start_date);
+    endDate = parseLogDate(query.end_date);
+    if (!startDate || !endDate) throw new Error('日期格式无效，请使用 YYYY-MM-DD');
+    if (startDate.timestamp > endDate.timestamp) throw new Error('开始日期不能晚于结束日期');
+    const days = Math.floor((endDate.timestamp - startDate.timestamp) / 86400000) + 1;
+    if (days > 90) throw new Error('日期范围不能超过 90 个自然日');
+    where += ' AND created_at>=? AND created_at<?';
+    params.push(sqliteUtcTime(startDate.timestamp - 8 * 3600000));
+    params.push(sqliteUtcTime(endDate.timestamp + 86400000 - 8 * 3600000));
+  }
+  return { where, params, startDate, endDate };
+}
+
+function parsePositiveInteger(value, fallback, maximum) {
+  const text = value === undefined ? String(fallback) : String(value);
+  if (!/^\d+$/.test(text)) return null;
+  const parsed = Number(text);
+  return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= maximum ? parsed : null;
+}
+
+function formatCsvBeijingTime(value) {
+  const date = new Date(`${String(value).replace(' ', 'T')}Z`);
+  if (Number.isNaN(date.getTime())) return String(value || '');
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}`;
+}
+
+function csvField(value, protectFormula = false) {
+  let text = value === null || value === undefined ? '' : String(value);
+  if (protectFormula && /^[=+\-@]/.test(text)) text = `'${text}`;
+  if (/[",\r\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+router.get('/logs/export', authenticate, (req, res) => {
+  let filters;
+  try {
+    filters = buildLogFilters(req.user.id, req.query, true);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+  const rows = getDatabase().prepare(`SELECT request_id,model_code,billing_mode,input_tokens,cached_input_tokens,
+    cache_creation_tokens,image_input_tokens,output_tokens,image_output_tokens,image_count,total_cost,status,
+    latency_ms,error_type,error_message,created_at FROM api_request_logs ${filters.where}
+    ORDER BY created_at DESC, id DESC`).all(...filters.params);
+  const headers = ['请求 ID','时间（北京时间）','模型','计费方式','输入 Token','缓存输入 Token','缓存创建 Token','图片输入 Token','输出 Token','图片输出 Token','图片数量','费用（点）','状态','延迟（毫秒）','错误类型','错误信息'];
+  const billingModes = { token: 'Token', image: '图片', per_request: '每请求', count_tokens: 'Token 计数' };
+  const statuses = { success: '成功', failed: '失败', blocked: '拦截' };
+  const lines = [headers.map(value => csvField(value)).join(',')];
+  for (const row of rows) {
+    lines.push([
+      csvField(row.request_id, true), csvField(formatCsvBeijingTime(row.created_at)), csvField(row.model_code, true),
+      csvField(billingModes[row.billing_mode] || row.billing_mode, true), csvField(row.input_tokens),
+      csvField(row.cached_input_tokens), csvField(row.cache_creation_tokens), csvField(row.image_input_tokens),
+      csvField(row.output_tokens), csvField(row.image_output_tokens), csvField(row.image_count), csvField(row.total_cost),
+      csvField(statuses[row.status] || row.status, true), csvField(row.latency_ms), csvField(row.error_type, true),
+      csvField(row.error_message, true),
+    ].join(','));
+  }
+  const filename = `调用记录_${filters.startDate.value}_${filters.endDate.value}.csv`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="logs_${filters.startDate.value}_${filters.endDate.value}.csv"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  res.send(`\uFEFF${lines.join('\r\n')}`);
+});
+
 router.get('/logs', authenticate, (req, res) => {
   const db = getDatabase();
-  const { page=1, limit=20, model, key_id, start_date, end_date } = req.query;
-  const offset = (page-1)*limit;
-  let where = 'WHERE user_id=?';
-  const p = [req.user.id];
-  if (model) { where += ' AND model_code=?'; p.push(model); }
-  if (key_id) { where += ' AND api_key_id=?'; p.push(key_id); }
-  if (start_date) { where += ' AND created_at>=?'; p.push(start_date); }
-  if (end_date) { where += ' AND created_at<=?'; p.push(end_date+' 23:59:59'); }
+  const page = parsePositiveInteger(req.query.page, 1, 1000000);
+  const limit = parsePositiveInteger(req.query.limit, 20, 100);
+  if (!page || !limit) return res.status(400).json({ error: '页码或每页数量无效' });
+  let filters;
+  try {
+    filters = buildLogFilters(req.user.id, req.query);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+  const offset = (page - 1) * limit;
+  const { where, params: p } = filters;
   const rows = db.prepare(`SELECT request_id,api_key_id,model_code,input_tokens,cached_input_tokens,cache_creation_tokens,
     image_input_tokens,output_tokens,image_output_tokens,total_cost,status,error_message,error_type,latency_ms,created_at,
     official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,
@@ -338,19 +435,23 @@ router.get('/logs', authenticate, (req, res) => {
     };
   });
   const total = db.prepare(`SELECT COUNT(*) as count FROM api_request_logs ${where}`).get(...p);
-  res.json({ data, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
+  res.json({ data, pagination: { page, limit, total: total.count } });
 });
 
 // ========== 统计 - 每日趋势 ==========
 
 router.get('/stats/daily', authenticate, (req, res) => {
-  const db = getDatabase();
-  const { start_date, end_date } = req.query;
-  let where = "WHERE user_id=? AND status='success'";
-  const params = [req.user.id];
-  if (start_date) { where += ' AND date(created_at)>=?'; params.push(start_date); }
-  if (end_date) { where += ' AND date(created_at)<=?'; params.push(end_date); }
-  const daily = db.prepare(`SELECT date(created_at) as date, COUNT(*) as calls, COALESCE(SUM(total_cost),0) as cost, COALESCE(SUM(input_tokens),0) as input_tokens, COALESCE(SUM(output_tokens),0) as output_tokens FROM api_request_logs ${where} GROUP BY date(created_at) ORDER BY date ASC`).all(...params);
+  let filters;
+  try {
+    filters = buildLogFilters(req.user.id, req.query, true, '每日统计必须提供完整的开始和结束日期');
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+  const beijingDate = "date(created_at,'+8 hours')";
+  const daily = getDatabase().prepare(`SELECT ${beijingDate} as date, COUNT(*) as calls,
+    COALESCE(SUM(total_cost),0) as cost, COALESCE(SUM(input_tokens),0) as input_tokens,
+    COALESCE(SUM(output_tokens),0) as output_tokens FROM api_request_logs
+    ${filters.where} AND status='success' GROUP BY ${beijingDate} ORDER BY date ASC`).all(...filters.params);
   res.json({ data: daily });
 });
 
