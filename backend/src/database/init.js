@@ -9,7 +9,9 @@ function migrateRoutingGroups(database = db) {
 
   return database.transaction(() => {
     const channels = database.prepare(`
-      SELECT id,channel_name,priority,weight,status FROM upstream_channels ORDER BY id ASC
+      SELECT id,channel_name,priority,weight,status,
+             billing_multiplier_input,billing_multiplier_output,billing_multiplier_image
+      FROM upstream_channels ORDER BY id ASC
     `).all();
 
     for (const channel of channels) {
@@ -18,9 +20,19 @@ function migrateRoutingGroups(database = db) {
         const sameName = database.prepare('SELECT id FROM routing_groups WHERE group_name=?').get(channel.channel_name);
         const groupName = sameName ? `${channel.channel_name}（迁移 ${channel.id}）` : channel.channel_name;
         const result = database.prepare(`
-          INSERT INTO routing_groups (group_name,description,status,legacy_channel_id)
-          VALUES (?,?,?,?)
-        `).run(groupName, '由原渠道自动迁移', channel.status === 'active' ? 'active' : 'inactive', channel.id);
+          INSERT INTO routing_groups (
+            group_name,description,status,legacy_channel_id,
+            billing_multiplier_input,billing_multiplier_output,billing_multiplier_image
+          ) VALUES (?,?,?,?,?,?,?)
+        `).run(
+          groupName,
+          '由原渠道自动迁移',
+          channel.status === 'active' ? 'active' : 'inactive',
+          channel.id,
+          channel.billing_multiplier_input,
+          channel.billing_multiplier_output,
+          channel.billing_multiplier_image,
+        );
         group = { id: result.lastInsertRowid };
       }
       database.prepare(`
@@ -86,6 +98,40 @@ function migrateRoutingGroups(database = db) {
         database.prepare('UPDATE api_keys SET routing_group_id=? WHERE id=?').run(groupId, apiKey.id);
       }
     }
+  });
+}
+
+function migrateRoutingGroupMultipliers(database = db) {
+  if (!database) throw new Error('数据库未初始化');
+
+  return database.transaction(() => {
+    const groups = database.prepare(`SELECT id,billing_multiplier_input,
+      billing_multiplier_output,billing_multiplier_image FROM routing_groups`).all();
+    const linkedMaximum = database.prepare(`SELECT
+      MAX(CASE WHEN uc.billing_multiplier_input>0 THEN uc.billing_multiplier_input END)
+        AS billing_multiplier_input,
+      MAX(CASE WHEN uc.billing_multiplier_output>0 THEN uc.billing_multiplier_output END)
+        AS billing_multiplier_output,
+      MAX(CASE WHEN uc.billing_multiplier_image>0 THEN uc.billing_multiplier_image END)
+        AS billing_multiplier_image
+      FROM routing_group_channels rgc
+      JOIN upstream_channels uc ON uc.id=rgc.channel_id
+      WHERE rgc.group_id=?`);
+    const updateGroup = database.prepare(`UPDATE routing_groups SET
+      billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
+      updated_at=CURRENT_TIMESTAMP WHERE id=?`);
+    for (const group of groups) {
+      const migrated = linkedMaximum.get(group.id) || {};
+      updateGroup.run(
+        group.billing_multiplier_input ?? migrated.billing_multiplier_input ?? null,
+        group.billing_multiplier_output ?? migrated.billing_multiplier_output ?? null,
+        group.billing_multiplier_image ?? migrated.billing_multiplier_image ?? null,
+        group.id,
+      );
+    }
+    database.prepare(`UPDATE upstream_channels SET
+      billing_multiplier_input=NULL,billing_multiplier_output=NULL,billing_multiplier_image=NULL`)
+      .run();
   });
 }
 
@@ -421,6 +467,9 @@ function createTables() {
     description TEXT,
     protocol_type TEXT DEFAULT 'openai_compatible',
     restrict_models INTEGER DEFAULT 0,
+    billing_multiplier_input REAL,
+    billing_multiplier_output REAL,
+    billing_multiplier_image REAL,
     status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive')),
     fallback_group_id INTEGER REFERENCES routing_groups(id),
     legacy_channel_id INTEGER UNIQUE REFERENCES upstream_channels(id),
@@ -428,6 +477,9 @@ function createTables() {
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
   try { sqlDb.run('ALTER TABLE routing_groups ADD COLUMN restrict_models INTEGER DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE routing_groups ADD COLUMN billing_multiplier_input REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE routing_groups ADD COLUMN billing_multiplier_output REAL'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE routing_groups ADD COLUMN billing_multiplier_image REAL'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS routing_group_channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -590,6 +642,20 @@ async function initDatabase() {
       (config_key,config_value,description,updated_at)
       VALUES ('routing_groups_v1','done','旧渠道、模型与 API Key 已迁移到路由分组',CURRENT_TIMESTAMP)`).run();
   }
+  const routingMultiplierMigration = db.prepare(
+    "SELECT config_value FROM system_config WHERE config_key='routing_group_multipliers_v1'",
+  ).get();
+  if (routingMultiplierMigration?.config_value !== 'done') {
+    migrateRoutingGroupMultipliers(db);
+    db.prepare(`INSERT OR REPLACE INTO system_config
+      (config_key,config_value,description,updated_at)
+      VALUES (
+        'routing_group_multipliers_v1',
+        'done',
+        '旧渠道倍率已按维度取较高值迁移到路由分组，渠道倍率已停用',
+        CURRENT_TIMESTAMP
+      )`).run();
+  }
   const channelModelStatusMigration = db.prepare(
     "SELECT config_value FROM system_config WHERE config_key='channel_model_status_source_v1'",
   ).get();
@@ -610,4 +676,10 @@ async function initDatabase() {
   return db;
 }
 
-module.exports = { getDatabase, initDatabase, saveDatabase, migrateRoutingGroups };
+module.exports = {
+  getDatabase,
+  initDatabase,
+  saveDatabase,
+  migrateRoutingGroups,
+  migrateRoutingGroupMultipliers,
+};

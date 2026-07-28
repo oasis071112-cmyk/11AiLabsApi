@@ -1,5 +1,3 @@
-const { resolveModelMultiplierPolicy } = require('./channel-multipliers');
-
 function reconcileModelStatus(db, modelCode) {
   const active = db.prepare(`SELECT 1 FROM channel_models
     WHERE model_code=? AND status='active' LIMIT 1`).get(modelCode);
@@ -7,41 +5,6 @@ function reconcileModelStatus(db, modelCode) {
   db.prepare(`UPDATE models SET status=?,updated_at=CURRENT_TIMESTAMP
     WHERE model_code=?`).run(status, modelCode);
   return status;
-}
-
-function multiplierTuple(db, model, channel, atTime) {
-  const { multipliers } = resolveModelMultiplierPolicy(db, { model, channel, atTime });
-  return [multipliers.input, multipliers.output, multipliers.image];
-}
-
-function sameTuple(left, right) {
-  return left.every((value, index) => Math.abs(value - right[index]) < 1e-12);
-}
-
-function policyValidationMoments(db, modelCode) {
-  const now = Date.now();
-  const moments = new Set([new Date(now).toISOString()]);
-  const rules = db.prepare(`SELECT start_time,end_time FROM pricing_rules
-    WHERE scope_type='platform' AND status='active'
-      AND (model_code=? OR model_code IS NULL)`).all(modelCode);
-  for (const rule of rules) {
-    const start = Date.parse(rule.start_time);
-    if (Number.isFinite(start) && start >= now) moments.add(new Date(start).toISOString());
-    const end = Date.parse(rule.end_time);
-    if (Number.isFinite(end) && end >= now) moments.add(new Date(end + 1000).toISOString());
-  }
-  return [...moments].sort();
-}
-
-function findMultiplierMismatch(db, model, firstChannel, otherChannels) {
-  for (const atTime of policyValidationMoments(db, model.model_code)) {
-    const expected = multiplierTuple(db, model, firstChannel, atTime);
-    const channel = otherChannels.find(other => (
-      !sameTuple(expected, multiplierTuple(db, model, other, atTime))
-    ));
-    if (channel) return { channel, atTime };
-  }
-  return null;
 }
 
 function routedModelCodesForChannels(db, channelIds) {
@@ -76,30 +39,12 @@ function validateActiveRoutingPolicies(db, modelCodes) {
         error: `同一路由分组“${duplicate.group_name}”中不能同时启用模型 ${modelCode} 的多个渠道`,
       };
     }
-
-    const model = db.prepare('SELECT * FROM models WHERE model_code=?').get(modelCode);
-    if (!model) continue;
-    const channels = db.prepare(`SELECT DISTINCT uc.*
-      FROM upstream_channels uc
-      JOIN channel_models cm ON cm.channel_id=uc.id
-        AND cm.model_code=? AND cm.status='active'
-      JOIN routing_group_channels rgc ON rgc.channel_id=uc.id AND rgc.status='active'
-      JOIN routing_groups rg ON rg.id=rgc.group_id AND rg.status='active'
-      WHERE uc.status='active' ORDER BY uc.id`).all(modelCode);
-    if (channels.length < 2) continue;
-    const mismatch = findMultiplierMismatch(db, model, channels[0], channels.slice(1));
-    if (mismatch) {
-      return {
-        status: 409,
-        error: `模型 ${modelCode} 在渠道“${channels[0].channel_name}”与“${mismatch.channel.channel_name}”的当前或定时最终倍率不一致`,
-      };
-    }
   }
   return null;
 }
 
 function validateMappingActivation(db, channelId, modelCode) {
-  const model = db.prepare('SELECT * FROM models WHERE model_code=?').get(modelCode);
+  const model = db.prepare('SELECT id FROM models WHERE model_code=?').get(modelCode);
   if (!model) return { error: '模型不存在', status: 404 };
   const channel = db.prepare("SELECT * FROM upstream_channels WHERE id=? AND status='active'")
     .get(channelId);
@@ -119,27 +64,6 @@ function validateMappingActivation(db, channelId, modelCode) {
     return {
       status: 409,
       error: `同一路由分组“${directConflict.group_name}”中，模型 ${modelCode} 已由渠道“${directConflict.channel_name}”启用`,
-    };
-  }
-
-  const candidateGroups = db.prepare(`SELECT 1
-    FROM routing_group_channels rgc
-    JOIN routing_groups rg ON rg.id=rgc.group_id AND rg.status='active'
-    WHERE rgc.channel_id=? AND rgc.status='active' LIMIT 1`).get(channelId);
-  if (!candidateGroups) return null;
-
-  const otherChannels = db.prepare(`SELECT DISTINCT uc.*
-    FROM channel_models cm
-    JOIN upstream_channels uc ON uc.id=cm.channel_id AND uc.status='active'
-    JOIN routing_group_channels rgc ON rgc.channel_id=uc.id AND rgc.status='active'
-    JOIN routing_groups rg ON rg.id=rgc.group_id AND rg.status='active'
-    WHERE cm.model_code=? AND cm.status='active' AND cm.channel_id<>?`)
-    .all(modelCode, channelId);
-  const mismatch = findMultiplierMismatch(db, model, channel, otherChannels);
-  if (mismatch) {
-    return {
-      status: 409,
-      error: `模型 ${modelCode} 在渠道“${channel.channel_name}”与“${mismatch.channel.channel_name}”的当前或定时最终倍率不一致`,
     };
   }
   return null;

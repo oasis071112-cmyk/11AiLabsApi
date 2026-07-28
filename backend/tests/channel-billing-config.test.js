@@ -13,6 +13,7 @@ describe('Sub2API 渠道模型计费配置', () => {
   let baseUrl;
   let adminToken;
   let channelId;
+  let groupId;
   let modelCode;
 
   beforeAll(async () => {
@@ -29,6 +30,11 @@ describe('Sub2API 渠道模型计费配置', () => {
     channelId = db.prepare(`INSERT INTO upstream_channels
       (channel_name,base_url,api_key,status) VALUES (?,?,?,'active')`)
       .run(`billing-channel-${suffix}`, 'https://billing.example.test/v1', 'upstream-key').lastInsertRowid;
+    groupId = db.prepare(`INSERT INTO routing_groups
+      (group_name,status) VALUES (?,'active')`)
+      .run(`billing-group-${suffix}`).lastInsertRowid;
+    db.prepare(`INSERT INTO routing_group_channels
+      (group_id,channel_id,status) VALUES (?,?,'active')`).run(groupId, channelId);
 
     const app = express();
     app.use(express.json());
@@ -52,48 +58,48 @@ describe('Sub2API 渠道模型计费配置', () => {
     });
   }
 
-  it('第二轮在渠道列表接口中返回可空渠道倍率字段', async () => {
-    const response = await request('/api/admin/channels');
+  it('路由分组列表返回可空倍率字段', async () => {
+    const response = await request('/api/admin/routing-groups');
     expect(response.status).toBe(200);
 
     const payload = await response.json();
-    const channel = payload.data.find(item => item.id === channelId);
-    expect(channel).toBeTruthy();
-    expect(channel).toMatchObject({
+    const group = payload.data.find(item => item.id === groupId);
+    expect(group).toBeTruthy();
+    expect(group).toMatchObject({
       billing_multiplier_input: null,
       billing_multiplier_output: null,
       billing_multiplier_image: null,
     });
   });
 
-  it('管理员可保存渠道倍率，清空后回退到原有全局规则', async () => {
+  it('管理员可保存路由分组倍率，清空后回退全局倍率', async () => {
     const payload = {
-      channel_name: 'billing-channel-updated',
-      base_url: 'https://billing.example.test/v1',
-      api_key: '', priority: 0, weight: 100,
-      protocol_type: 'openai_compatible', capabilities: ['chat_completions'],
+      group_name: `billing-group-updated-${Date.now()}`,
+      description: '倍率由路由分组管理',
+      status: 'active',
+      channels: [{ channel_id: channelId, priority: 0, weight: 100, status: 'active' }],
       billing_multiplier_input: 1.25,
       billing_multiplier_output: 1.5,
       billing_multiplier_image: 1.75,
     };
-    const update = await request(`/api/admin/channels/${channelId}`, {
+    const update = await request(`/api/admin/routing-groups/${groupId}`, {
       method: 'PUT', body: JSON.stringify(payload),
     });
     expect(update.status).toBe(200);
 
-    let channel = (await (await request('/api/admin/channels')).json()).data.find(item => item.id === channelId);
-    expect(channel).toMatchObject({
+    let group = (await (await request('/api/admin/routing-groups')).json()).data.find(item => item.id === groupId);
+    expect(group).toMatchObject({
       billing_multiplier_input: 1.25,
       billing_multiplier_output: 1.5,
       billing_multiplier_image: 1.75,
     });
 
-    const invalid = await request(`/api/admin/channels/${channelId}`, {
+    const invalid = await request(`/api/admin/routing-groups/${groupId}`, {
       method: 'PUT', body: JSON.stringify({ ...payload, billing_multiplier_input: 0 }),
     });
     expect(invalid.status).toBe(400);
 
-    const clear = await request(`/api/admin/channels/${channelId}`, {
+    const clear = await request(`/api/admin/routing-groups/${groupId}`, {
       method: 'PUT', body: JSON.stringify({
         ...payload,
         billing_multiplier_input: '',
@@ -102,12 +108,36 @@ describe('Sub2API 渠道模型计费配置', () => {
       }),
     });
     expect(clear.status).toBe(200);
-    channel = (await (await request('/api/admin/channels')).json()).data.find(item => item.id === channelId);
-    expect(channel).toMatchObject({
+    group = (await (await request('/api/admin/routing-groups')).json()).data.find(item => item.id === groupId);
+    expect(group).toMatchObject({
       billing_multiplier_input: null,
       billing_multiplier_output: null,
       billing_multiplier_image: null,
     });
+  });
+
+  it('渠道接口不再暴露或保存用户扣费倍率', async () => {
+    const update = await request(`/api/admin/channels/${channelId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        channel_name: 'billing-channel-with-ignored-rate',
+        base_url: 'https://billing.example.test/v1',
+        api_key: '',
+        priority: 0,
+        weight: 100,
+        protocol_type: 'openai_compatible',
+        capabilities: ['chat_completions'],
+        billing_multiplier_input: 9,
+        billing_multiplier_output: 9,
+        billing_multiplier_image: 9,
+      }),
+    });
+    expect(update.status).toBe(200);
+    const channel = (await (await request('/api/admin/channels')).json()).data
+      .find(item => item.id === channelId);
+    expect(channel).not.toHaveProperty('billing_multiplier_input');
+    expect(channel).not.toHaveProperty('billing_multiplier_output');
+    expect(channel).not.toHaveProperty('billing_multiplier_image');
   });
 
   it('保存并返回 token/image/per_request 与计费模型来源配置', async () => {

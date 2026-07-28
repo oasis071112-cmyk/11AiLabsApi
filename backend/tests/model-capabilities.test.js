@@ -241,7 +241,6 @@ describe('模型能力与图片请求边界', () => {
     expect(userModel).toMatchObject({
       default_image_unit_price: 0.201,
       default_image_currency: 'USD',
-      billing_multiplier_image: 1.6,
     });
     expect(userModel).not.toHaveProperty('official_image_prices');
     expect(userModel).not.toHaveProperty('official_input_price');
@@ -375,13 +374,13 @@ describe('模型能力与图片请求边界', () => {
     db.prepare('UPDATE wallets SET quota_balance=100, gift_quota=0, frozen_balance=0 WHERE user_id=?').run(userId);
   });
 
-  it('对话请求使用渠道的 Sub2API 每 token 美元价格结算', async () => {
+  it('对话请求使用渠道成本价格和路由分组倍率结算', async () => {
     const db = getDatabase();
     db.prepare(`UPDATE channel_models SET
       billing_mode='token',billing_model_source='upstream',input_price=?,output_price=?
       WHERE channel_id=? AND model_code=?`).run(0.000003, 0.000008, channelId, visionModelCode);
-    db.prepare(`UPDATE upstream_channels SET
-      billing_multiplier_input=?,billing_multiplier_output=? WHERE id=?`).run(1.5, 2, channelId);
+    db.prepare(`UPDATE routing_groups SET
+      billing_multiplier_input=?,billing_multiplier_output=? WHERE id=?`).run(1.5, 2, groupId);
     const response = await request('/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -402,8 +401,8 @@ describe('模型能力与图片请求边界', () => {
     db.prepare(`UPDATE channel_models SET
       billing_mode='',billing_model_source='channel_mapped',input_price=NULL,output_price=NULL
       WHERE channel_id=? AND model_code=?`).run(channelId, visionModelCode);
-    db.prepare(`UPDATE upstream_channels SET
-      billing_multiplier_input=NULL,billing_multiplier_output=NULL WHERE id=?`).run(channelId);
+    db.prepare(`UPDATE routing_groups SET
+      billing_multiplier_input=NULL,billing_multiplier_output=NULL WHERE id=?`).run(groupId);
   });
 
   it('对话渠道 per_request 模式按一次固定价格结算且不新增订阅', async () => {
@@ -542,7 +541,7 @@ describe('模型能力与图片请求边界', () => {
 
     const db = getDatabase();
     expect((await updateCapabilities(['chat_completions', 'embeddings'])).status).toBe(200);
-    db.prepare('UPDATE upstream_channels SET billing_multiplier_input=? WHERE id=?').run(1.6, channelId);
+    db.prepare('UPDATE routing_groups SET billing_multiplier_input=? WHERE id=?').run(1.6, groupId);
     try {
       const allowed = await request('/v1/embeddings', {
         method: 'POST', headers: { Authorization: `Bearer ${apiKey}` },
@@ -557,7 +556,7 @@ describe('模型能力与图片请求边界', () => {
       });
       expect(embeddingLog.total_cost).toBeCloseTo(0.0000336, 10);
     } finally {
-      db.prepare('UPDATE upstream_channels SET billing_multiplier_input=NULL WHERE id=?').run(channelId);
+      db.prepare('UPDATE routing_groups SET billing_multiplier_input=NULL WHERE id=?').run(groupId);
     }
 
     const fallbackChannelId = db.prepare(`INSERT INTO upstream_channels

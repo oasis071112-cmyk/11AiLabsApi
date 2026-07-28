@@ -153,7 +153,7 @@ describe('渠道模型状态联动', () => {
     expect((await response.json()).error).toContain('同一路由分组');
   });
 
-  it('跨分组最终倍率不一致时阻止启用映射', async () => {
+  it('不同路由分组可用不同倍率启用同一模型', async () => {
     const db = getDatabase();
     const suffix = `${Date.now()}-${Math.random()}`;
     const modelCode = createModel(db, suffix, 'active');
@@ -165,9 +165,13 @@ describe('渠道模型状态联动', () => {
     db.prepare(`INSERT INTO channel_models
       (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'inactive')`)
       .run(secondChannelId, modelCode, modelCode);
-    for (const [label, channelId] of [['a', firstChannelId], ['b', secondChannelId]]) {
-      const groupId = db.prepare("INSERT INTO routing_groups (group_name,status) VALUES (?,'active')")
-        .run(`mapping-group-${suffix}-${label}`).lastInsertRowid;
+    for (const [label, channelId, multiplier] of [
+      ['a', firstChannelId, 0.35],
+      ['b', secondChannelId, 0.3],
+    ]) {
+      const groupId = db.prepare(`INSERT INTO routing_groups
+        (group_name,status,billing_multiplier_image) VALUES (?,'active',?)`)
+        .run(`mapping-group-${suffix}-${label}`, multiplier).lastInsertRowid;
       db.prepare(`INSERT INTO routing_group_channels
         (group_id,channel_id,status) VALUES (?,?,'active')`).run(groupId, channelId);
     }
@@ -175,45 +179,46 @@ describe('渠道模型状态联动', () => {
     const response = await request(`/api/admin/channels/${secondChannelId}/models/${encodeURIComponent(modelCode)}/status`, {
       method: 'PATCH', body: JSON.stringify({ status: 'active' }),
     });
-    expect(response.status).toBe(409);
-    expect((await response.json()).error).toContain('倍率');
+    expect(response.status).toBe(200);
   });
 
-  it('修改渠道倍率会造成跨分组不一致时回滚保存', async () => {
+  it('修改一个路由分组倍率不影响其他分组', async () => {
     const db = getDatabase();
     const suffix = `${Date.now()}-${Math.random()}`;
     const modelCode = createModel(db, suffix, 'active');
     const firstChannelId = createChannel(db, `${suffix}-a`, 0.35);
     const secondChannelId = createChannel(db, `${suffix}-b`, 0.35);
+    let secondGroupId;
     for (const channelId of [firstChannelId, secondChannelId]) {
       db.prepare(`INSERT INTO channel_models
         (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
         .run(channelId, modelCode, modelCode);
-      const groupId = db.prepare("INSERT INTO routing_groups (group_name,status) VALUES (?,'active')")
+      const groupId = db.prepare(`INSERT INTO routing_groups
+        (group_name,status,billing_multiplier_image) VALUES (?,'active',0.35)`)
         .run(`mapping-group-${suffix}-${channelId}`).lastInsertRowid;
+      if (channelId === secondChannelId) secondGroupId = groupId;
       db.prepare(`INSERT INTO routing_group_channels
         (group_id,channel_id,status) VALUES (?,?,'active')`).run(groupId, channelId);
     }
 
-    const response = await request(`/api/admin/channels/${secondChannelId}`, {
+    const response = await request(`/api/admin/routing-groups/${secondGroupId}`, {
       method: 'PUT',
       body: JSON.stringify({
-        channel_name: `mapping-channel-${suffix}-b`,
-        base_url: `https://${suffix}-b.test/v1`,
-        api_key: '',
-        priority: 0,
-        weight: 100,
-        protocol_type: 'openai_compatible',
-        capabilities: ['chat_completions'],
+        group_name: `mapping-group-${suffix}-${secondChannelId}`,
+        status: 'active',
+        channels: [{ channel_id: secondChannelId, priority: 0, weight: 100, status: 'active' }],
         billing_multiplier_input: 1,
         billing_multiplier_output: 1,
         billing_multiplier_image: 0.4,
       }),
     });
-    expect(response.status).toBe(409);
-    expect((await response.json()).error).toContain('倍率');
-    expect(db.prepare('SELECT billing_multiplier_image FROM upstream_channels WHERE id=?')
-      .get(secondChannelId).billing_multiplier_image).toBe(0.35);
+    expect(response.status).toBe(200);
+    expect(db.prepare('SELECT billing_multiplier_image FROM routing_groups WHERE id=?')
+      .get(secondGroupId).billing_multiplier_image).toBe(0.4);
+    const otherGroup = db.prepare(`SELECT billing_multiplier_image FROM routing_groups
+      WHERE id<>? AND group_name LIKE ? ORDER BY id DESC LIMIT 1`)
+      .get(secondGroupId, `mapping-group-${suffix}-%`);
+    expect(otherGroup.billing_multiplier_image).toBe(0.35);
   });
 
   it('创建号池时拒绝同一模型的两个启用渠道', async () => {
@@ -243,7 +248,7 @@ describe('渠道模型状态联动', () => {
     expect((await response.json()).error).toContain('同一路由分组');
   });
 
-  it('平台倍率规则变更会造成渠道最终倍率不一致时回滚', async () => {
+  it('平台全局倍率可独立修改并作为分组未配置维度的回退', async () => {
     const db = getDatabase();
     const suffix = `${Date.now()}-${Math.random()}`;
     const modelCode = createModel(db, suffix, 'active');
@@ -277,10 +282,9 @@ describe('渠道模型状态联动', () => {
         status: 'active',
       }),
     });
-    expect(response.status).toBe(409);
-    expect((await response.json()).error).toContain('倍率');
+    expect(response.status).toBe(200);
     expect(db.prepare('SELECT billing_multiplier_image FROM pricing_rules WHERE id=?')
-      .get(ruleId).billing_multiplier_image).toBe(0.35);
+      .get(ruleId).billing_multiplier_image).toBe(0.3);
   });
 
   it('删除最后一个渠道映射时同步下架父模型', async () => {
@@ -301,7 +305,7 @@ describe('渠道模型状态联动', () => {
       .toBe('inactive');
   });
 
-  it('拒绝未来生效后会造成跨分组倍率不一致的平台规则', async () => {
+  it('允许创建未来生效的平台全局倍率规则', async () => {
     const db = getDatabase();
     const suffix = `${Date.now()}-${Math.random()}`;
     const modelCode = createModel(db, suffix, 'active');
@@ -337,13 +341,12 @@ describe('渠道模型状态联动', () => {
       }),
     });
 
-    expect(response.status).toBe(409);
-    expect((await response.json()).error).toContain('倍率');
+    expect(response.status).toBe(201);
     expect(db.prepare('SELECT id FROM pricing_rules WHERE rule_name=?')
-      .get(`scheduled-future-${suffix}`)).toBeNull();
+      .get(`scheduled-future-${suffix}`)).toBeTruthy();
   });
 
-  it('拒绝到期后会造成跨分组倍率不一致的平台规则', async () => {
+  it('允许创建带结束时间的平台全局倍率规则', async () => {
     const db = getDatabase();
     const suffix = `${Date.now()}-${Math.random()}`;
     const modelCode = createModel(db, suffix, 'active');
@@ -374,9 +377,8 @@ describe('渠道模型状态联动', () => {
       }),
     });
 
-    expect(response.status).toBe(409);
-    expect((await response.json()).error).toContain('倍率');
+    expect(response.status).toBe(201);
     expect(db.prepare('SELECT id FROM pricing_rules WHERE rule_name=?')
-      .get(`expiring-rule-${suffix}`)).toBeNull();
+      .get(`expiring-rule-${suffix}`)).toBeTruthy();
   });
 });

@@ -1,5 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { getDatabase, initDatabase, migrateRoutingGroups } from '../src/database/init.js';
+import {
+  getDatabase,
+  initDatabase,
+  migrateRoutingGroups,
+  migrateRoutingGroupMultipliers,
+} from '../src/database/init.js';
 import { reportResult, selectChannel } from '../src/utils/channel-selector.js';
 import { listModelsForApiKey } from '../src/utils/routing-group-models.js';
 
@@ -190,5 +195,43 @@ describe('路由分组迁移', () => {
 
     expect(listModelsForApiKey(db, key).map(item=>item.model_code)).toContain(modelCode);
     expect(selectChannel(db, modelCode, primary.lastInsertRowid)?.id).toBe(channel.lastInsertRowid);
+  });
+});
+
+describe('路由分组倍率迁移', () => {
+  it('同组旧渠道倍率不一致时迁移较高值并清空渠道倍率', async () => {
+    await initDatabase();
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const groupId = db.prepare(`INSERT INTO routing_groups
+      (group_name,status) VALUES (?,'active')`).run(`倍率迁移组-${suffix}`).lastInsertRowid;
+    const firstChannelId = db.prepare(`INSERT INTO upstream_channels
+      (channel_name,base_url,api_key,status,billing_multiplier_input,billing_multiplier_output)
+      VALUES (?,?,?,'active',1.2,1.4)`)
+      .run(`倍率渠道甲-${suffix}`, 'https://rate-a.test/v1', 'rate-a-key').lastInsertRowid;
+    const secondChannelId = db.prepare(`INSERT INTO upstream_channels
+      (channel_name,base_url,api_key,status,billing_multiplier_input,billing_multiplier_image)
+      VALUES (?,?,?,'active',1.5,1.8)`)
+      .run(`倍率渠道乙-${suffix}`, 'https://rate-b.test/v1', 'rate-b-key').lastInsertRowid;
+    db.prepare(`INSERT INTO routing_group_channels
+      (group_id,channel_id,status) VALUES (?,?,'active')`).run(groupId, firstChannelId);
+    db.prepare(`INSERT INTO routing_group_channels
+      (group_id,channel_id,status) VALUES (?,?,'active')`).run(groupId, secondChannelId);
+
+    migrateRoutingGroupMultipliers(db);
+
+    expect(db.prepare(`SELECT billing_multiplier_input,billing_multiplier_output,
+      billing_multiplier_image FROM routing_groups WHERE id=?`).get(groupId)).toEqual({
+      billing_multiplier_input: 1.5,
+      billing_multiplier_output: 1.4,
+      billing_multiplier_image: 1.8,
+    });
+    expect(db.prepare(`SELECT billing_multiplier_input,billing_multiplier_output,
+      billing_multiplier_image FROM upstream_channels WHERE id=?`).get(firstChannelId))
+      .toEqual({
+        billing_multiplier_input: null,
+        billing_multiplier_output: null,
+        billing_multiplier_image: null,
+      });
   });
 });

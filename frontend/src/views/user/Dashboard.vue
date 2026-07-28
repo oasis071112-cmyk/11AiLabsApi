@@ -23,7 +23,7 @@
 <DashboardCharts v-else :stats="stats" :loading="chartLoading" @refresh="fetchStats"/>
 
 <el-card style="margin-top:20px"><template #header><div style="display:flex;align-items:center;gap:8px"><Cpu :size="18" color="#409eff"/> 可用模型</div></template>
-<el-table :data="models" stripe size="small"><el-table-column prop="model_name" label="模型名称"/><el-table-column prop="model_type" label="类型" width="100"><template #default="{row}"><el-tag size="small" effect="plain">{{ row.model_type }}</el-tag></template></el-table-column><el-table-column label="输入扣费倍率" width="140"><template #default="{row}"><span style="font-weight:600">×{{ row.billing_multiplier_input }}</span></template></el-table-column><el-table-column label="输出扣费倍率" width="140"><template #default="{row}"><span style="font-weight:600">×{{ row.billing_multiplier_output }}</span></template></el-table-column></el-table>
+<el-table :data="models" stripe size="small" :empty-text="hasApiKeys?'当前路由分组暂无可用模型':'尚未创建路由分组 API Key'"><el-table-column label="模型" min-width="220"><template #default="{row}"><strong>{{ row.model_name }}</strong><div class="dashboard-model-code">{{ row.model_code }}</div></template></el-table-column><el-table-column label="协议" min-width="180"><template #default="{row}">{{ protocolLabel(row.protocol_types) }}</template></el-table-column><el-table-column label="类型" width="100"><template #default="{row}"><el-tag size="small" effect="plain">{{ modelTypeLabel(row.model_type) }}</el-tag></template></el-table-column></el-table>
 </el-card>
 </div>
 </template>
@@ -33,14 +33,16 @@ import { computed, defineAsyncComponent, onMounted, ref } from 'vue';import { us
 import { DollarSign, Wallet, Gift, Activity, ShoppingCart, Key, BookOpen, Cpu, RefreshCw } from '@lucide/vue'
 import { useMobile } from '@/composables/useMobile'
 
-const appStore=useAppStore(),wallet=ref({}),stats=ref({}),models=ref([]),chartLoading=ref(false)
+const appStore=useAppStore(),wallet=ref({}),stats=ref({}),models=ref([]),hasApiKeys=ref(false),chartLoading=ref(false)
 const DashboardCharts=defineAsyncComponent(()=>import('@/components/DashboardCharts.vue'))
 const isMobile=useMobile()
 const todaySuccess=computed(()=>stats.value.today_status?.find(item=>item.status==='success')?.count||0)
 
 async function fetchStats(){chartLoading.value=true;try{const s=await api.get('/api/user/stats');stats.value=s.data}catch(e){}chartLoading.value=false}
 
-onMounted(async()=>{appStore.fetchPlatformInfo();try{const[w,s,m]=await Promise.all([api.get('/api/user/wallet'),api.get('/api/user/stats'),api.get('/api/user/models')]);wallet.value=w.data;wallet.value.total_balance=(w.data.quota_balance||w.data.recharge_balance||0)+(w.data.gift_quota||w.data.gift_balance||0);stats.value=s.data;models.value=m.data.data||[]}catch(e){}})
+function protocolLabel(protocols=[]){return protocols.map(protocol=>protocol==='anthropic'?'Anthropic Messages':'OpenAI 兼容').join(' / ')||'—'}
+function modelTypeLabel(modelType){return modelType==='image'?'生图':'LLM'}
+onMounted(async()=>{appStore.fetchPlatformInfo();try{const[w,s,m]=await Promise.all([api.get('/api/user/wallet'),api.get('/api/user/stats'),api.get('/api/user/models')]);wallet.value=w.data;wallet.value.total_balance=(w.data.quota_balance||w.data.recharge_balance||0)+(w.data.gift_quota||w.data.gift_balance||0);stats.value=s.data;models.value=m.data.data||[];hasApiKeys.value=Boolean(m.data.has_api_keys)}catch(e){}})
 </script>
 
 <style scoped>
@@ -48,6 +50,7 @@ onMounted(async()=>{appStore.fetchPlatformInfo();try{const[w,s,m]=await Promise.
 .kpi-icon-bg{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .action-icon{width:48px;height:48px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center}
 .mobile-stats-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}.mobile-stats-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.mobile-stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.mobile-stats-grid>div{background:#f8fafc;border-radius:10px;padding:10px}.mobile-stats-grid span,.mobile-rank>span{display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px}.mobile-stats-grid strong{font-size:13px}.success-value{color:#16a34a}.mobile-rank{border-top:1px solid var(--border);margin-top:13px;padding-top:11px}.mobile-rank>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0}.mobile-rank code{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobile-rank strong{font-size:12px;white-space:nowrap}
+.dashboard-model-code{font-size:11px;color:#94a3b8;font-family:monospace;margin-top:2px}
 @media(max-width:768px){
   .page-container>:deep(.el-alert){margin-bottom:10px!important}
   .dashboard-balance-row{margin-left:0!important;margin-right:0!important;row-gap:0!important;overflow:hidden;border-radius:12px}

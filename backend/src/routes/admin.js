@@ -10,7 +10,7 @@ const { parseChannelCapabilities, serializeChannelCapabilities } = require('../u
 const { encrypt, desensitize } = require('../utils/crypto');
 const { normalizedBaseUrl, supportedPaymentMethods } = require('../utils/easypay');
 const { grantQuotaOrder } = require('../utils/quota-orders');
-const { positiveMultiplier } = require('../utils/channel-multipliers');
+const { positiveMultiplier } = require('../utils/multiplier-policy');
 const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
 const {
   reconcileModelStatus,
@@ -30,15 +30,15 @@ function supportedProvider(value) {
   return SUPPORTED_PROVIDERS.includes(provider) ? provider : null;
 }
 
-const CHANNEL_MULTIPLIER_FIELDS = [
+const ROUTING_GROUP_MULTIPLIER_FIELDS = [
   'billing_multiplier_input',
   'billing_multiplier_output',
   'billing_multiplier_image',
 ];
 
-function channelMultiplierPayload(body = {}, existing = null) {
+function routingGroupMultiplierPayload(body = {}, existing = null) {
   const values = {};
-  for (const field of CHANNEL_MULTIPLIER_FIELDS) {
+  for (const field of ROUTING_GROUP_MULTIPLIER_FIELDS) {
     const supplied = body[field];
     if (supplied === undefined) {
       values[field] = existing ? existing[field] : null;
@@ -49,7 +49,7 @@ function channelMultiplierPayload(body = {}, existing = null) {
       continue;
     }
     const multiplier = positiveMultiplier(supplied);
-    if (multiplier === null) return { error: '渠道计费倍率必须是大于 0 的数字，留空则沿用原有全局规则' };
+    if (multiplier === null) return { error: '路由分组倍率必须是大于 0 的数字，留空则沿用全局倍率' };
     values[field] = multiplier;
   }
   return { values };
@@ -381,7 +381,6 @@ router.get('/models', authenticate, requireAdmin('admin','operator'), (req, res)
   const mappingRows = db.prepare(`SELECT
     cm.channel_id,cm.model_code,cm.upstream_model_name,cm.supports_image_input,
     cm.status,uc.channel_name,uc.status AS channel_status,
-    uc.billing_multiplier_input,uc.billing_multiplier_output,uc.billing_multiplier_image,
     GROUP_CONCAT(DISTINCT rg.group_name) AS routing_group_names
     FROM channel_models cm
     JOIN upstream_channels uc ON uc.id=cm.channel_id
@@ -826,11 +825,24 @@ router.post('/routing-groups', authenticate, requireAdmin('admin'), (req, res) =
   const restrictModels = req.body.restrict_models ? 1 : 0;
   if (!String(group_name||'').trim()) return res.status(400).json({ error: '分组名称不能为空' });
   if (!['active','inactive'].includes(status)) return res.status(400).json({ error: '分组状态无效' });
+  const multiplierPayload = routingGroupMultiplierPayload(req.body);
+  if (multiplierPayload.error) return res.status(400).json({ error: multiplierPayload.error });
   try {
     const id = db.transaction(() => {
       const result = db.prepare(`INSERT INTO routing_groups
-        (group_name,description,protocol_type,status,fallback_group_id,restrict_models) VALUES (?,?,'openai_compatible',?,?,?)`)
-        .run(String(group_name).trim(), description||'', status, fallback_group_id||null, restrictModels);
+        (group_name,description,protocol_type,status,fallback_group_id,restrict_models,
+         billing_multiplier_input,billing_multiplier_output,billing_multiplier_image)
+        VALUES (?,?,'openai_compatible',?,?,?,?,?,?)`)
+        .run(
+          String(group_name).trim(),
+          description||'',
+          status,
+          fallback_group_id||null,
+          restrictModels,
+          multiplierPayload.values.billing_multiplier_input,
+          multiplierPayload.values.billing_multiplier_output,
+          multiplierPayload.values.billing_multiplier_image,
+        );
       const insert = db.prepare(`INSERT INTO routing_group_channels
         (group_id,channel_id,priority,weight,status) VALUES (?,?,?,?,?)`);
       for (const channel of channels) insert.run(result.lastInsertRowid, channel.channel_id, channel.priority??0, channel.weight??100, channel.status||'active');
@@ -854,12 +866,29 @@ router.put('/routing-groups/:id', authenticate, requireAdmin('admin'), (req, res
   const { group_name, description, fallback_group_id, status='active', channels=[], model_codes=[] } = req.body;
   const restrictModels = req.body.restrict_models ? 1 : 0;
   if (!String(group_name||'').trim()) return res.status(400).json({ error: '分组名称不能为空' });
+  if (!['active','inactive'].includes(status)) return res.status(400).json({ error: '分组状态无效' });
   if (Number(fallback_group_id) === Number(req.params.id)) return res.status(400).json({ error: '备用分组不能指向自己' });
+  const existingGroup = db.prepare(`SELECT billing_multiplier_input,billing_multiplier_output,
+    billing_multiplier_image FROM routing_groups WHERE id=?`).get(req.params.id);
+  if (!existingGroup) return res.status(404).json({ error: '路由分组不存在' });
+  const multiplierPayload = routingGroupMultiplierPayload(req.body, existingGroup);
+  if (multiplierPayload.error) return res.status(400).json({ error: multiplierPayload.error });
   try {
     db.transaction(() => {
       db.prepare(`UPDATE routing_groups SET group_name=?,description=?,fallback_group_id=?,status=?,restrict_models=?,
+        billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
         legacy_channel_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-        .run(String(group_name).trim(), description||'', fallback_group_id||null, status, restrictModels, req.params.id);
+        .run(
+          String(group_name).trim(),
+          description||'',
+          fallback_group_id||null,
+          status,
+          restrictModels,
+          multiplierPayload.values.billing_multiplier_input,
+          multiplierPayload.values.billing_multiplier_output,
+          multiplierPayload.values.billing_multiplier_image,
+          req.params.id,
+        );
       db.prepare('DELETE FROM routing_group_channels WHERE group_id=?').run(req.params.id);
       const insert = db.prepare(`INSERT INTO routing_group_channels
         (group_id,channel_id,priority,weight,status) VALUES (?,?,?,?,?)`);
@@ -928,30 +957,38 @@ router.get('/channels', authenticate, requireAdmin('admin'), (req, res) => {
     LEFT JOIN routing_groups rg ON rg.id=rgc.group_id
     LEFT JOIN channel_models cm ON cm.channel_id=uc.id AND cm.status='active'
     GROUP BY uc.id ORDER BY uc.priority DESC,uc.id ASC`).all();
-  res.json({ data: channels.map(channel => ({
-      ...channel,
+  res.json({ data: channels.map(channel => {
+    const {
+      billing_multiplier_input,
+      billing_multiplier_output,
+      billing_multiplier_image,
+      ...publicChannel
+    } = channel;
+    return {
+      ...publicChannel,
       api_key: desensitize(channel.api_key),
       capabilities: parseChannelCapabilities(channel.capabilities, channel.protocol_type),
-    })) });
+    };
+  }) });
 });
 
 router.post('/channels', authenticate, requireAdmin('admin'), (req, res) => {
   const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible', capabilities } = req.body;
   if (!String(channel_name||'').trim() || !String(base_url||'').trim() || !String(api_key||'').trim()) return res.status(400).json({ error: '渠道名称、上游地址和 API Key 不能为空' });
   if (!isSupportedChannelProtocol(protocol_type)) return res.status(400).json({ error: '仅支持 OpenAI 兼容协议或 Anthropic Messages 协议' });
-  const multiplierPayload = channelMultiplierPayload(req.body);
-  if (multiplierPayload.error) return res.status(400).json({ error: multiplierPayload.error });
   let serializedCapabilities;
   try { serializedCapabilities = serializeChannelCapabilities(capabilities, protocol_type); }
   catch (error) { return res.status(400).json({ error: error.message }); }
   getDatabase().prepare(`INSERT INTO upstream_channels (
-    channel_name,base_url,api_key,priority,weight,protocol_type,capabilities,
-    billing_multiplier_input,billing_multiplier_output,billing_multiplier_image
-  ) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
-    String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, serializedCapabilities,
-    multiplierPayload.values.billing_multiplier_input,
-    multiplierPayload.values.billing_multiplier_output,
-    multiplierPayload.values.billing_multiplier_image,
+    channel_name,base_url,api_key,priority,weight,protocol_type,capabilities
+  ) VALUES (?,?,?,?,?,?,?)`).run(
+    String(channel_name).trim(),
+    String(base_url).replace(/\/+$/, ''),
+    api_key,
+    priority||0,
+    weight||100,
+    protocol_type,
+    serializedCapabilities,
   );
   res.status(201).json({ message: '渠道创建成功' });
 });
@@ -1014,12 +1051,9 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
   const db = getDatabase();
   if (!String(channel_name||'').trim() || !String(base_url||'').trim()) return res.status(400).json({ error: '渠道名称和上游地址不能为空' });
   if (!isSupportedChannelProtocol(protocol_type)) return res.status(400).json({ error: '仅支持 OpenAI 兼容协议或 Anthropic Messages 协议' });
-  const existingChannel = db.prepare(`SELECT protocol_type,capabilities,
-    billing_multiplier_input,billing_multiplier_output,billing_multiplier_image
+  const existingChannel = db.prepare(`SELECT protocol_type,capabilities
     FROM upstream_channels WHERE id=?`).get(req.params.id);
   if (!existingChannel) return res.status(404).json({ error: '渠道不存在' });
-  const multiplierPayload = channelMultiplierPayload(req.body, existingChannel);
-  if (multiplierPayload.error) return res.status(400).json({ error: multiplierPayload.error });
   let serializedCapabilities;
   try {
     serializedCapabilities = capabilities === undefined
@@ -1034,23 +1068,30 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
       if (api_key && api_key.trim()) {
         db.prepare(`UPDATE upstream_channels SET
           channel_name=?,base_url=?,api_key=?,priority=?,weight=?,protocol_type=?,capabilities=?,
-          billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
           health_score=50,consecutive_failures=0,circuit_breaker_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-          .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), api_key, priority||0, weight||100, protocol_type, serializedCapabilities,
-            multiplierPayload.values.billing_multiplier_input,
-            multiplierPayload.values.billing_multiplier_output,
-            multiplierPayload.values.billing_multiplier_image,
-            req.params.id);
+          .run(
+            String(channel_name).trim(),
+            String(base_url).replace(/\/+$/, ''),
+            api_key,
+            priority||0,
+            weight||100,
+            protocol_type,
+            serializedCapabilities,
+            req.params.id,
+          );
       } else {
         db.prepare(`UPDATE upstream_channels SET
           channel_name=?,base_url=?,priority=?,weight=?,protocol_type=?,capabilities=?,
-          billing_multiplier_input=?,billing_multiplier_output=?,billing_multiplier_image=?,
           health_score=50,consecutive_failures=0,circuit_breaker_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-          .run(String(channel_name).trim(), String(base_url).replace(/\/+$/, ''), priority||0, weight||100, protocol_type, serializedCapabilities,
-            multiplierPayload.values.billing_multiplier_input,
-            multiplierPayload.values.billing_multiplier_output,
-            multiplierPayload.values.billing_multiplier_image,
-            req.params.id);
+          .run(
+            String(channel_name).trim(),
+            String(base_url).replace(/\/+$/, ''),
+            priority||0,
+            weight||100,
+            protocol_type,
+            serializedCapabilities,
+            req.params.id,
+          );
       }
       const policyResult = validateActiveRoutingPolicies(
         db, routedModelCodesForChannels(db, [req.params.id]),

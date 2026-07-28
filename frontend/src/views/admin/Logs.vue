@@ -12,7 +12,7 @@ import { formatBeijingTime } from '@/utils/time'
 const logs=ref([]),loading=ref(false),page=ref(1),total=ref(0),f=ref({user_id:'',model:'',status:''})
 onMounted(()=>fetch())
 async function fetch(){loading.value=true;try{const r=await api.get('/api/admin/logs',{params:{...f.value,page:page.value}});logs.value=r.data.data;total.value=r.data.pagination.total}catch(e){}loading.value=false}
-function sourceLabel(value){return{user:'用户专属',channel:'渠道',platform_model:'平台模型',platform_default:'平台全局',model_default:'模型兜底',system_default:'系统默认'}[value]||'旧记录'}
+function sourceLabel(value){return{user:'用户专属',routing_group:'路由分组',global:'全局倍率',system_default:'1× 兜底',channel:'旧渠道倍率',platform_model:'旧平台模型',platform_default:'旧平台全局',model_default:'旧模型兜底'}[value]||'旧记录'}
 </script>
 
 <style scoped>

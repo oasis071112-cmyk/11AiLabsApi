@@ -1,20 +1,7 @@
+// 用户扣费倍率的单一解析入口：用户 > 路由分组 > 全局 > 1×。
 function positiveMultiplier(value) {
   const multiplier = Number(value);
   return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : null;
-}
-
-function resolveChannelMultipliers(channel = {}, fallback = {}) {
-  return {
-    input: positiveMultiplier(channel?.billing_multiplier_input)
-      ?? positiveMultiplier(fallback.input)
-      ?? 1,
-    output: positiveMultiplier(channel?.billing_multiplier_output)
-      ?? positiveMultiplier(fallback.output)
-      ?? 1,
-    image: positiveMultiplier(channel?.billing_multiplier_image)
-      ?? positiveMultiplier(fallback.image)
-      ?? 1,
-  };
 }
 
 const multiplierFields = {
@@ -25,17 +12,17 @@ const multiplierFields = {
 
 function resolveEffectiveMultiplierPolicy({
   userRule = null,
-  channel = null,
+  routingGroup = null,
   platformModelRule = null,
   platformDefaultRule = null,
   model = null,
 } = {}) {
   const candidates = [
     ['user', userRule],
-    ['channel', channel],
-    ['platform_model', platformModelRule],
-    ['platform_default', platformDefaultRule],
-    ['model_default', model],
+    ['routing_group', routingGroup],
+    ['global', platformModelRule],
+    ['global', platformDefaultRule],
+    ['global', model],
   ];
   const multipliers = {};
   const sources = {};
@@ -89,19 +76,24 @@ function multiplierPolicyContext(db, modelCode, userId, atTime = new Date().toIS
 function resolveModelMultiplierPolicy(db, {
   model,
   userId = null,
-  channel = null,
+  routingGroup = null,
+  routingGroupId = null,
   atTime = new Date().toISOString(),
 }) {
+  const group = routingGroup || (routingGroupId
+    ? db.prepare(`SELECT billing_multiplier_input,billing_multiplier_output,
+      billing_multiplier_image FROM routing_groups WHERE id=? AND status='active'`)
+      .get(routingGroupId)
+    : null);
   return resolveEffectiveMultiplierPolicy({
     ...multiplierPolicyContext(db, model.model_code, userId, atTime),
-    channel,
+    routingGroup: group,
     model,
   });
 }
 
 module.exports = {
   positiveMultiplier,
-  resolveChannelMultipliers,
   resolveEffectiveMultiplierPolicy,
   multiplierPolicyContext,
   resolveModelMultiplierPolicy,

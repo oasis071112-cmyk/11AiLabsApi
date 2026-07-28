@@ -34,7 +34,7 @@ const {
   settleWalletReservation,
   walletBalances,
 } = require('../utils/wallet-billing');
-const { resolveModelMultiplierPolicy } = require('../utils/channel-multipliers');
+const { resolveModelMultiplierPolicy } = require('../utils/multiplier-policy');
 const {
   CHANNEL_PROTOCOLS,
   DEFAULT_ANTHROPIC_VERSION,
@@ -46,8 +46,8 @@ function positiveOrOne(value) {
   return Number.isFinite(number) && number > 0 ? number : 1;
 }
 
-function requestMultipliers(db, model, userId, channel = null) {
-  const policy = resolveModelMultiplierPolicy(db, { model, userId, channel });
+function requestMultipliers(db, model, userId, routingGroupId = null) {
+  const policy = resolveModelMultiplierPolicy(db, { model, userId, routingGroupId });
   return { ...policy.multipliers, sources: policy.sources };
 }
 
@@ -938,7 +938,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
 
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return sendAnthropicError(res, 404, 'not_found_error', `模型 ${modelCode} 不可用`);
-  let multipliers = requestMultipliers(db, model, req.userId);
+  let multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
   const requirements = {
     protocolType: CHANNEL_PROTOCOLS.ANTHROPIC,
     endpointCapability: 'anthropic_messages',
@@ -953,7 +953,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
       : '暂无支持 Anthropic Messages 的可用上游渠道';
     return sendAnthropicError(res, requiresImageInput ? 400 : 503, 'api_error', message);
   }
-  multipliers = requestMultipliers(db, model, req.userId, channel);
+  multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
   if (billingModeForRequest(channel, false) === 'token'
       && !channelHasTokenPricing(channel)
       && Number(model.official_input_price) <= 0
@@ -1010,7 +1010,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
       const upstreamResponse = upstreamResult.response;
       channel = upstreamResult.channel;
       upstreamBody = upstreamResult.requestBody;
-      multipliers = requestMultipliers(db, model, req.userId, channel);
+      multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
       upstreamConfirmed = true;
       copyAnthropicResponseHeaders(res, upstreamResponse.headers);
 
@@ -1195,7 +1195,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
     });
     channel = upstreamResult.channel;
     upstreamBody = upstreamResult.requestBody;
-    multipliers = requestMultipliers(db, model, req.userId, channel);
+    multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
     upstreamConfirmed = true;
     copyAnthropicResponseHeaders(res, upstreamResult.response.headers);
     if (billingModeForRequest(channel, false) === 'token'
@@ -1242,7 +1242,7 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
     return res.json(upstreamResult.response.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
-    multipliers = requestMultipliers(db, model, req.userId, channel);
+    multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
     const executionUncertain = !upstreamConfirmed && !error.response;
     if (reservedAmount > 0 && !upstreamConfirmed && !executionUncertain) {
       try {
@@ -1348,7 +1348,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     ? db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(intent.billingModel)
     : null;
   const pricingModel = billingModelCandidate || model;
-  let tokenMultipliers = requestMultipliers(db, pricingModel, req.userId);
+  let tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, req.apiKey.routing_group_id);
   let imageMultiplier = tokenMultipliers.image;
   const requirements = {
     protocolType: CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
@@ -1359,7 +1359,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   if (!channel) {
     return res.status(503).json({ error: { message: `暂无支持 ${endpoint} 的可用上游渠道`, type: 'no_channel' } });
   }
-  tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, channel);
+  tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, req.apiKey.routing_group_id);
   imageMultiplier = tokenMultipliers.image;
   billingChannel = channelBillingForModel(db, channel, intent.billingModel);
   billingMode = billingModeForRequest(billingChannel, true);
@@ -1412,7 +1412,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       }),
     });
     channel = upstreamResult.channel;
-    tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, channel);
+    tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, req.apiKey.routing_group_id);
     imageMultiplier = tokenMultipliers.image;
     billingChannel = channelBillingForModel(db, channel, intent.billingModel);
     billingMode = billingModeForRequest(billingChannel, true);
@@ -1482,7 +1482,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     return res.json(upstreamResult.response.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
-    tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, channel);
+    tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, req.apiKey.routing_group_id);
     imageMultiplier = tokenMultipliers.image;
     if (reservedAmount > 0 && !upstreamConfirmed && error.response) {
       try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放图片冻结额度失败]', releaseError); }
@@ -1540,7 +1540,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
 
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
-  let multipliers = requestMultipliers(db, model, req.userId);
+  let multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
   try {
     assertSupportedBillableInput(req.body.messages ?? req.body.input ?? req.body, model);
   } catch (error) {
@@ -1563,7 +1563,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       .run(requestId, req.userId, req.apiKey.id, modelCode, message, type, req.ip, Date.now() - startTime);
     return res.status(requiresImageInput ? 400 : 503).json({ error: { message, type } });
   }
-  multipliers = requestMultipliers(db, model, req.userId, channel);
+  multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
   if (billingModeForRequest(channel, false) === 'token'
       && !channelHasTokenPricing(channel)
       && Number(model.official_input_price) <= 0
@@ -1607,7 +1607,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
       const upstreamResp = upstreamResult.response;
       channel = upstreamResult.channel;
       upstreamBody = upstreamResult.requestBody;
-      multipliers = requestMultipliers(db, model, req.userId, channel);
+      multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
 
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -1762,7 +1762,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     normalizeVisibleChatContent(upstreamResponse.data, false, true);
     channel = upstreamResult.channel;
     upstreamBody = upstreamResult.requestBody;
-    multipliers = requestMultipliers(db, model, req.userId, channel);
+    multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
     upstreamConfirmed = true;
     if (billingModeForRequest(channel, false) === 'token' && !hasBillableUsage(upstreamResponse.data)) {
       const usage = fallbackChatUsage(upstreamBody, upstreamResponse.data);
@@ -1795,7 +1795,7 @@ router.post('/chat/completions', authenticateApiKey, async (req, res) => {
     return res.json(upstreamResponse.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
-    multipliers = requestMultipliers(db, model, req.userId, channel);
+    multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
     // 只有明确收到上游 HTTP 错误响应，才可确认本次没有成功结果并释放额度。
     // 网络超时/断连时上游可能已执行，必须保留冻结额度，不能免费放行。
     const executionUncertain = !upstreamConfirmed && !error.response;
@@ -1838,14 +1838,14 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
   if (!apiKeyCanUseModel(db, req.apiKey, modelCode)) return res.status(403).json({ error: { message: `模型 ${modelCode} 未授权`, type: 'unauthorized_model' } });
   const model = db.prepare("SELECT * FROM models WHERE model_code=? AND status='active'").get(modelCode);
   if (!model) return res.status(404).json({ error: { message: `模型 ${modelCode} 不可用`, type: 'model_unavailable' } });
-  let multipliers = requestMultipliers(db, model, req.userId);
+  let multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
   const channelRequirements = {
     protocolType: CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
     endpointCapability: 'embeddings',
   };
   let channel = selectChannel(db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), channelRequirements);
   if (!channel) return res.status(503).json({ error: { message: '暂无支持向量接口的可用上游渠道', type: 'no_channel' } });
-  multipliers = requestMultipliers(db, model, req.userId, channel);
+  multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
   if (billingModeForRequest(channel, false) === 'token'
       && !channelHasTokenPricing(channel)
       && Number(model.official_input_price) <= 0) {
@@ -1877,7 +1877,7 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
     });
     const upstreamResponse = upstreamResult.response;
     channel = upstreamResult.channel;
-    multipliers = requestMultipliers(db, model, req.userId, channel);
+    multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
     upstreamConfirmed = true;
     if (billingModeForRequest(channel, false) === 'token' && !hasBillableUsage(upstreamResponse.data)) {
       const usage = fallbackEmbeddingUsage(req.body);
@@ -1907,7 +1907,7 @@ router.post('/embeddings', authenticateApiKey, async (req, res) => {
     return res.json(upstreamResponse.data);
   } catch (error) {
     if (error.upstreamChannel) channel = error.upstreamChannel;
-    multipliers = requestMultipliers(db, model, req.userId, channel);
+    multipliers = requestMultipliers(db, model, req.userId, req.apiKey.routing_group_id);
     const executionUncertain = !upstreamConfirmed && !error.response;
     if (reservedAmount > 0 && !upstreamConfirmed && !executionUncertain) {
       try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放冻结额度失败]', releaseError); }

@@ -1,42 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
-  resolveChannelMultipliers,
   resolveEffectiveMultiplierPolicy,
-} from '../src/utils/channel-multipliers.js';
+} from '../src/utils/multiplier-policy.js';
 
-describe('渠道计费倍率解析', () => {
-  it('渠道只覆盖已配置的倍率，其余字段保持原有全局规则', () => {
-    expect(resolveChannelMultipliers({
-      billing_multiplier_input: 1.25,
-      billing_multiplier_output: null,
-      billing_multiplier_image: '',
-    }, { input: 0.8, output: 0.9, image: 1.1 })).toEqual({
-      input: 1.25,
-      output: 0.9,
-      image: 1.1,
-    });
-  });
-
-  it('渠道为空或含历史无效值时完整回退原有全局规则', () => {
-    expect(resolveChannelMultipliers({
-      billing_multiplier_input: 0,
-      billing_multiplier_output: -1,
-      billing_multiplier_image: 'not-a-number',
-    }, { input: 0.8, output: 0.9, image: 1.1 })).toEqual({
-      input: 0.8,
-      output: 0.9,
-      image: 1.1,
-    });
-  });
-
-  it('用户专属倍率优先于渠道倍率，渠道未配置的维度按平台模型和平台全局顺序回退', () => {
+describe('用户扣费倍率优先级', () => {
+  it('用户专属倍率优先于路由分组倍率', () => {
     expect(resolveEffectiveMultiplierPolicy({
       userRule: {
         billing_multiplier_input: 0.2,
         billing_multiplier_output: 0.25,
         billing_multiplier_image: 0.3,
       },
-      channel: {
+      routingGroup: {
         billing_multiplier_input: 0.35,
         billing_multiplier_output: null,
         billing_multiplier_image: 0.4,
@@ -62,9 +37,9 @@ describe('渠道计费倍率解析', () => {
     });
   });
 
-  it('没有用户专属倍率时使用渠道倍率，并记录每个计费维度的来源', () => {
+  it('路由分组只覆盖已配置维度，其余按全局倍率回退', () => {
     expect(resolveEffectiveMultiplierPolicy({
-      channel: {
+      routingGroup: {
         billing_multiplier_input: null,
         billing_multiplier_output: 0.35,
         billing_multiplier_image: 0.4,
@@ -85,7 +60,24 @@ describe('渠道计费倍率解析', () => {
       },
     })).toEqual({
       multipliers: { input: 0.5, output: 0.35, image: 0.4 },
-      sources: { input: 'platform_model', output: 'channel', image: 'channel' },
+      sources: { input: 'global', output: 'routing_group', image: 'routing_group' },
+    });
+  });
+
+  it('未配置用户、路由分组或全局倍率时以 1 倍兜底', () => {
+    expect(resolveEffectiveMultiplierPolicy({
+      userRule: {
+        billing_multiplier_input: 0,
+        billing_multiplier_output: null,
+        billing_multiplier_image: 'invalid',
+      },
+      routingGroup: {},
+      platformModelRule: {},
+      platformDefaultRule: {},
+      model: {},
+    })).toEqual({
+      multipliers: { input: 1, output: 1, image: 1 },
+      sources: { input: 'system_default', output: 'system_default', image: 'system_default' },
     });
   });
 });

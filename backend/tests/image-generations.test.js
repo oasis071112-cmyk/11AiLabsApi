@@ -20,6 +20,7 @@ describe('图片生成端点计费', () => {
   let modelCode;
   let secondaryImageModelCode;
   let channelId;
+  let groupId;
   let upstreamMode = 'images';
   let upstreamImageSize = null;
 
@@ -74,7 +75,7 @@ describe('图片生成端点计费', () => {
     channelId = db.prepare(`INSERT INTO upstream_channels
       (channel_name,base_url,api_key,status,capabilities) VALUES (?,?,?,'active',?)`)
       .run(`image-channel-${suffix}`, upstreamBaseUrl, 'upstream-image-key', JSON.stringify(['image_generations', 'responses'])).lastInsertRowid;
-    const groupId = db.prepare('INSERT INTO routing_groups (group_name,status) VALUES (?,?)')
+    groupId = db.prepare('INSERT INTO routing_groups (group_name,status) VALUES (?,?)')
       .run(`image-group-${suffix}`, 'active').lastInsertRowid;
     db.prepare("INSERT INTO routing_group_channels (group_id,channel_id,status) VALUES (?,?,'active')").run(groupId, channelId);
     db.prepare("INSERT INTO channel_models (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')")
@@ -155,9 +156,9 @@ describe('图片生成端点计费', () => {
     expect(userLog.billing_detail.dimensions[0]).not.toHaveProperty('unitPrice');
   });
 
-  it('渠道图片倍率优先于模型默认倍率并写入本次账单快照', async () => {
+  it('路由分组图片倍率优先于全局倍率并写入本次账单快照', async () => {
     const db = getDatabase();
-    db.prepare('UPDATE upstream_channels SET billing_multiplier_image=? WHERE id=?').run(1.8, channelId);
+    db.prepare('UPDATE routing_groups SET billing_multiplier_image=? WHERE id=?').run(1.8, groupId);
     try {
       const response = await request('/v1/images/generations', {
         method: 'POST',
@@ -169,18 +170,18 @@ describe('图片生成端点计费', () => {
       const log = db.prepare("SELECT billing_multiplier_image,billing_multiplier_source_image,upstream_channel_name,total_cost FROM api_request_logs WHERE api_key_id=? AND billing_mode='image' AND status='success' ORDER BY id DESC").get(apiKeyId);
       expect(log).toMatchObject({
         billing_multiplier_image: 1.8,
-        billing_multiplier_source_image: 'channel',
+        billing_multiplier_source_image: 'routing_group',
         upstream_channel_name: expect.stringContaining('image-channel-'),
       });
       expect(log.total_cost).toBeCloseTo(3.3768, 8);
     } finally {
-      db.prepare('UPDATE upstream_channels SET billing_multiplier_image=NULL WHERE id=?').run(channelId);
+      db.prepare('UPDATE routing_groups SET billing_multiplier_image=NULL WHERE id=?').run(groupId);
     }
   });
 
-  it('用户专属图片倍率优先于渠道倍率并写入来源快照', async () => {
+  it('用户专属图片倍率优先于路由分组倍率并写入来源快照', async () => {
     const db = getDatabase();
-    db.prepare('UPDATE upstream_channels SET billing_multiplier_image=? WHERE id=?').run(1.8, channelId);
+    db.prepare('UPDATE routing_groups SET billing_multiplier_image=? WHERE id=?').run(1.8, groupId);
     const ruleId = db.prepare(`INSERT INTO pricing_rules
       (rule_name,model_code,scope_type,scope_id,billing_multiplier_input,billing_multiplier_output,
        billing_multiplier_image,priority,status)
@@ -203,13 +204,13 @@ describe('图片生成端点计费', () => {
       });
     } finally {
       db.prepare('DELETE FROM pricing_rules WHERE id=?').run(ruleId);
-      db.prepare('UPDATE upstream_channels SET billing_multiplier_image=NULL WHERE id=?').run(channelId);
+      db.prepare('UPDATE routing_groups SET billing_multiplier_image=NULL WHERE id=?').run(groupId);
     }
   });
 
   it('Responses 原生图片工具按实际 image_generation_call 结果计费', async () => {
     const db = getDatabase();
-    db.prepare('UPDATE upstream_channels SET billing_multiplier_image=? WHERE id=?').run(1.8, channelId);
+    db.prepare('UPDATE routing_groups SET billing_multiplier_image=? WHERE id=?').run(1.8, groupId);
     try {
       const response = await request('/v1/responses', {
         method: 'POST',
@@ -234,7 +235,7 @@ describe('图片生成端点计费', () => {
       });
       expect(log.total_cost).toBeCloseTo(1.6884, 8);
     } finally {
-      db.prepare('UPDATE upstream_channels SET billing_multiplier_image=NULL WHERE id=?').run(channelId);
+      db.prepare('UPDATE routing_groups SET billing_multiplier_image=NULL WHERE id=?').run(groupId);
     }
   });
 
