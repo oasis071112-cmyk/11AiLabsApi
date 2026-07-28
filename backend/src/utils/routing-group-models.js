@@ -30,6 +30,31 @@ function listRoutingGroupProtocolTypes(db, groupId, visitedGroups = new Set()) {
   });
 }
 
+function mergeAvailableModel(existing, incoming) {
+  if (!existing) {
+    return {
+      ...incoming,
+      protocol_types: [...new Set(incoming.protocol_types || [])].sort(),
+      capabilities: { ...(incoming.capabilities || {}) },
+    };
+  }
+  existing.protocol_types = [...new Set([
+    ...(existing.protocol_types || []),
+    ...(incoming.protocol_types || []),
+  ])].sort();
+  existing.capabilities ||= {};
+  for (const [capability, supported] of Object.entries(incoming.capabilities || {})) {
+    existing.capabilities[capability] ||= Boolean(supported);
+  }
+  if ('supports_image_input' in existing || 'supports_image_input' in incoming) {
+    existing.supports_image_input ||= Boolean(incoming.supports_image_input);
+  }
+  if ('is_multimodal' in existing || 'is_multimodal' in incoming) {
+    existing.is_multimodal ||= Boolean(incoming.is_multimodal);
+  }
+  return existing;
+}
+
 function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
   if (visitedGroups.has(groupId)) return [];
   visitedGroups.add(groupId);
@@ -55,53 +80,33 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
     const responses = channelSupportsCapability(row, 'responses');
     const anthropicMessages = channelSupportsCapability(row, 'anthropic_messages');
     const anthropicCountTokens = channelSupportsCapability(row, 'anthropic_count_tokens');
-    const existing = byModel.get(row.model_code) || {
+    const imageInput = (chatCompletions || anthropicMessages)
+      && channelModelSupportsImageInput(row);
+    const candidate = {
       model_code: row.model_code,
       model_name: row.model_name,
       model_type: row.model_type,
       context_length: row.context_length,
       sort_order: row.sort_order,
-      protocol_types: [],
+      is_multimodal: imageInput,
+      protocol_types: [row.protocol_type],
       capabilities: {
-        chat_completions: false,
-        anthropic_messages: false,
-        anthropic_count_tokens: false,
-        image_input: false,
-        image_generations: false,
-        responses: false,
+        chat_completions: chatCompletions,
+        anthropic_messages: anthropicMessages,
+        anthropic_count_tokens: anthropicCountTokens,
+        image_input: imageInput,
+        image_generations: imageGenerations,
+        responses,
       },
     };
-    existing.capabilities.chat_completions ||= chatCompletions;
-    existing.capabilities.anthropic_messages ||= anthropicMessages;
-    existing.capabilities.anthropic_count_tokens ||= anthropicCountTokens;
-    existing.capabilities.image_input ||= (chatCompletions || anthropicMessages) && channelModelSupportsImageInput(row);
-    existing.capabilities.image_generations ||= imageGenerations;
-    existing.capabilities.responses ||= responses;
-    if (!existing.protocol_types.includes(row.protocol_type)) {
-      existing.protocol_types.push(row.protocol_type);
-      existing.protocol_types.sort();
-    }
-    byModel.set(row.model_code, existing);
+    byModel.set(row.model_code, mergeAvailableModel(byModel.get(row.model_code), candidate));
   }
   const models = [...byModel.values()];
   if (!group.fallback_group_id) return models;
   const fallbackModels = listRoutingGroupModels(db, group.fallback_group_id, visitedGroups);
   const byCode = new Map(models.map(model => [model.model_code, model]));
   for (const model of fallbackModels) {
-    const existing = byCode.get(model.model_code);
-    if (!existing) byCode.set(model.model_code, model);
-    else {
-      existing.capabilities.chat_completions ||= model.capabilities.chat_completions;
-      existing.capabilities.anthropic_messages ||= model.capabilities.anthropic_messages;
-      existing.capabilities.anthropic_count_tokens ||= model.capabilities.anthropic_count_tokens;
-      existing.capabilities.image_input ||= model.capabilities.image_input;
-      existing.capabilities.image_generations ||= model.capabilities.image_generations;
-      existing.capabilities.responses ||= model.capabilities.responses;
-      existing.protocol_types = [...new Set([
-        ...(existing.protocol_types || []),
-        ...(model.protocol_types || []),
-      ])].sort();
-    }
+    byCode.set(model.model_code, mergeAvailableModel(byCode.get(model.model_code), model));
   }
   return [...byCode.values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || a.model_code.localeCompare(b.model_code));
 }
@@ -251,6 +256,7 @@ function findUserChannelForModel(db, userId, modelCode) {
 }
 
 module.exports = {
+  mergeAvailableModel,
   listRoutingGroupModels,
   listRoutingGroupProtocolTypes,
   listModelsForApiKey,

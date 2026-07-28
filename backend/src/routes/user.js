@@ -11,6 +11,7 @@ const {
   listModelsForApiKey,
   listRoutingGroupModels,
   listRoutingGroupProtocolTypes,
+  mergeAvailableModel,
 } = require('../utils/routing-group-models');
 const { buildEasyPayRequest, supportedPaymentMethods } = require('../utils/easypay');
 const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
@@ -123,62 +124,76 @@ router.get('/models', authenticate, (req, res) => {
     official_cached_input_price,official_unit_tokens,official_price_updated_at,sort_order
     FROM models WHERE status='active' ORDER BY sort_order ASC,model_code ASC`).all();
   const catalogByCode = new Map(catalog.map(model => [model.model_code, model]));
-  const routingGroups = db.prepare(`SELECT DISTINCT
-    rg.id,rg.group_name,rg.description,
+  const apiKeys = db.prepare(`SELECT
+    ak.id,ak.routing_group_id,ak.permission_mode,
+    rg.group_name,rg.description,
     rg.billing_multiplier_input,rg.billing_multiplier_output,rg.billing_multiplier_image
     FROM api_keys ak
     JOIN routing_groups rg ON rg.id=ak.routing_group_id AND rg.status='active'
     WHERE ak.user_id=? AND ak.status='active'
       AND (ak.expired_at IS NULL OR datetime(ak.expired_at)>=datetime('now'))
-    ORDER BY rg.id ASC`).all(req.user.id);
-  const groups = routingGroups.map(group => ({
-    ...group,
-    protocol_types: listRoutingGroupProtocolTypes(db, group.id),
-    models: listRoutingGroupModels(db, group.id).map(availableModel => {
-      const catalogModel = catalogByCode.get(availableModel.model_code) || {};
-      const model = {
-        ...catalogModel,
-        ...availableModel,
-        is_multimodal: Boolean(availableModel.capabilities?.image_input),
-        supports_image_input: Boolean(availableModel.capabilities?.image_input),
-      };
-      if (model.model_type !== 'image') return model;
-      const {
-        official_currency,
-        official_input_price,
-        official_output_price,
-        official_cached_input_price,
-        official_unit_tokens,
-        official_price_updated_at,
-        ...publicImageModel
-      } = model;
-      const imageDisplayPricing = defaultImageDisplayPricing();
-      return {
-        ...publicImageModel,
-        default_image_unit_price: imageDisplayPricing.unitPrice,
-        default_image_currency: imageDisplayPricing.currency,
-      };
-    }),
-  }));
+    ORDER BY rg.id ASC,ak.id ASC`).all(req.user.id);
+  const groupsById = new Map();
+  for (const apiKey of apiKeys) {
+    const group = groupsById.get(apiKey.routing_group_id) || {
+      id: apiKey.routing_group_id,
+      group_name: apiKey.group_name,
+      description: apiKey.description,
+      billing_multiplier_input: apiKey.billing_multiplier_input,
+      billing_multiplier_output: apiKey.billing_multiplier_output,
+      billing_multiplier_image: apiKey.billing_multiplier_image,
+      modelsByCode: new Map(),
+    };
+    for (const availableModel of listModelsForApiKey(db, apiKey)) {
+      group.modelsByCode.set(
+        availableModel.model_code,
+        mergeAvailableModel(group.modelsByCode.get(availableModel.model_code), availableModel),
+      );
+    }
+    groupsById.set(group.id, group);
+  }
+  const groups = [...groupsById.values()].map(({ modelsByCode: groupModelsByCode, ...group }) => {
+    const models = [...groupModelsByCode.values()]
+      .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0)
+        || a.model_code.localeCompare(b.model_code))
+      .map(availableModel => {
+        const catalogModel = catalogByCode.get(availableModel.model_code) || {};
+        const model = {
+          ...catalogModel,
+          ...availableModel,
+          is_multimodal: Boolean(availableModel.capabilities?.image_input),
+          supports_image_input: Boolean(availableModel.capabilities?.image_input),
+        };
+        if (model.model_type !== 'image') return model;
+        const {
+          official_currency,
+          official_input_price,
+          official_output_price,
+          official_cached_input_price,
+          official_unit_tokens,
+          official_price_updated_at,
+          ...publicImageModel
+        } = model;
+        const imageDisplayPricing = defaultImageDisplayPricing();
+        return {
+          ...publicImageModel,
+          default_image_unit_price: imageDisplayPricing.unitPrice,
+          default_image_currency: imageDisplayPricing.currency,
+        };
+      });
+    return {
+      ...group,
+      protocol_types: [...new Set(models.flatMap(model => model.protocol_types || []))].sort(),
+      models,
+    };
+  });
   const modelsByCode = new Map();
   for (const group of groups) {
     for (const model of group.models) {
-      const existing = modelsByCode.get(model.model_code);
-      if (!existing) {
-        modelsByCode.set(model.model_code, {
-          ...model,
-          protocol_types: [...(model.protocol_types || [])],
-        });
-        continue;
-      }
-      existing.protocol_types = [...new Set([
-        ...(existing.protocol_types || []),
-        ...(model.protocol_types || []),
-      ])].sort();
-      for (const capability of Object.keys(model.capabilities || {})) {
-        existing.capabilities[capability] ||= Boolean(model.capabilities[capability]);
-      }
-      existing.supports_image_input ||= model.supports_image_input;
+      modelsByCode.set(
+        model.model_code,
+        mergeAvailableModel(modelsByCode.get(model.model_code), model),
+      );
     }
   }
   const data = [...modelsByCode.values()].sort((a, b) =>

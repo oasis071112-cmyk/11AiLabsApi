@@ -114,4 +114,82 @@ describe('用户可用模型倍率', () => {
       has_api_keys: false,
     });
   });
+
+  it('旧式限权 Key 仅展示该 Key 实际获准使用的分组模型', async () => {
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const hiddenModelCode = `legacy-hidden-${suffix}`;
+    db.prepare(`INSERT INTO models
+      (model_code,model_name,model_type,status) VALUES (?,?,'llm','active')`)
+      .run(hiddenModelCode, 'Legacy hidden model');
+    db.prepare(`INSERT INTO channel_models
+      (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
+      .run(channelId, hiddenModelCode, hiddenModelCode);
+    const user = db.prepare(`INSERT INTO users
+      (username,email,password_hash,role,status) VALUES (?,?,?,?,?)`)
+      .run(`legacy-model-user-${suffix}`, `legacy-model-user-${suffix}@test.local`,
+        bcrypt.hashSync('safe-pass', 4), 'user', 'active');
+    const key = db.prepare(`INSERT INTO api_keys
+      (user_id,key_name,key_hash,key_prefix,routing_group_id,permission_mode,status)
+      VALUES (?,?,?,?,?,'legacy','active')`)
+      .run(user.lastInsertRowid, 'legacy-model-key', `legacy-model-hash-${suffix}`,
+        'sk-legacy-model', groupId);
+    db.prepare(`INSERT INTO api_key_permissions
+      (api_key_id,model_code,status) VALUES (?,?,'active')`).run(key.lastInsertRowid, modelCode);
+    const token = generateToken({
+      id: user.lastInsertRowid, username: `legacy-model-user-${suffix}`, role: 'user',
+    });
+
+    const response = await fetch(`${baseUrl}/api/user/models`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.groups).toHaveLength(1);
+    expect(payload.groups[0].models.map(model => model.model_code)).toEqual([modelCode]);
+    expect(payload.data.map(model => model.model_code)).toEqual([modelCode]);
+  });
+
+  it('跨分组合并模型时同步汇总多模态标记和图片输入能力', async () => {
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const sharedModelCode = `multimodal-union-${suffix}`;
+    db.prepare(`INSERT INTO models
+      (model_code,model_name,model_type,is_multimodal,status)
+      VALUES (?,?,'llm',1,'active')`).run(sharedModelCode, 'Multimodal union model');
+    const groupIds = [];
+    for (const supportsImageInput of [0, 1]) {
+      const channel = db.prepare(`INSERT INTO upstream_channels
+        (channel_name,base_url,api_key,status,protocol_type,capabilities)
+        VALUES (?,?,?,'active','openai_compatible','["chat_completions"]')`)
+        .run(`multimodal-union-channel-${supportsImageInput}-${suffix}`,
+          'https://multimodal-union.test/v1', 'upstream-key');
+      db.prepare(`INSERT INTO channel_models
+        (channel_id,model_code,upstream_model_name,supports_image_input,status)
+        VALUES (?,?,?,?,'active')`)
+        .run(channel.lastInsertRowid, sharedModelCode, sharedModelCode, supportsImageInput);
+      const group = db.prepare(`INSERT INTO routing_groups
+        (group_name,status) VALUES (?,'active')`)
+        .run(`multimodal-union-group-${supportsImageInput}-${suffix}`);
+      groupIds.push(group.lastInsertRowid);
+      db.prepare(`INSERT INTO routing_group_channels
+        (group_id,channel_id,status) VALUES (?,?,'active')`)
+        .run(group.lastInsertRowid, channel.lastInsertRowid);
+      db.prepare(`INSERT INTO api_keys
+        (user_id,key_name,key_hash,key_prefix,routing_group_id,permission_mode,status)
+        VALUES (?,?,?,?,?,'group_dynamic','active')`)
+        .run(userId, `multimodal-union-key-${supportsImageInput}`,
+          `multimodal-union-hash-${supportsImageInput}-${suffix}`,
+          `sk-multimodal-union-${supportsImageInput}`, group.lastInsertRowid);
+    }
+
+    const payload = await listModels();
+    const sharedModel = payload.data.find(model => model.model_code === sharedModelCode);
+    expect(sharedModel).toMatchObject({
+      is_multimodal: true,
+      supports_image_input: true,
+      capabilities: { image_input: true },
+    });
+    expect(payload.groups.filter(group => groupIds.includes(group.id))).toHaveLength(2);
+  });
 });
