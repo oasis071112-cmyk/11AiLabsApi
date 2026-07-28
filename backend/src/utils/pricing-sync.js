@@ -77,6 +77,58 @@ function anthropicAnchors(text) {
   }));
 }
 
+function htmlText(value) {
+  return String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseAnthropicTablePrices(rawHtml, modelId, modelName, unitTokens) {
+  const officialIdentity = anthropicIdentity(modelId);
+  const displayIdentity = anthropicIdentity(modelName);
+  if (!sameAnthropicIdentity(officialIdentity, displayIdentity)) return null;
+  const exactId = String(modelId || '').normalize('NFKC').trim().toLowerCase();
+  const candidates = [];
+
+  for (const tableMatch of String(rawHtml).matchAll(/<table\b[^>]*>([\s\S]*?)<\/table>/gi)) {
+    const table = tableMatch[1];
+    const headerRow = table.match(/<thead\b[^>]*>([\s\S]*?)<\/thead>/i)?.[1] || table.match(/<tr\b[^>]*>([\s\S]*?)<\/tr>/i)?.[1];
+    const headers = Array.from(String(headerRow || '').matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/gi), match => htmlText(match[1]).toLowerCase());
+    const modelIndex = headers.findIndex(header => header === 'model');
+    const inputIndex = headers.findIndex(header => /base input/.test(header));
+    const cachedInputIndex = headers.findIndex(header => /cache hits|cache read|缓存读取/.test(header));
+    const outputIndex = headers.findIndex(header => /output tokens?/.test(header));
+    if ([modelIndex, inputIndex, cachedInputIndex, outputIndex].some(index => index < 0) || headers.some(header => /batch/.test(header))) continue;
+
+    for (const rowMatch of table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+      const cells = Array.from(rowMatch[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi), match => htmlText(match[1]));
+      if (cells.length <= Math.max(modelIndex, inputIndex, cachedInputIndex, outputIndex)) continue;
+      const rowIdentity = anthropicIdentity(cells[modelIndex]);
+      if (!sameAnthropicIdentity(rowIdentity, officialIdentity)) continue;
+      if (officialIdentity.date && cells[modelIndex].normalize('NFKC').toLowerCase() !== exactId) continue;
+      const input = parseLabeledPrice(`Input ${cells[inputIndex]}`, 'input');
+      const cachedInput = parseLabeledPrice(`Cached input ${cells[cachedInputIndex]}`, 'cached input');
+      const output = parseLabeledPrice(`Output ${cells[outputIndex]}`, 'output');
+      if (!input || !cachedInput || !output || input.currency !== cachedInput.currency || input.currency !== output.currency) continue;
+      candidates.push({ id: cells[modelIndex], currency: input.currency, input: input.amount, cachedInput: cachedInput.amount, output: output.amount });
+    }
+  }
+
+  if (!candidates.length || candidates.some(candidate => candidate.currency !== candidates[0].currency)) return null;
+  return {
+    currency: candidates[0].currency,
+    input: Math.max(...candidates.map(candidate => candidate.input)),
+    output: Math.max(...candidates.map(candidate => candidate.output)),
+    cachedInput: Math.max(...candidates.map(candidate => candidate.cachedInput)),
+    unitTokens,
+    source: PROVIDER_PAGES.anthropic,
+    candidates: candidates.map(candidate => candidate.id),
+  };
+}
+
 function parseAnthropicPrices(text, modelId, modelName, unitTokens) {
   const officialIdentity = anthropicIdentity(modelId);
   const displayIdentity = anthropicIdentity(modelName);
@@ -133,7 +185,10 @@ function parseOfficialPrices(html, provider, modelId, modelName = modelId) {
       cachedInput: parseMoney(cardValue('Cached input') || cardInput), unitTokens, source: PROVIDER_PAGES[provider],
     };
   }
-  if (provider === 'anthropic') return parseAnthropicPrices(text, modelId, modelName, unitTokens);
+  if (provider === 'anthropic') {
+    return parseAnthropicTablePrices(rawHtml, modelId, modelName, unitTokens)
+      || parseAnthropicPrices(text, modelId, modelName, unitTokens);
+  }
   const id = String(modelId || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const windowMatch = id ? text.match(new RegExp(`.{0,500}${id}.{0,1800}`, 'i')) : null;
   if (!windowMatch && provider !== 'openai') return null;

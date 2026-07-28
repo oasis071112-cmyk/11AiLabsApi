@@ -1,16 +1,16 @@
 # Graph Report - ai-api-proxy  (2026-07-28)
 
 ## Corpus Check
-- 116 files · ~64,536 words
+- 116 files · ~64,882 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1187 nodes · 1707 edges · 90 communities (78 shown, 12 thin omitted)
+- 1189 nodes · 1714 edges · 91 communities (78 shown, 13 thin omitted)
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 95 edges (avg confidence: 0.5)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `7bfd4dd7`
+- Built from commit: `ea50d08e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -98,6 +98,7 @@
 - billing-detail.js
 - channel-docs.js
 - crypto.js
+- model-sync.js
 
 ## God Nodes (most connected - your core abstractions)
 1. `getDatabase()` - 39 edges
@@ -126,7 +127,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (90 total, 12 thin omitted)
+## Communities (91 total, 13 thin omitted)
 
 ### Community 0 - "proxy.js"
 Cohesion: 0.07
@@ -167,32 +168,32 @@ Cohesion: 0.08
 Nodes (22): activeTab, availableBalance, fetchOrders(), fetchTx(), fetchWallet(), lo, ltx, oPage (+14 more)
 
 ### Community 8 - "admin.js"
-Cohesion: 0.06
-Nodes (50): { authenticate, requireAdmin }, axios, BILLING_MODEL_SOURCES, CHANNEL_BILLING_MODES, CHANNEL_MULTIPLIER_FIELDS, CHANNEL_PRICE_FIELDS, channelModelPayload(), channelMultiplierPayload() (+42 more)
+Cohesion: 0.08
+Nodes (29): { authenticate, requireAdmin }, axios, BILLING_MODEL_SOURCES, CHANNEL_BILLING_MODES, CHANNEL_MULTIPLIER_FIELDS, CHANNEL_PRICE_FIELDS, channelModelPayload(), { defaultImageDisplayPricing } (+21 more)
 
 ### Community 9 - "pricing-engine.js"
 Cohesion: 0.17
 Nodes (21): buildChannelImagePricing(), buildImagePricing(), extractAnthropicUsage(), hasBillableUsage(), mergeAnthropicStreamUsage(), calculateDimensions(), calculateImagePricing(), configuredImageUnitPrice() (+13 more)
 
 ### Community 10 - "user.js"
-Cohesion: 0.10
-Nodes (32): anthropicUpstreamHeaders(), listModels(), ALLOWED_CHANNEL_CAPABILITIES, CHANNEL_CAPABILITIES_BY_PROTOCOL, channelModelSupportsImageInput(), channelSupportsCapability(), DEFAULT_CHANNEL_CAPABILITIES, defaultChannelCapabilities() (+24 more)
+Cohesion: 0.05
+Nodes (53): anthropicUpstreamHeaders(), listModels(), { authenticate }, bcrypt, { buildBillingDetail }, { buildEasyPayRequest, supportedPaymentMethods }, buildLogFilters(), { defaultImageDisplayPricing } (+45 more)
 
 ### Community 11 - "routing-group-models.js"
 Cohesion: 0.29
 Nodes (5): { generateToken }, { initDatabase, getDatabase }, insertLog(), require, userRoutes
 
 ### Community 12 - "pricing-sync.js"
-Cohesion: 0.14
-Nodes (23): fs, logDir, logger, path, winston, anthropicAnchors(), anthropicIdentity(), axios (+15 more)
+Cohesion: 0.19
+Nodes (20): anthropicAnchors(), anthropicIdentity(), axios, currencyFromSymbol(), fetchProviderPage(), getConfig(), htmlText(), inferProvider() (+12 more)
 
 ### Community 13 - "middleware/auth.js"
-Cohesion: 0.12
-Nodes (17): apiKeyAuthError(), apiKeyFromRequest(), authenticateApiKey(), bcrypt, findApiKey(), generateToken(), { getDatabase }, jwt (+9 more)
+Cohesion: 0.17
+Nodes (13): apiKeyAuthError(), apiKeyFromRequest(), authenticateApiKey(), bcrypt, findApiKey(), generateToken(), { getDatabase }, jwt (+5 more)
 
 ### Community 14 - "src/index.js"
-Cohesion: 0.11
-Nodes (18): adminRoutes, app, authRoutes, cors, express, globalLimiter, helmet, { initDatabase, getDatabase } (+10 more)
+Cohesion: 0.06
+Nodes (32): adminRoutes, app, authRoutes, cors, express, globalLimiter, helmet, { initDatabase, getDatabase } (+24 more)
 
 ### Community 15 - "init.js"
 Cohesion: 0.26
@@ -303,8 +304,8 @@ Cohesion: 0.33
 Nodes (4): AdminTrendChart, data, isMobile, metrics
 
 ### Community 43 - "crypto.js"
-Cohesion: 0.10
-Nodes (16): { authenticate }, bcrypt, { buildBillingDetail }, { buildEasyPayRequest, supportedPaymentMethods }, buildLogFilters(), { defaultImageDisplayPricing }, { encrypt, decrypt, desensitize }, express (+8 more)
+Cohesion: 0.31
+Nodes (9): channelMultiplierPayload(), requestMultipliers(), activeRule(), multiplierFields, multiplierPolicyContext(), positiveMultiplier(), resolveChannelMultipliers(), resolveEffectiveMultiplierPolicy() (+1 more)
 
 ### Community 44 - "registration.test.js"
 Cohesion: 0.18
@@ -395,8 +396,8 @@ Cohesion: 0.40
 Nodes (5): fetchAll(), getPresetRange(), onPresetChange(), scheduleCharts(), toggleAutoRefresh()
 
 ### Community 83 - "payment.js"
-Cohesion: 0.25
-Nodes (9): easypayNotify(), express, fail(), { getDatabase }, { grantQuotaOrder }, router, { verifyEasyPayCallback }, grantQuotaOrder() (+1 more)
+Cohesion: 0.31
+Nodes (10): findMultiplierMismatch(), multiplierTuple(), policyValidationMoments(), reconcileModelStatus(), { resolveModelMultiplierPolicy }, routedModelCodesForChannels(), sameTuple(), setChannelModelStatus() (+2 more)
 
 ### Community 84 - "loadGroups"
 Cohesion: 0.50
@@ -411,8 +412,8 @@ Cohesion: 0.50
 Nodes (6): buildBillingDetail(), { calculatePricing }, number(), perMillionPrice(), rounded(), calculatePricing()
 
 ### Community 88 - "channel-docs.js"
-Cohesion: 0.47
-Nodes (5): CHANNEL_PROTOCOL_MAP, generateDocs(), getConfiguredProtocol(), getProtocol(), PROTOCOLS
+Cohesion: 0.33
+Nodes (4): adminRoutes, { generateToken }, { initDatabase, getDatabase }, require
 
 ### Community 89 - "crypto.js"
 Cohesion: 0.50
@@ -421,16 +422,16 @@ Nodes (4): crypto, desensitize(), encrypt(), getKey()
 ## Knowledge Gaps
 - **617 isolated node(s):** `backup.sh script`, `name`, `version`, `main`, `start` (+612 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **13 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `getDatabase()` connect `getDatabase` to `proxy.js`, `admin-finance.test.js`, `image-generations.test.js`, `admin.js`, `user.js`, `crypto.js`, `registration.test.js`, `middleware/auth.js`, `src/index.js`, `handleImageBilledRequest`, `anthropic-protocol.test.js`, `billing.test.js`, `routing-group-models.js`, `payment.js`, `user-model-multipliers.test.js`, `model-capabilities.test.js`, `easypay-payment.test.js`, `billing-detail.js`?**
-  _High betweenness centrality (0.029) - this node is a cross-community bridge._
-- **Why does `initDatabase()` connect `getDatabase` to `admin-finance.test.js`, `image-generations.test.js`, `routing-group-models.js`, `registration.test.js`, `middleware/auth.js`, `anthropic-protocol.test.js`, `billing.test.js`, `src/index.js`, `user-model-multipliers.test.js`, `easypay-payment.test.js`, `model-capabilities.test.js`, `billing-detail.js`?**
+- **Why does `getDatabase()` connect `getDatabase` to `proxy.js`, `admin-finance.test.js`, `image-generations.test.js`, `admin.js`, `user.js`, `routing-group-models.js`, `registration.test.js`, `middleware/auth.js`, `src/index.js`, `handleImageBilledRequest`, `anthropic-protocol.test.js`, `billing.test.js`, `user-model-multipliers.test.js`, `model-capabilities.test.js`, `easypay-payment.test.js`, `channel-docs.js`, `billing-detail.js`?**
+  _High betweenness centrality (0.026) - this node is a cross-community bridge._
+- **Why does `resolveModelMultiplierPolicy()` connect `crypto.js` to `proxy.js`, `user.js`, `payment.js`?**
   _High betweenness centrality (0.004) - this node is a cross-community bridge._
-- **Why does `handleImageBilledRequest()` connect `handleImageBilledRequest` to `proxy.js`, `getDatabase`, `admin.js`, `pricing-engine.js`, `user.js`, `image-billing.js`, `billing.test.js`, `init.js`?**
+- **Why does `initDatabase()` connect `getDatabase` to `admin-finance.test.js`, `image-generations.test.js`, `routing-group-models.js`, `registration.test.js`, `billing.test.js`, `anthropic-protocol.test.js`, `src/index.js`, `middleware/auth.js`, `user-model-multipliers.test.js`, `easypay-payment.test.js`, `model-capabilities.test.js`, `channel-docs.js`, `billing-detail.js`?**
   _High betweenness centrality (0.004) - this node is a cross-community bridge._
 - **What connects `backup.sh script`, `name`, `version` to the rest of the system?**
   _617 weakly-connected nodes found - possible documentation gaps or missing edges._

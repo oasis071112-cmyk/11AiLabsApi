@@ -130,8 +130,8 @@
     "semantic_hash": ""
   },
   "backend/src/utils/pricing-sync.js": {
-    "mtime": 1785240881.6814768,
-    "ast_hash": "09401fac67295334726c0e57a5fc3210",
+    "mtime": 1785241918.5921304,
+    "ast_hash": "7f41987b5f2513b53a39e2ca745c1384",
     "semantic_hash": ""
   },
   "backend/src/utils/quota-orders.js": {
@@ -225,8 +225,8 @@
     "semantic_hash": ""
   },
   "backend/tests/pricing-sync.test.js": {
-    "mtime": 1785240856.3751736,
-    "ast_hash": "9fc56de63048e641a9ee089538e55a7b",
+    "mtime": 1785241848.3460703,
+    "ast_hash": "3551707bdd5ed38be8db9c80d170716a",
     "semantic_hash": ""
   },
   "backend/tests/registration.test.js": {

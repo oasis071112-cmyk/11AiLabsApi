@@ -1,7 +1,7 @@
 # Graph Report - ai-api-proxy  (2026-07-28)
 
 ## Corpus Check
-- 116 files · ~64,425 words
+- 116 files · ~64,536 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

@@ -69,4 +69,26 @@ describe('官方价格解析', () => {
     const html = 'Claude Haiku 4.5 Batch Input $0.50 Output $2.50 Long context Input $3 Output $15';
     expect(parseOfficialPrices(html, 'anthropic', 'Claude Haiku 4.5', 'Claude Haiku 4.5')).toBeNull();
   });
+
+  it('读取 Anthropic 官方标准价格表中的模型行', () => {
+    const html = `
+      <table>
+        <thead><tr><th>Model</th><th>Base Input Tokens</th><th>5m Cache Writes</th><th>1h Cache Writes</th><th>Cache Hits & Refreshes</th><th>Output Tokens</th></tr></thead>
+        <tbody>
+          <tr><td>Claude Opus 5</td><td>$5 / MTok</td><td>$6.25 / MTok</td><td>$10 / MTok</td><td>$0.50 / MTok</td><td>$25 / MTok</td></tr>
+          <tr><td>Claude Opus 4.8</td><td>$5 / MTok</td><td>$6.25 / MTok</td><td>$10 / MTok</td><td>$0.50 / MTok</td><td>$25 / MTok</td></tr>
+        </tbody>
+      </table>`;
+    expect(parseOfficialPrices(html, 'anthropic', 'Claude Opus 4.8', 'Claude Opus 4.8')).toMatchObject({
+      currency: 'USD', input: 5, cachedInput: 0.5, output: 25,
+    });
+  });
+
+  it('不会把 Anthropic Batch 表格价格当成标准价格', () => {
+    const html = `
+      <h2>Batch processing</h2>
+      <table><thead><tr><th>Model</th><th>Batch input</th><th>Batch output</th></tr></thead>
+      <tbody><tr><td>Claude Opus 4.8</td><td>$2.50 / MTok</td><td>$12.50 / MTok</td></tr></tbody></table>`;
+    expect(parseOfficialPrices(html, 'anthropic', 'Claude Opus 4.8', 'Claude Opus 4.8')).toBeNull();
+  });
 });

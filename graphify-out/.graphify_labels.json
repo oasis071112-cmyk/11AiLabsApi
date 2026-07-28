@@ -88,5 +88,6 @@
   "86": "easypay-payment.test.js",
   "87": "billing-detail.js",
   "88": "channel-docs.js",
-  "89": "crypto.js"
+  "89": "crypto.js",
+  "90": "model-sync.js"
 }
