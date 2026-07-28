@@ -44,12 +44,86 @@ function parseLabeledPrice(scope, label) {
   return currency && amount !== null ? { currency, amount } : null;
 }
 
-// 文档布局会变化；只在能同时确认输入、输出两项时写入，避免把未知价格覆盖成 0。
-function parseOfficialPrices(html, provider, modelId) {
+function anthropicIdentity(value) {
+  const tokens = String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[‐‑‒–—―]/g, '-')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/);
+  const claudeIndex = tokens.indexOf('claude');
+  const tier = tokens.find(token => ['opus', 'sonnet', 'haiku'].includes(token));
+  const version = tokens
+    .slice(Math.max(0, claudeIndex + 1))
+    .filter(token => /^\d{1,2}$/.test(token))
+    .slice(0, 2)
+    .join('.');
+  if (claudeIndex < 0 || !tier || !version) return null;
+  return { family: 'claude', tier, version, date: tokens.find(token => /^\d{8}$/.test(token)) || null };
+}
+
+function sameAnthropicIdentity(left, right) {
+  return left && right && left.family === right.family && left.tier === right.tier && left.version === right.version;
+}
+
+function anthropicAnchors(text) {
+  const pattern = /claude[\s._-]+(?:(?:opus|sonnet|haiku)[\s._-]+\d+(?:[._-]\d+)?|\d+(?:[._-]\d+)?[\s._-]+(?:opus|sonnet|haiku))(?:[\s._-]+\d{8})?/gi;
+  return Array.from(text.matchAll(pattern), match => ({
+    start: match.index,
+    end: match.index + match[0].length,
+    value: match[0],
+    identity: anthropicIdentity(match[0]),
+  }));
+}
+
+function parseAnthropicPrices(text, modelId, modelName, unitTokens) {
+  const officialIdentity = anthropicIdentity(modelId);
+  const displayIdentity = anthropicIdentity(modelName);
+  if (!sameAnthropicIdentity(officialIdentity, displayIdentity)) return null;
+
+  const anchors = anthropicAnchors(text);
+  const exactId = String(modelId || '').normalize('NFKC').trim().toLowerCase();
+  const candidates = [];
+
+  anchors.forEach((anchor, index) => {
+    if (!sameAnthropicIdentity(anchor.identity, officialIdentity)) return;
+    if (officialIdentity.date && anchor.value.normalize('NFKC').toLowerCase() !== exactId) return;
+    const nextAnchor = anchors[index + 1];
+    const modelScope = text.slice(anchor.end, nextAnchor ? nextAnchor.start : text.length);
+    const standardMatch = modelScope.match(/(?:^|\s)standard(?:\s+pricing)?\s+([\s\S]*?)(?=\s(?:batch|long context|priority|regional)\b|$)/i);
+    const hasSpecialPricing = /(?:^|\s)(?:batch|long context|priority|regional)\b/i.test(modelScope);
+    if (hasSpecialPricing && !standardMatch) return;
+    const scope = standardMatch ? standardMatch[1] : modelScope;
+    const input = parseLabeledPrice(scope, 'input|输入');
+    const output = parseLabeledPrice(scope, 'output|输出');
+    const cachedInput = parseLabeledPrice(scope, 'cached input|缓存(?:输入)?|cache read');
+    if (!input || !output || input.currency !== output.currency || (cachedInput && cachedInput.currency !== input.currency)) return;
+    candidates.push({
+      id: anchor.value,
+      currency: input.currency,
+      input: input.amount,
+      output: output.amount,
+      cachedInput: cachedInput ? cachedInput.amount : input.amount,
+    });
+  });
+
+  if (!candidates.length || candidates.some(candidate => candidate.currency !== candidates[0].currency)) return null;
+  return {
+    currency: candidates[0].currency,
+    input: Math.max(...candidates.map(candidate => candidate.input)),
+    output: Math.max(...candidates.map(candidate => candidate.output)),
+    cachedInput: Math.max(...candidates.map(candidate => candidate.cachedInput)),
+    unitTokens,
+    source: PROVIDER_PAGES.anthropic,
+    candidates: candidates.map(candidate => candidate.id),
+  };
+}
+
+function parseOfficialPrices(html, provider, modelId, modelName = modelId) {
   const rawHtml = String(html);
-  const text = rawHtml.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+  const text = rawHtml.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ');
   const unitTokens = 1_000_000;
-  // OpenAI 模型详情页使用固定的价格卡片 HTML，优先按卡片解析，避免命中导航里的 “Input”。
   const cardValue = (label) => rawHtml.match(new RegExp(`<div>${label}<\\/div><div[^>]*>\\s*(?:\\$|¥|￥)?\\s*([0-9]+(?:\\.[0-9]+)?)`, 'i'))?.[1];
   const cardInput = cardValue('Input');
   const cardOutput = cardValue('Output');
@@ -59,9 +133,9 @@ function parseOfficialPrices(html, provider, modelId) {
       cachedInput: parseMoney(cardValue('Cached input') || cardInput), unitTokens, source: PROVIDER_PAGES[provider],
     };
   }
+  if (provider === 'anthropic') return parseAnthropicPrices(text, modelId, modelName, unitTokens);
   const id = String(modelId || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const windowMatch = id ? text.match(new RegExp(`.{0,500}${id}.{0,1800}`, 'i')) : null;
-  // 聚合价格页必须命中管理员确认的官方模型标识；未命中就跳过，绝不把页面上另一款模型的价格误写入。
   if (!windowMatch && provider !== 'openai') return null;
   const scope = windowMatch ? windowMatch[0] : text;
   const input = parseLabeledPrice(scope, 'input|输入');
@@ -107,16 +181,16 @@ async function syncOfficialPricing(db) {
     try {
       const modelId = model.official_model_id || model.model_code;
       const { html, url } = await fetchProviderPage(provider, modelId);
-      const price = parseOfficialPrices(html, provider, modelId);
+      const price = parseOfficialPrices(html, provider, modelId, model.model_name);
       if (!price) {
         result.skipped++;
-        result.details.push({ model: model.model_code, status: 'skipped', reason: '未能从官方页面完整识别输入和输出价格' });
+        result.details.push({ model: model.model_code, status: 'skipped', reason: '官方模型标识、显示名称或标准价格未能严格匹配' });
         continue;
       }
       db.prepare('UPDATE models SET official_provider=?,official_model_id=?,official_currency=?,official_input_price=?,official_output_price=?,official_cached_input_price=?,official_unit_tokens=?,official_price_source=?,official_price_updated_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?')
         .run(provider, modelId, price.currency, price.input, price.output, price.cachedInput, price.unitTokens, url, model.id);
       result.updated++;
-      result.details.push({ model: model.model_code, status: 'updated', currency: price.currency });
+      result.details.push({ model: model.model_code, status: 'updated', currency: price.currency, candidates: price.candidates || [modelId] });
     } catch (error) {
       result.failed++;
       result.details.push({ model: model.model_code, status: 'failed', reason: error.message });

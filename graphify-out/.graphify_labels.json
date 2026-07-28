@@ -82,6 +82,11 @@
   "80": "user-model-multipliers.test.js",
   "81": "fetchAll",
   "82": "formatTokenUnit",
+  "83": "payment.js",
   "84": "loadGroups",
-  "85": "emptyChannel"
+  "85": "emptyChannel",
+  "86": "easypay-payment.test.js",
+  "87": "billing-detail.js",
+  "88": "channel-docs.js",
+  "89": "crypto.js"
 }

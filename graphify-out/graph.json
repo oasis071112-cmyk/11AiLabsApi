@@ -1041,8 +1041,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_middleware_auth",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "middleware/auth.js"
     },
     {
@@ -1052,8 +1052,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_jwt",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "jwt"
     },
     {
@@ -1063,8 +1063,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_bcrypt",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "bcrypt"
     },
     {
@@ -1074,8 +1074,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_getdatabase",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "{ getdatabase }"
     },
     {
@@ -1085,8 +1085,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_findapikey",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "findapikey()"
     },
     {
@@ -1096,8 +1096,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_apikeyfromrequest",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "apikeyfromrequest()"
     },
     {
@@ -1107,8 +1107,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_apikeyautherror",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "apikeyautherror()"
     },
     {
@@ -1129,8 +1129,8 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_authenticateapikey",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "authenticateapikey()"
     },
     {
@@ -1140,8 +1140,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_requireadmin",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "requireadmin()"
     },
     {
@@ -1536,8 +1536,8 @@
       "source_location": "L1067",
       "_origin": "ast",
       "id": "backend_src_routes_admin_publicpaymentprovider",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "publicpaymentprovider()"
     },
     {
@@ -1547,8 +1547,8 @@
       "source_location": "L1076",
       "_origin": "ast",
       "id": "backend_src_routes_admin_paymentproviderpayload",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "paymentproviderpayload()"
     },
     {
@@ -1624,8 +1624,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_payment",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "payment.js"
     },
     {
@@ -1635,8 +1635,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_payment_express",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "express"
     },
     {
@@ -1646,8 +1646,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_routes_payment_router",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "router"
     },
     {
@@ -1657,8 +1657,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_routes_payment_getdatabase",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "{ getdatabase }"
     },
     {
@@ -1668,8 +1668,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_routes_payment_verifyeasypaycallback",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "{ verifyeasypaycallback }"
     },
     {
@@ -1679,8 +1679,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_routes_payment_grantquotaorder",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "{ grantquotaorder }"
     },
     {
@@ -1690,8 +1690,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_routes_payment_fail",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "fail()"
     },
     {
@@ -1701,8 +1701,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_src_routes_payment_easypaynotify",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "easypaynotify()"
     },
     {
@@ -1921,8 +1921,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_channelhastokenpricing",
-      "community": 15,
-      "community_name": "init.js",
+      "community": 76,
+      "community_name": "handleImageBilledRequest",
       "norm_label": "channelhastokenpricing()"
     },
     {
@@ -1976,8 +1976,8 @@
       "source_location": "L136",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_buildchannelimagepricing",
-      "community": 15,
-      "community_name": "init.js",
+      "community": 9,
+      "community_name": "pricing-engine.js",
       "norm_label": "buildchannelimagepricing()"
     },
     {
@@ -2218,8 +2218,8 @@
       "source_location": "L560",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_hasbillableusage",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 9,
+      "community_name": "pricing-engine.js",
       "norm_label": "hasbillableusage()"
     },
     {
@@ -2405,8 +2405,8 @@
       "source_location": "L778",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_extractanthropicusage",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 9,
+      "community_name": "pricing-engine.js",
       "norm_label": "extractanthropicusage()"
     },
     {
@@ -2416,8 +2416,8 @@
       "source_location": "L786",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_mergeanthropicstreamusage",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 9,
+      "community_name": "pricing-engine.js",
       "norm_label": "mergeanthropicstreamusage()"
     },
     {
@@ -2449,8 +2449,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_public",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 22,
+      "community_name": "model-capabilities.test.js",
       "norm_label": "public.js"
     },
     {
@@ -2460,8 +2460,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_public_express",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 22,
+      "community_name": "model-capabilities.test.js",
       "norm_label": "express"
     },
     {
@@ -2471,8 +2471,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_routes_public_router",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 22,
+      "community_name": "model-capabilities.test.js",
       "norm_label": "router"
     },
     {
@@ -2482,8 +2482,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_routes_public_getdatabase",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 22,
+      "community_name": "model-capabilities.test.js",
       "norm_label": "{ getdatabase }"
     },
     {
@@ -2493,8 +2493,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_routes_public_listsystemmodelcapabilities",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 22,
+      "community_name": "model-capabilities.test.js",
       "norm_label": "{ listsystemmodelcapabilities }"
     },
     {
@@ -2746,8 +2746,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 87,
+      "community_name": "billing-detail.js",
       "norm_label": "billing-detail.js"
     },
     {
@@ -2757,8 +2757,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_calculatepricing",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 87,
+      "community_name": "billing-detail.js",
       "norm_label": "{ calculatepricing }"
     },
     {
@@ -2768,8 +2768,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_number",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 87,
+      "community_name": "billing-detail.js",
       "norm_label": "number()"
     },
     {
@@ -2779,8 +2779,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_rounded",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 87,
+      "community_name": "billing-detail.js",
       "norm_label": "rounded()"
     },
     {
@@ -2790,8 +2790,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_permillionprice",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 87,
+      "community_name": "billing-detail.js",
       "norm_label": "permillionprice()"
     },
     {
@@ -2801,8 +2801,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_buildbillingdetail",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 87,
+      "community_name": "billing-detail.js",
       "norm_label": "buildbillingdetail()"
     },
     {
@@ -2999,8 +2999,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 88,
+      "community_name": "channel-docs.js",
       "norm_label": "channel-docs.js"
     },
     {
@@ -3010,8 +3010,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_protocols",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 88,
+      "community_name": "channel-docs.js",
       "norm_label": "protocols"
     },
     {
@@ -3021,8 +3021,8 @@
       "source_location": "L248",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_channel_protocol_map",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 88,
+      "community_name": "channel-docs.js",
       "norm_label": "channel_protocol_map"
     },
     {
@@ -3032,8 +3032,8 @@
       "source_location": "L269",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_getprotocol",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 88,
+      "community_name": "channel-docs.js",
       "norm_label": "getprotocol()"
     },
     {
@@ -3043,8 +3043,8 @@
       "source_location": "L275",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_getconfiguredprotocol",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 88,
+      "community_name": "channel-docs.js",
       "norm_label": "getconfiguredprotocol()"
     },
     {
@@ -3054,8 +3054,8 @@
       "source_location": "L284",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_generatedocs",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 88,
+      "community_name": "channel-docs.js",
       "norm_label": "generatedocs()"
     },
     {
@@ -3439,7 +3439,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto",
-      "community": 43,
+      "community": 89,
       "community_name": "crypto.js",
       "norm_label": "crypto.js"
     },
@@ -3450,7 +3450,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_crypto",
-      "community": 43,
+      "community": 89,
       "community_name": "crypto.js",
       "norm_label": "crypto"
     },
@@ -3461,7 +3461,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_getkey",
-      "community": 43,
+      "community": 89,
       "community_name": "crypto.js",
       "norm_label": "getkey()"
     },
@@ -3472,7 +3472,7 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_encrypt",
-      "community": 43,
+      "community": 89,
       "community_name": "crypto.js",
       "norm_label": "encrypt()"
     },
@@ -3483,8 +3483,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_decrypt",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "decrypt()"
     },
     {
@@ -3494,7 +3494,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_desensitize",
-      "community": 43,
+      "community": 89,
       "community_name": "crypto.js",
       "norm_label": "desensitize()"
     },
@@ -3505,8 +3505,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_easypay",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "easypay.js"
     },
     {
@@ -3516,8 +3516,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_crypto",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "crypto"
     },
     {
@@ -3527,8 +3527,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_decrypt",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "{ decrypt }"
     },
     {
@@ -3538,8 +3538,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_normalizedbaseurl",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "normalizedbaseurl()"
     },
     {
@@ -3549,8 +3549,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_signedfields",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "signedfields()"
     },
     {
@@ -3560,8 +3560,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_signeasypay",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "signeasypay()"
     },
     {
@@ -3571,8 +3571,8 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_signaturesmatch",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "signaturesmatch()"
     },
     {
@@ -3582,8 +3582,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_supportedpaymentmethods",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "supportedpaymentmethods()"
     },
     {
@@ -3593,8 +3593,8 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_paymenttypefor",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "paymenttypefor()"
     },
     {
@@ -3604,8 +3604,8 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_buildeasypayrequest",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "buildeasypayrequest()"
     },
     {
@@ -3615,8 +3615,8 @@
       "source_location": "L64",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_verifyeasypaycallback",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "verifyeasypaycallback()"
     },
     {
@@ -3989,8 +3989,8 @@
       "source_location": "L176",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_calculatepricing",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 87,
+      "community_name": "billing-detail.js",
       "norm_label": "calculatepricing()"
     },
     {
@@ -4055,8 +4055,8 @@
       "source_location": "L280",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_extractusage",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 9,
+      "community_name": "pricing-engine.js",
       "norm_label": "extractusage()"
     },
     {
@@ -4170,10 +4170,54 @@
       "norm_label": "parselabeledprice()"
     },
     {
+      "label": "anthropicIdentity()",
+      "file_type": "code",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L47",
+      "_origin": "ast",
+      "id": "backend_src_utils_pricing_sync_anthropicidentity",
+      "community": 12,
+      "community_name": "pricing-sync.js",
+      "norm_label": "anthropicidentity()"
+    },
+    {
+      "label": "sameAnthropicIdentity()",
+      "file_type": "code",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L66",
+      "_origin": "ast",
+      "id": "backend_src_utils_pricing_sync_sameanthropicidentity",
+      "community": 12,
+      "community_name": "pricing-sync.js",
+      "norm_label": "sameanthropicidentity()"
+    },
+    {
+      "label": "anthropicAnchors()",
+      "file_type": "code",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L70",
+      "_origin": "ast",
+      "id": "backend_src_utils_pricing_sync_anthropicanchors",
+      "community": 12,
+      "community_name": "pricing-sync.js",
+      "norm_label": "anthropicanchors()"
+    },
+    {
+      "label": "parseAnthropicPrices()",
+      "file_type": "code",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L80",
+      "_origin": "ast",
+      "id": "backend_src_utils_pricing_sync_parseanthropicprices",
+      "community": 12,
+      "community_name": "pricing-sync.js",
+      "norm_label": "parseanthropicprices()"
+    },
+    {
       "label": "parseOfficialPrices()",
       "file_type": "code",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L48",
+      "source_location": "L123",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_sync_parseofficialprices",
       "community": 12,
@@ -4184,7 +4228,7 @@
       "label": "fetchProviderPage()",
       "file_type": "code",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L74",
+      "source_location": "L148",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_sync_fetchproviderpage",
       "community": 12,
@@ -4195,7 +4239,7 @@
       "label": "syncUsdCnyRate()",
       "file_type": "code",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L86",
+      "source_location": "L160",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_sync_syncusdcnyrate",
       "community": 12,
@@ -4206,7 +4250,7 @@
       "label": "syncOfficialPricing()",
       "file_type": "code",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L100",
+      "source_location": "L174",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_sync_syncofficialpricing",
       "community": 12,
@@ -4217,7 +4261,7 @@
       "label": "startPricingSchedules()",
       "file_type": "code",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L131",
+      "source_location": "L205",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_sync_startpricingschedules",
       "community": 12,
@@ -4231,8 +4275,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_quota_orders",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "quota-orders.js"
     },
     {
@@ -4242,8 +4286,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_quota_orders_quotaordererror",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "quotaordererror()"
     },
     {
@@ -4253,8 +4297,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_src_utils_quota_orders_grantquotaorder",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 83,
+      "community_name": "payment.js",
       "norm_label": "grantquotaorder()"
     },
     {
@@ -4704,8 +4748,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_billing_detail_test",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 87,
+      "community_name": "billing-detail.js",
       "norm_label": "billing-detail.test.js"
     },
     {
@@ -4990,8 +5034,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_easypay_payment_test",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 86,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "easypay-payment.test.js"
     },
     {
@@ -5001,8 +5045,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_easypay_payment_test_require",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 86,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "require"
     },
     {
@@ -5012,8 +5056,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_easypay_payment_test_initdatabase_getdatabase",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 86,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "{ initdatabase, getdatabase }"
     },
     {
@@ -5023,8 +5067,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_easypay_payment_test_generatetoken",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 86,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "{ generatetoken }"
     },
     {
@@ -5034,8 +5078,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_tests_easypay_payment_test_userroutes",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 86,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "userroutes"
     },
     {
@@ -5045,8 +5089,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_tests_easypay_payment_test_paymentroutes",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 86,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "paymentroutes"
     },
     {
@@ -5056,8 +5100,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_tests_easypay_payment_test_encrypt",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 86,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "{ encrypt }"
     },
     {
@@ -5067,8 +5111,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "backend_tests_easypay_payment_test_signeasypay",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 86,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "signeasypay()"
     },
     {
@@ -5078,8 +5122,8 @@
       "source_location": "L55",
       "_origin": "ast",
       "id": "backend_tests_easypay_payment_test_createorder",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 86,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "createorder()"
     },
     {
@@ -5089,8 +5133,8 @@
       "source_location": "L64",
       "_origin": "ast",
       "id": "backend_tests_easypay_payment_test_callbackfields",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 86,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "callbackfields()"
     },
     {
@@ -22957,6 +23001,28 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L70",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_src_utils_pricing_sync",
+      "target": "backend_src_utils_pricing_sync_anthropicanchors",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L47",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_src_utils_pricing_sync",
+      "target": "backend_src_utils_pricing_sync_anthropicidentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/src/utils/pricing-sync.js",
       "source_location": "L1",
       "weight": 1.0,
       "_origin": "ast",
@@ -22979,7 +23045,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L74",
+      "source_location": "L148",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync",
@@ -23001,7 +23067,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L138",
+      "source_location": "L212",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -23018,6 +23084,17 @@
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync",
       "target": "backend_src_utils_pricing_sync_logger",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L80",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_src_utils_pricing_sync",
+      "target": "backend_src_utils_pricing_sync_parseanthropicprices",
       "confidence_score": 1.0
     },
     {
@@ -23046,7 +23123,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L138",
+      "source_location": "L212",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -23069,6 +23146,17 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L66",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_src_utils_pricing_sync",
+      "target": "backend_src_utils_pricing_sync_sameanthropicidentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/src/utils/pricing-sync.js",
       "source_location": "L14",
       "weight": 1.0,
       "_origin": "ast",
@@ -23080,7 +23168,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L138",
+      "source_location": "L212",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -23092,7 +23180,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L138",
+      "source_location": "L212",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -23104,7 +23192,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L138",
+      "source_location": "L212",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -23141,7 +23229,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L96",
+      "source_location": "L170",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync_syncusdcnyrate",
@@ -23153,7 +23241,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L126",
+      "source_location": "L200",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync_syncofficialpricing",
@@ -23165,7 +23253,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L91",
+      "source_location": "L165",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync_syncusdcnyrate",
@@ -23177,7 +23265,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L105",
+      "source_location": "L179",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync_syncofficialpricing",
@@ -23201,7 +23289,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L58",
+      "source_location": "L132",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync_parseofficialprices",
@@ -23225,7 +23313,19 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L67",
+      "source_location": "L98",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_src_utils_pricing_sync_parseanthropicprices",
+      "target": "backend_src_utils_pricing_sync_parselabeledprice",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L141",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync_parseofficialprices",
@@ -23237,7 +23337,67 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L110",
+      "source_location": "L76",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_src_utils_pricing_sync_anthropicanchors",
+      "target": "backend_src_utils_pricing_sync_anthropicidentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L81",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_src_utils_pricing_sync_parseanthropicprices",
+      "target": "backend_src_utils_pricing_sync_anthropicidentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L83",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_src_utils_pricing_sync_parseanthropicprices",
+      "target": "backend_src_utils_pricing_sync_sameanthropicidentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L85",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_src_utils_pricing_sync_parseanthropicprices",
+      "target": "backend_src_utils_pricing_sync_anthropicanchors",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L136",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_src_utils_pricing_sync_parseofficialprices",
+      "target": "backend_src_utils_pricing_sync_parseanthropicprices",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/src/utils/pricing-sync.js",
+      "source_location": "L184",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync_syncofficialpricing",
@@ -23261,7 +23421,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L109",
+      "source_location": "L183",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync_syncofficialpricing",
@@ -23273,7 +23433,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L132",
+      "source_location": "L206",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync_startpricingschedules",
@@ -23285,7 +23445,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/pricing-sync.js",
-      "source_location": "L133",
+      "source_location": "L207",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_pricing_sync_startpricingschedules",
@@ -32448,5 +32608,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "0ecbaad98a60a585ed91d68530413c1207f5e141"
+  "built_at_commit": "7bfd4dd7f222cdb1f83231e1351b98f38b257cb4"
 }
