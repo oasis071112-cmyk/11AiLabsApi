@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "test:mobile-bundle": "node scripts/check-mobile-bundle.mjs",
     "test:login-error-ui": "node scripts/check-login-error-ui.mjs",
+    "test:login-bootstrap": "node scripts/check-login-bootstrap.mjs",
     "test:user-actions": "node scripts/check-user-actions.mjs",
     "test:user-logs": "node scripts/check-user-logs.mjs",
     "test:landing": "node scripts/check-landing-page.mjs"

@@ -8,6 +8,17 @@ export const useAppStore=defineStore('app',()=>{
     customer_service_text:'',
     customer_service_url:''
   })
-  async function fetchPlatformInfo(){try{const r=await api.get('/api/public/info');platformInfo.value=r.data}catch(e){}}
+  const platformInfoLoaded=ref(false)
+  let platformInfoRequest=null
+  async function fetchPlatformInfo(){
+    if(platformInfoLoaded.value)return platformInfo.value
+    if(platformInfoRequest)return platformInfoRequest
+    platformInfoRequest=api.get('/api/public/info').then(r=>{
+      platformInfo.value=r.data
+      platformInfoLoaded.value=true
+      return platformInfo.value
+    }).catch(()=>platformInfo.value).finally(()=>{platformInfoRequest=null})
+    return platformInfoRequest
+  }
   return {platformInfo,fetchPlatformInfo}
 })

@@ -1,12 +1,13 @@
 <template>
 <div class="page-container">
 <el-alert v-if="appStore.platformInfo.announcement" :title="appStore.platformInfo.announcement" type="info" show-icon :closable="false" style="margin-bottom:24px"/>
+<el-alert v-if="authStore.authError" :title="authStore.authError" type="warning" show-icon :closable="false" style="margin-bottom:24px"/>
 
-<el-row :gutter="20" class="dashboard-balance-row" style="margin-bottom:28px">
-<el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#409eff"><DollarSign :size="20" color="#fff"/></div><div><div class="label">可用额度</div><div class="value">{{ wallet?.total_balance?.toFixed(4)||'0.00' }} 点</div></div></div></div></el-col>
-<el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#409eff"><Wallet :size="20" color="#fff"/></div><div><div class="label">额度点数</div><div class="value">{{ wallet?.quota_balance?.toFixed(4)||'0.00' }} 点</div></div></div></div></el-col>
-<el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#f59e0b"><Gift :size="20" color="#fff"/></div><div><div class="label">赠送点数</div><div class="value">{{ wallet?.gift_quota?.toFixed(4)||'0.00' }} 点</div></div></div></div></el-col>
-<el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#8b5cf6"><Activity :size="20" color="#fff"/></div><div><div class="label">累计消费</div><div class="value">{{ wallet?.total_spent?.toFixed(4)||'0.00' }} 点</div></div></div></div></el-col>
+<el-row v-loading="walletLoading" :gutter="20" class="dashboard-balance-row" style="margin-bottom:28px">
+<el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#409eff"><DollarSign :size="20" color="#fff"/></div><div><div class="label">可用额度</div><div class="value">{{ walletAmount('total_balance') }}</div></div></div></div></el-col>
+<el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#409eff"><Wallet :size="20" color="#fff"/></div><div><div class="label">额度点数</div><div class="value">{{ walletAmount('quota_balance') }}</div></div></div></div></el-col>
+<el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#f59e0b"><Gift :size="20" color="#fff"/></div><div><div class="label">赠送点数</div><div class="value">{{ walletAmount('gift_quota') }}</div></div></div></div></el-col>
+<el-col :span="6"><div class="stat-card"><div class="kpi-row-inner"><div class="kpi-icon-bg" style="background:#8b5cf6"><Activity :size="20" color="#fff"/></div><div><div class="label">累计消费</div><div class="value">{{ walletAmount('total_spent') }}</div></div></div></div></el-col>
 </el-row>
 
 <el-row :gutter="20" class="dashboard-action-row" style="margin-bottom:28px">
@@ -22,27 +23,37 @@
 </div>
 <DashboardCharts v-else :stats="stats" :loading="chartLoading" @refresh="fetchStats"/>
 
-<el-card style="margin-top:20px"><template #header><div style="display:flex;align-items:center;gap:8px"><Cpu :size="18" color="#409eff"/> 可用模型</div></template>
+<el-card v-loading="modelsLoading" style="margin-top:20px"><template #header><div style="display:flex;align-items:center;gap:8px"><Cpu :size="18" color="#409eff"/> 可用模型</div></template>
 <el-table :data="models" stripe size="small" :empty-text="hasApiKeys?'当前路由分组暂无可用模型':'尚未创建路由分组 API Key'"><el-table-column label="模型" min-width="220"><template #default="{row}"><strong>{{ row.model_name }}</strong><div class="dashboard-model-code">{{ row.model_code }}</div></template></el-table-column><el-table-column label="协议" min-width="180"><template #default="{row}">{{ protocolLabel(row.protocol_types) }}</template></el-table-column><el-table-column label="类型" width="100"><template #default="{row}"><el-tag size="small" effect="plain">{{ modelTypeLabel(row.model_type) }}</el-tag></template></el-table-column></el-table>
 </el-card>
 </div>
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue';import { useAppStore } from '@/stores/app';import api from '@/api'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue';import { useAppStore } from '@/stores/app';import { useAuthStore } from '@/stores/auth';import api from '@/api'
 import { DollarSign, Wallet, Gift, Activity, ShoppingCart, Key, BookOpen, Cpu, RefreshCw } from '@lucide/vue'
 import { useMobile } from '@/composables/useMobile'
 
-const appStore=useAppStore(),wallet=ref({}),stats=ref({}),models=ref([]),hasApiKeys=ref(false),chartLoading=ref(false)
+const appStore=useAppStore(),authStore=useAuthStore(),stats=ref({}),models=ref([]),hasApiKeys=ref(false),chartLoading=ref(true),modelsLoading=ref(true)
 const DashboardCharts=defineAsyncComponent(()=>import('@/components/DashboardCharts.vue'))
 const isMobile=useMobile()
+const wallet=computed(()=>{
+  const source=authStore.wallet
+  if(!source)return null
+  const quotaBalance=Number(source.quota_balance??source.recharge_balance??0)
+  const giftQuota=Number(source.gift_quota??source.gift_balance??0)
+  return {...source,quota_balance:quotaBalance,gift_quota:giftQuota,total_balance:quotaBalance+giftQuota-Number(source.frozen_balance||0)}
+})
+const walletLoading=computed(()=>!wallet.value&&!authStore.authError)
 const todaySuccess=computed(()=>stats.value.today_status?.find(item=>item.status==='success')?.count||0)
 
-async function fetchStats(){chartLoading.value=true;try{const s=await api.get('/api/user/stats');stats.value=s.data}catch(e){}chartLoading.value=false}
+async function fetchStats(){chartLoading.value=true;try{const s=await api.get('/api/user/stats');stats.value=s.data}catch(e){}finally{chartLoading.value=false}}
+async function fetchModels(){modelsLoading.value=true;try{const m=await api.get('/api/user/models');models.value=m.data.data||[];hasApiKeys.value=Boolean(m.data.has_api_keys)}catch(e){}finally{modelsLoading.value=false}}
 
+function walletAmount(field){return wallet.value?`${Number(wallet.value[field]||0).toFixed(4)} 点`:'—'}
 function protocolLabel(protocols=[]){return protocols.map(protocol=>protocol==='anthropic'?'Anthropic Messages':'OpenAI 兼容').join(' / ')||'—'}
 function modelTypeLabel(modelType){return modelType==='image'?'生图':'LLM'}
-onMounted(async()=>{appStore.fetchPlatformInfo();try{const[w,s,m]=await Promise.all([api.get('/api/user/wallet'),api.get('/api/user/stats'),api.get('/api/user/models')]);wallet.value=w.data;wallet.value.total_balance=(w.data.quota_balance||w.data.recharge_balance||0)+(w.data.gift_quota||w.data.gift_balance||0);stats.value=s.data;models.value=m.data.data||[];hasApiKeys.value=Boolean(m.data.has_api_keys)}catch(e){}})
+onMounted(()=>{void fetchStats();void fetchModels()})
 </script>
 
 <style scoped>
