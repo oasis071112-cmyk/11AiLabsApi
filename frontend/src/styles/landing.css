@@ -1000,17 +1000,22 @@ a.contact-row:hover {
   }
 
   .model-tabs {
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: none;
-  }
-
-  .model-tabs::-webkit-scrollbar {
-    display: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 1fr);
+    gap: 4px;
   }
 
   .model-tab {
-    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .model-tab > span {
+    min-width: 0;
+    white-space: nowrap;
   }
 
   .model-panel {
@@ -1122,7 +1127,14 @@ a.contact-row:hover {
   }
 
   .model-tab {
-    padding-inline: 11px;
+    gap: 4px;
+    padding-inline: 5px;
+    font-size: 13px;
+  }
+
+  .model-tab small {
+    min-width: 19px;
+    padding-inline: 4px;
   }
 }
 

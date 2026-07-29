@@ -14,7 +14,7 @@ router.get('/info', (req, res) => {
     platform_name: platformName?.config_value||'IonAiLabs',
     announcement: announcement?.config_value||'',
     registration_enabled: regEnabled?.config_value!=='false',
-    customer_service_text: customerServiceText?.config_value||'',
+    customer_service_text: customerServiceText?.config_value||'QQ群：575334175',
     customer_service_url: customerServiceUrl?.config_value||''
   });
 });

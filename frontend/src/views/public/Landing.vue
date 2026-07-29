@@ -241,7 +241,7 @@
               <UsersRound aria-hidden="true" />
               <span>
                 <strong id="contact-title">联系客服 / 加入社群</strong>
-                <small>{{ customerServiceText || '获取客服与社群联系方式' }}</small>
+                <small>{{ customerServiceText || 'QQ群：575334175' }}</small>
               </span>
             </div>
             <ArrowRight aria-hidden="true" />
@@ -252,10 +252,10 @@
               <UsersRound aria-hidden="true" />
               <span>
                 <strong id="contact-title">联系客服 / 加入社群</strong>
-                <small>{{ customerServiceText || '客服联系方式待配置' }}</small>
+                <small>{{ customerServiceText || 'QQ群：575334175' }}</small>
               </span>
             </div>
-            <span class="contact-row__status">上线前补充</span>
+            <span class="contact-row__status">QQ群</span>
           </div>
         </div>
       </section>
