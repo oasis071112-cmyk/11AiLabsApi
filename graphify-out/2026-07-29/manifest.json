@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/user.js": {
-    "mtime": 1785257400.2683632,
-    "ast_hash": "f3365d478e35c93ffa995d957a669c7d",
+    "mtime": 1785258240.835872,
+    "ast_hash": "7f85cf64228befa380d3fc5d040bbe20",
     "semantic_hash": ""
   },
   "backend/src/utils/billing-detail.js": {
@@ -145,8 +145,8 @@
     "semantic_hash": "93c81aa262fa872ba3fa7bee11f51acf"
   },
   "backend/src/utils/routing-group-models.js": {
-    "mtime": 1785257248.151134,
-    "ast_hash": "5c2d12741072b3a30cd7f7e5872a8ef8",
+    "mtime": 1785258344.1721034,
+    "ast_hash": "9a2899050683fa2fcfdc0ae0df8b55fa",
     "semantic_hash": ""
   },
   "backend/src/utils/wallet-billing.js": {
@@ -560,8 +560,8 @@
     "semantic_hash": ""
   },
   "backend/tests/user-model-multipliers.test.js": {
-    "mtime": 1785257048.9803717,
-    "ast_hash": "b446becfd282cc98eef5ae00e18d3d0e",
+    "mtime": 1785258322.4362583,
+    "ast_hash": "37be3a5933f2fa282a06a3565c35d835",
     "semantic_hash": ""
   },
   "backend/tests/user-logs.test.js": {

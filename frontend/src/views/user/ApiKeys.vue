@@ -23,7 +23,7 @@
       <div class="mobile-key-head"><div><span class="status-dot" :class="row.status==='active'?'dot-on':'dot-off'"></span><strong>{{ row.key_name }}</strong></div><el-tag :type="row.status==='active'?'success':'info'" size="small" effect="plain">{{ row.status==='active'?'启用':'禁用' }}</el-tag></div>
       <code>{{ row.key_prefix }}</code>
       <div class="mobile-key-meta"><span><small>分组</small>{{ row.channel_name||'未分组' }}</span><span><small>模型数</small>{{ row.models?.length||0 }} 个</span><span><small>最后使用</small>{{ formatBeijingTime(row.last_used_at) }}</span></div>
-      <div class="mobile-key-actions"><el-button size="small" type="primary" @click="openExport(row)">复制</el-button><el-button size="small" @click="toggleKey(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button><el-button v-if="row.channel_name" size="small" type="success" @click="openDocs(row)" :loading="docsLoading&&docsTarget===row"><BookOpen :size="13"/>文档</el-button><el-popconfirm title="确定删除？" @confirm="deleteKey(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm></div>
+      <div class="mobile-key-actions"><el-button size="small" type="primary" :loading="copyingKeyId===row.id" @click="copyStoredKey(row)">复制</el-button><el-button size="small" @click="toggleKey(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button><el-button v-if="row.channel_name" size="small" type="success" @click="openDocs(row)" :loading="docsLoading&&docsTarget===row"><BookOpen :size="13"/>文档</el-button><el-popconfirm title="确定删除？" @confirm="deleteKey(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm></div>
     </article>
     <el-empty v-if="!loading&&!keys.length" description="暂无 API Key"/>
   </div>
@@ -82,7 +82,7 @@
       <el-table-column label="操作" width="230" align="center">
         <template #default="{row}">
           <div style="display:flex;gap:6px;justify-content:center">
-          <el-button size="small" type="primary" @click="openExport(row)">复制</el-button>
+          <el-button size="small" type="primary" :loading="copyingKeyId===row.id" @click="copyStoredKey(row)">复制</el-button>
           <el-button size="small" @click="toggleKey(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button>
           <el-popconfirm title="确定删除？" @confirm="deleteKey(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm>
           </div>
@@ -122,20 +122,6 @@
     <template #footer><el-button @click="resultDialog=false">我已知晓，关闭</el-button></template>
   </el-dialog>
 
-  <el-dialog v-model="exportDialog" width="440px" :close-on-click-modal="false" class="user-theme-dialog key-auth-dialog"><template #header><span style="font-weight:700;font-size:16px"><Shield :size="18" style="margin-right:6px;vertical-align:middle"/> 验证身份 — 获取完整密钥</span></template>
-    <el-form label-width="80px">
-      <el-form-item label="目标密钥"><span style="font-family:monospace;font-size:13px;color:#0EA5E9">{{ exportTarget?.key_name }}</span><br/><span style="color:#a3a3a3;font-size:12px">{{ exportTarget?.key_prefix }}</span></el-form-item>
-      <el-form-item label="登录密码"><el-input v-model="exportPwd" type="password" show-password placeholder="请输入您的登录密码"/></el-form-item>
-    </el-form>
-    <template #footer><el-button @click="exportDialog=false">取消</el-button><el-button type="primary" :loading="exportLoading" @click="doExport">验证并获取</el-button></template>
-  </el-dialog>
-
-  <el-dialog v-model="exportResultDialog" width="540px" :close-on-click-modal="false" :close-on-press-escape="false" class="user-theme-dialog key-export-result-dialog"><template #header><span style="font-weight:700;font-size:16px"><CircleCheck :size="18" style="margin-right:6px;vertical-align:middle;color:#22c55e"/> 完整 API Key</span></template>
-    <div style="background:#f5f5f5;padding:12px;border-radius:6px;word-break:break-all;font-family:monospace;font-size:14px">{{ exportedRaw }}</div>
-    <el-button type="primary" style="margin-top:12px" @click="copyExported"><Clipboard :size="14" style="margin-right:4px"/> {{ exportedCopied ? '已复制 ✓' : '复制到剪贴板' }}</el-button>
-    <template #footer><el-button @click="exportResultDialog=false">关闭</el-button></template>
-  </el-dialog>
-
   <el-dialog v-model="docsDialog" width="700px" :close-on-click-modal="false" destroy-on-close class="user-theme-dialog key-docs-dialog"><template #header><span style="font-weight:700;font-size:16px"><BookOpen :size="18" style="margin-right:6px;vertical-align:middle"/> {{ docsChannelName }} — 使用说明</span></template>
     <div v-if="docsLoading" style="text-align:center;padding:40px"><Loader2 :size="28" color="#0EA5E9" style="animation:spin 1s linear infinite"/><p style="color:#a3a3a3;margin-top:12px">加载文档...</p></div>
     <template v-else>
@@ -164,9 +150,7 @@ import { Key, BookOpen, CircleCheck, Clipboard, Shield, RefreshCw, Loader2 } fro
 const keys=ref([]),loading=ref(false),createDialog=ref(false),resultDialog=ref(false),creating=ref(false),newKeyName=ref(''),newKeyRaw=ref('')
 const channels=ref([]),selectedChannelId=ref(null),channelLoading=ref(false)
 const selectedChannel=computed(()=>channels.value.find(c=>c.id===selectedChannelId.value))
-const exportDialog=ref(false),exportResultDialog=ref(false),exportTarget=ref(null),exportLoading=ref(false),exportedRaw=ref('')
-const exportPwd=ref('')
-const keyCopied=ref(false),exportedCopied=ref(false)
+const keyCopied=ref(false),copyingKeyId=ref(null)
 const docsDialog=ref(false),docsLoading=ref(false),docsTarget=ref(null),docsData=ref({}),docsChannelName=ref(''),docsCopied=ref(false),docsProtocol=ref('')
 const tabs=[{key:'curl',label:'cURL'},{key:'python',label:'Python'},{key:'nodejs',label:'Node.js'}]
 const displayedDocs=computed(()=>docsData.value.protocol_docs?.find(item=>item.protocol_type===docsProtocol.value)||docsData.value)
@@ -180,9 +164,7 @@ async function toggleKey(k){await api.patch('/api/user/keys/'+k.id+'/toggle');El
 async function deleteKey(id){await api.delete('/api/user/keys/'+id);ElMessage.success('已删除');fetchKeys()}
 async function showCopied(state,text){try{await copyText(text);state.value=true;ElMessage.success('复制成功');setTimeout(()=>state.value=false,2000)}catch(e){ElMessage.error('复制失败，请长按内容手动复制')}}
 async function copyKey(){await showCopied(keyCopied,newKeyRaw.value)}
-function openExport(row){exportTarget.value=row;exportPwd.value='';exportDialog.value=true}
-async function doExport(){if(!exportPwd.value){ElMessage.warning('请输入登录密码');return};exportLoading.value=true;try{const r=await api.post('/api/user/keys/'+exportTarget.value.id+'/export',{password:exportPwd.value});exportedRaw.value=r.data.key_raw;exportDialog.value=false;exportResultDialog.value=true;exportPwd.value=''}catch(e){}exportLoading.value=false}
-async function copyExported(){await showCopied(exportedCopied,exportedRaw.value)}
+async function copyStoredKey(row){copyingKeyId.value=row.id;try{const r=await api.post('/api/user/keys/'+row.id+'/export');await copyText(r.data.key_raw);ElMessage.success('复制成功')}catch(e){ElMessage.error(e?.response?.data?.error||'复制失败，请稍后重试')}finally{copyingKeyId.value=null}}
 async function openDocs(row){docsTarget.value=row;docsDialog.value=true;docsLoading.value=true;docsData.value={};docsProtocol.value='';docsChannelName.value=row.channel_name;activeTab.value='curl';docsCopied.value=false;try{const r=await api.get('/api/user/docs/channel?channel_name='+encodeURIComponent(row.channel_name));docsData.value=r.data;docsProtocol.value=r.data.protocol_docs?.[0]?.protocol_type||r.data.protocol_type||''}catch(e){ElMessage.error('获取文档失败')};docsLoading.value=false}
 async function copyDocsCode(){try{await copyText(activeCode.value);docsCopied.value=true;ElMessage.success('复制成功');setTimeout(()=>docsCopied.value=false,2000)}catch(e){ElMessage.error('复制失败，请长按代码手动复制')}}
 </script>

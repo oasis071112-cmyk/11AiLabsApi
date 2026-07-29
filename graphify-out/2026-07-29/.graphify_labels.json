@@ -88,5 +88,11 @@
   "86": "easypay-payment.test.js",
   "87": "billing-detail.js",
   "88": "channel-docs.js",
-  "89": "crypto.js"
+  "89": "crypto.js",
+  "90": "channel-capabilities.js",
+  "91": "user-model-multipliers.test.js",
+  "92": "pricingPayload",
+  "93": "public.js",
+  "94": "channel-model-policy.js",
+  "95": "model-sync.js"
 }

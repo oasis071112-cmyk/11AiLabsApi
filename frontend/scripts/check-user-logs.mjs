@@ -16,5 +16,8 @@ assert.equal(latest.isLatest(second), false)
 assert.match(logs, /v-if="!isMobile" :data="allLogs"/)
 assert.match(logs, /class="all-logs-mobile-list"/)
 assert.match(logs, /:deep\(\.billing-dialog-modal\)\{width:calc\(100% - 16px\)!important/)
+assert.equal((logs.match(/class="mobile-date-input" type="date"/g) || []).length, 4)
+assert.match(logs, /\.mobile-date-range\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/)
+assert.doesNotMatch(logs, /mobile-safe-date-popper/)
 
 console.log('用户调用记录防回归检查通过')

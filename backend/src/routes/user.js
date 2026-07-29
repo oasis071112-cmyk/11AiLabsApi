@@ -263,23 +263,15 @@ router.post('/keys', authenticate, (req, res) => {
   res.status(201).json({ message: 'API Key 创建成功', key: { id: result.lastInsertRowid, key_raw: keyRaw, key_prefix: desensitize(keyPrefix), key_name: key_name||'未命名密钥', channel_name: group.group_name, routing_group_id: routingGroupId } });
 });
 
-// 导出/恢复完整密钥（需验证密码）
+// 已登录用户复制自己名下的完整密钥
 router.post('/keys/:id/export', authenticate, (req, res) => {
-  const { password } = req.body;
-  if (!password) return res.status(400).json({ error: '请输入登录密码以验证身份' });
   const db = getDatabase();
-  // 验证密码
-  const user = db.prepare('SELECT password_hash FROM users WHERE id=?').get(req.user.id);
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    return res.status(403).json({ error: '密码错误，验证失败' });
-  }
-  // 查找 key
   const key = db.prepare('SELECT * FROM api_keys WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
   if (!key) return res.status(404).json({ error: 'API Key 不存在' });
   if (!key.key_encrypted) return res.status(400).json({ error: '此密钥创建于旧版本，不支持恢复' });
   try {
     const raw = decrypt(key.key_encrypted);
-    res.json({ key_raw: raw, key_prefix: desensitize(raw), key_name: key.key_name });
+    res.json({ key_raw: raw });
   } catch(e) {
     res.status(500).json({ error: '解密失败，请联系管理员' });
   }

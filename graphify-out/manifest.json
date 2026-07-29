@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/user.js": {
-    "mtime": 1785258240.835872,
-    "ast_hash": "7f85cf64228befa380d3fc5d040bbe20",
+    "mtime": 1785324451.2468045,
+    "ast_hash": "7d47cf000cfccbb2d7793f527d73b284",
     "semantic_hash": ""
   },
   "backend/src/utils/billing-detail.js": {
@@ -260,7 +260,7 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1785257693.0595431,
+    "mtime": 1785324949.1478968,
     "ast_hash": "6b8d14708b6271bee11c056cc10bca38",
     "semantic_hash": "6b8d14708b6271bee11c056cc10bca38"
   },
@@ -270,8 +270,8 @@
     "semantic_hash": "ce47651595557e71ad7e1e4e67892bfa"
   },
   "frontend/package.json": {
-    "mtime": 1785252956.091438,
-    "ast_hash": "7e3508c083a595a2f17ce7b0226cb19d",
+    "mtime": 1785324495.2472851,
+    "ast_hash": "0be966d59fbedf398939cef090f33401",
     "semantic_hash": ""
   },
   "frontend/scripts/check-login-error-ui.mjs": {
@@ -300,13 +300,13 @@
     "semantic_hash": "8999793463e33a6980fe17516e1f9155"
   },
   "frontend/src/components/DashboardCharts.vue": {
-    "mtime": 1785167400.995514,
-    "ast_hash": "40ec7254acdba993350ade9b72d2d457",
+    "mtime": 1785320822.2124097,
+    "ast_hash": "8c90a25b6dd596f880ca61a70a6d460a",
     "semantic_hash": ""
   },
   "frontend/src/components/logs/UsageCharts.vue": {
-    "mtime": 1785252956.0941644,
-    "ast_hash": "c6cfed8cc09a1b19a067d595ecdebd26",
+    "mtime": 1785320822.214919,
+    "ast_hash": "3b9eab7ec1a0ebc6f3b5df7eea21d5c4",
     "semantic_hash": ""
   },
   "frontend/src/composables/useMobile.js": {
@@ -330,14 +330,14 @@
     "semantic_hash": ""
   },
   "frontend/src/main.js": {
-    "mtime": 1784205704.6060212,
-    "ast_hash": "817f453794a397ae48a43b059c6ab40e",
-    "semantic_hash": "817f453794a397ae48a43b059c6ab40e"
+    "mtime": 1785320822.2002094,
+    "ast_hash": "bce0191d5c0b28caac504fd46a8fc6d6",
+    "semantic_hash": ""
   },
   "frontend/src/router/index.js": {
-    "mtime": 1784360216.8131557,
-    "ast_hash": "0a626f31aa6b19f715fd429c7e2e3f0a",
-    "semantic_hash": "0a626f31aa6b19f715fd429c7e2e3f0a"
+    "mtime": 1785324451.254419,
+    "ast_hash": "4c99623bd8d7e5c3fe5b7de83c40af4a",
+    "semantic_hash": ""
   },
   "frontend/src/stores/app.js": {
     "mtime": 1785076182.7050343,
@@ -415,8 +415,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/user/ApiKeys.vue": {
-    "mtime": 1785252956.1042137,
-    "ast_hash": "62d652d10619352cfb600e38dce804ab",
+    "mtime": 1785324451.244039,
+    "ast_hash": "d62cf7f2f10590acdcc60b4d3e0bfebd",
     "semantic_hash": ""
   },
   "frontend/src/views/user/ChangePassword.vue": {
@@ -435,8 +435,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/user/Logs.vue": {
-    "mtime": 1785252956.1097355,
-    "ast_hash": "fa32f66b5daefdfbe6c48692b80633a4",
+    "mtime": 1785324812.0570903,
+    "ast_hash": "9dc2479b39cb355011c51b844fc5d798",
     "semantic_hash": ""
   },
   "frontend/src/views/user/Models.vue": {
@@ -450,8 +450,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/user/Wallet.vue": {
-    "mtime": 1785252956.1177597,
-    "ast_hash": "bddd5d765a774f8a1d47aebb9f1b17ff",
+    "mtime": 1785324451.2564197,
+    "ast_hash": "7cbfb3fb6b848705c548d497b41c4278",
     "semantic_hash": ""
   },
   "frontend/vite.config.js": {
@@ -570,8 +570,8 @@
     "semantic_hash": ""
   },
   "frontend/scripts/check-user-logs.mjs": {
-    "mtime": 1785172086.9951115,
-    "ast_hash": "39478ec82747a45141973df4896c6a75",
+    "mtime": 1785324812.0625992,
+    "ast_hash": "60cbedadae8a8ddd88ee65b285377087",
     "semantic_hash": ""
   },
   "frontend/src/utils/latest-request.js": {
@@ -587,6 +587,11 @@
   "backend/tests/multiplier-policy.test.js": {
     "mtime": 1785257725.6617785,
     "ast_hash": "7995a76803b91d86d739e8e57443c688",
+    "semantic_hash": ""
+  },
+  "frontend/scripts/check-user-actions.mjs": {
+    "mtime": 1785324495.2443466,
+    "ast_hash": "76bd0c71fde0749122c0ee3016838f56",
     "semantic_hash": ""
   }
 }

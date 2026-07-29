@@ -18,7 +18,7 @@
         <el-radio-button value="custom">自定义</el-radio-button>
       </el-radio-group>
       <el-date-picker v-if="datePreset==='custom'&&!isMobile" v-model="customRange" type="daterange" value-format="YYYY-MM-DD" range-separator="~" start-placeholder="开始" end-placeholder="结束" size="small" @change="onCustomChange" class="custom-range"/>
-      <div v-if="datePreset==='custom'&&isMobile" class="mobile-date-range"><el-date-picker v-model="customRange[0]" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small" @change="onCustomChange(customRange)"/><el-date-picker v-model="customRange[1]" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small" @change="onCustomChange(customRange)"/></div>
+      <div v-if="datePreset==='custom'&&isMobile" class="mobile-date-range"><input v-model="customRange[0]" class="mobile-date-input" type="date" aria-label="开始日期" @change="onCustomChange(customRange)"/><input v-model="customRange[1]" class="mobile-date-input" type="date" aria-label="结束日期" @change="onCustomChange(customRange)"/></div>
       <el-select v-model="filterModel" clearable placeholder="全部模型" size="small" style="width:160px;margin-left:12px" @change="fetchAll">
         <el-option v-for="m in modelList" :key="m.model_code" :label="m.model_code" :value="m.model_code"/>
       </el-select>
@@ -65,7 +65,7 @@
     <div class="log-filter-bar">
       <el-select v-model="logFilter.model" clearable placeholder="模型" size="small" @change="onLogFilterChange"><el-option v-for="m in modelList" :key="m.model_code" :label="m.model_code" :value="m.model_code"/></el-select>
       <el-date-picker v-if="!isMobile" v-model="logFilter.dateRange" type="daterange" value-format="YYYY-MM-DD" range-separator="~" start-placeholder="开始" end-placeholder="结束" size="small" @change="onLogFilterChange"/>
-      <div v-else class="mobile-date-range"><el-date-picker v-model="logFilter.dateRange[0]" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small" @change="onLogFilterChange"/><el-date-picker v-model="logFilter.dateRange[1]" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small" @change="onLogFilterChange"/></div>
+      <div v-else class="mobile-date-range"><input v-model="logFilter.dateRange[0]" class="mobile-date-input" type="date" aria-label="开始日期" @change="onLogFilterChange"/><input v-model="logFilter.dateRange[1]" class="mobile-date-input" type="date" aria-label="结束日期" @change="onLogFilterChange"/></div>
       <el-button size="small" @click="onLogFilterChange">查询</el-button>
       <el-button size="small" type="primary" :loading="exportLoading" :disabled="!logRangeValid" @click="exportLogs">导出 CSV</el-button>
     </div>
@@ -290,7 +290,7 @@ onUnmounted(()=>{fetchAllRequest.invalidate();fetchLogsRequest.invalidate();clea
   .filter-left>*{max-width:none;flex-shrink:0}
   .filter-left .el-radio-group{width:100%;display:flex}.filter-left .el-radio-button{flex:1}.filter-left :deep(.el-radio-button__inner){width:100%;padding:8px 6px}
   .filter-left .el-select{width:100%!important;margin-left:0!important}
-  .mobile-date-range{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px}.mobile-date-range .el-date-editor{width:100%;min-height:44px}.log-filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:8px}.log-filter-bar>.el-select,.log-filter-bar>.mobile-date-range{grid-column:1/-1;width:100%}.log-filter-bar>.el-button{margin:0;min-height:44px}
+  .mobile-date-range{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%;min-width:0;gap:8px}.mobile-date-input{width:100%;min-width:0;height:44px;padding:0 9px;border:1px solid #dcdfe6;border-radius:4px;color:#606266;background:#fff;font:inherit;box-sizing:border-box;outline:none}.mobile-date-input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.1)}.log-filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:8px}.log-filter-bar>.el-select,.log-filter-bar>.mobile-date-range{grid-column:1/-1;width:100%}.log-filter-bar>.el-button{margin:0;min-height:44px}
   :deep(.all-logs-dialog),:deep(.billing-dialog-modal){width:calc(100% - 16px)!important;margin-top:8px!important}.all-logs-dialog :deep(.el-dialog__body),.billing-dialog-modal :deep(.el-dialog__body){padding:12px;overflow:hidden}.all-logs-dialog :deep(.el-pagination){overflow-x:auto;justify-content:flex-start!important}
   .all-logs-mobile-list{display:grid;gap:8px;max-height:58vh;overflow-y:auto}.all-logs-mobile-list .mobile-log-card{border-radius:10px;padding:11px}.mobile-log-request,.mobile-log-error{overflow-wrap:anywhere;font-size:11px;color:#64748b;margin-bottom:8px}.mobile-log-error{padding:7px;background:#fef2f2;border-radius:7px;color:#b91c1c}
   .filter-right{display:flex;width:100%;gap:8px}
