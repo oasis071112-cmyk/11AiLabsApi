@@ -61,7 +61,7 @@
   </div>
 
   <!-- 全部日志弹窗 -->
-  <el-dialog v-model="showAllLogs" title="全部调用记录" width="90%" top="3vh" destroy-on-close class="all-logs-dialog">
+  <el-dialog v-model="showAllLogs" title="全部调用记录" width="90%" top="3vh" destroy-on-close class="all-logs-dialog user-theme-dialog">
     <div class="log-filter-bar">
       <el-select v-model="logFilter.model" clearable placeholder="模型" size="small" @change="onLogFilterChange"><el-option v-for="m in modelList" :key="m.model_code" :label="m.model_code" :value="m.model_code"/></el-select>
       <el-date-picker v-if="!isMobile" v-model="logFilter.dateRange" type="daterange" value-format="YYYY-MM-DD" range-separator="~" start-placeholder="开始" end-placeholder="结束" size="small" @change="onLogFilterChange"/>
@@ -96,7 +96,7 @@
     <el-pagination v-model:current-page="logPage" :page-size="20" :total="logTotal" layout="prev,pager,next" @current-change="fetchLogs" style="margin-top:16px;justify-content:center" small/>
   </el-dialog>
 
-  <el-dialog v-model="billingDialog" title="计费明细" width="680px" top="8vh" class="billing-dialog-modal">
+  <el-dialog v-model="billingDialog" title="计费明细" width="680px" top="8vh" class="billing-dialog-modal user-theme-dialog">
     <div v-if="selectedBilling" class="billing-dialog">
       <div class="billing-summary">
         <div><span>模型</span><strong>{{ selectedBilling.model_code }}</strong></div>

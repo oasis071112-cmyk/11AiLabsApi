@@ -53,11 +53,11 @@ const topModelShare=computed(()=>{
 })
 const todayChartData=computed(()=>({
   labels:['成功','失败','拦截'],
-  datasets:[{data:[successCount.value,failedCount.value,blockedCount.value],backgroundColor:['#6B9B6F','#C47A7A','#C4A35A'],borderRadius:5,borderSkipped:false,barThickness:18}],
+  datasets:[{data:[successCount.value,failedCount.value,blockedCount.value],backgroundColor:['#10A37F','#C85B55','#D69A35'],borderRadius:5,borderSkipped:false,barThickness:18}],
 }))
 const modelChartData=computed(()=>({
   labels:rankedModels.value.map(item=>item.model_code),
-  datasets:[{data:rankedModels.value.map(item=>Number(item.calls||0)),backgroundColor:'#7D9B76',borderRadius:5,borderSkipped:false,barThickness:13}],
+  datasets:[{data:rankedModels.value.map(item=>Number(item.calls||0)),backgroundColor:'#2563EB',borderRadius:5,borderSkipped:false,barThickness:13}],
 }))
 const baseOptions={
   indexAxis:'y',
@@ -65,8 +65,8 @@ const baseOptions={
   maintainAspectRatio:false,
   animation:{duration:220},
   scales:{
-    x:{beginAtZero:true,ticks:{precision:0,color:'#969E94',font:{size:10}},grid:{color:'#EEF1EC'},border:{display:false}},
-    y:{ticks:{color:'#5C635A',font:{size:11}},grid:{display:false},border:{display:false}},
+    x:{beginAtZero:true,ticks:{precision:0,color:'#7F7F7F',font:{size:10}},grid:{color:'#E5E5E5'},border:{display:false}},
+    y:{ticks:{color:'#5F5F5F',font:{size:11}},grid:{display:false},border:{display:false}},
   },
   plugins:{legend:{display:false}},
 }

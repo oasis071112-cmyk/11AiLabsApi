@@ -53,7 +53,7 @@ import { TrendingUp, Hash, ChartPie, BarChart3 } from '@lucide/vue'
 ChartJS.register(ArcElement,BarElement,CategoryScale,LinearScale,Tooltip,Legend)
 
 const props=defineProps({stats:{type:Object,default:()=>({})},dailyData:{type:Array,default:()=>[]}})
-const palette=['#7D9B76','#C4A35A','#7A8FA3','#9B7E76','#8E83A6','#6E9B91','#B28A6A','#6F8769']
+const palette=['#10A37F','#2563EB','#F2B544','#6753D8','#8FA3B8','#D97706','#64748B','#B8C4D1']
 const modelUsage=computed(()=>(props.stats.model_usage||[]).slice(0,8))
 const totalCost=computed(()=>Number(props.stats.total_consumption||0))
 const totalTokens=computed(()=>Number(props.stats.input_tokens||0)+Number(props.stats.output_tokens||0))
@@ -78,7 +78,7 @@ const costChartOptions={
   cutout:'64%',
   animation:{duration:220},
   plugins:{
-    legend:{position:'bottom',labels:{boxWidth:9,boxHeight:9,usePointStyle:true,padding:14,color:'#5C635A',font:{size:11}}},
+    legend:{position:'bottom',labels:{boxWidth:9,boxHeight:9,usePointStyle:true,padding:14,color:'#5F5F5F',font:{size:11}}},
     tooltip:{callbacks:{label:context=>` ${context.label}: ${formatPoints(context.raw)} 点`}},
   },
 }
@@ -86,7 +86,7 @@ const rankChartData=computed(()=>{
   const ranked=[...modelUsage.value].sort((a,b)=>Number(b.calls||0)-Number(a.calls||0))
   return {
     labels:ranked.map(item=>item.model_code),
-    datasets:[{data:ranked.map(item=>Number(item.calls||0)),backgroundColor:'#7D9B76',borderRadius:5,borderSkipped:false,barThickness:14}],
+    datasets:[{data:ranked.map(item=>Number(item.calls||0)),backgroundColor:'#2563EB',borderRadius:5,borderSkipped:false,barThickness:14}],
   }
 })
 const rankChartOptions={
@@ -95,8 +95,8 @@ const rankChartOptions={
   maintainAspectRatio:false,
   animation:{duration:220},
   scales:{
-    x:{beginAtZero:true,ticks:{precision:0,color:'#969E94',font:{size:10}},grid:{color:'#EEF1EC'},border:{display:false}},
-    y:{ticks:{color:'#5C635A',font:{size:11},autoSkip:false,callback:function(value){const label=this.getLabelForValue(value);return label.length>18?`${label.slice(0,16)}…`:label}},grid:{display:false},border:{display:false}},
+    x:{beginAtZero:true,ticks:{precision:0,color:'#7F7F7F',font:{size:10}},grid:{color:'#E5E5E5'},border:{display:false}},
+    y:{ticks:{color:'#5F5F5F',font:{size:11},autoSkip:false,callback:function(value){const label=this.getLabelForValue(value);return label.length>18?`${label.slice(0,16)}…`:label}},grid:{display:false},border:{display:false}},
   },
   plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>items[0]?.label||'',label:context=>` 调用 ${Number(context.raw||0).toLocaleString()} 次`}}},
 }

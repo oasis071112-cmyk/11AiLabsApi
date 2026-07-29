@@ -44,7 +44,7 @@
   </div>
 
   <!-- 购买弹窗 -->
-  <el-dialog v-model="rechargeDialog" width="480px"><template #header><span style="font-weight:700;font-size:16px"><ShoppingCart :size="18" style="margin-right:6px;vertical-align:middle"/> 购买额度包</span></template>
+  <el-dialog v-model="rechargeDialog" width="480px" class="user-theme-dialog wallet-purchase-dialog"><template #header><span style="font-weight:700;font-size:16px"><ShoppingCart :size="18" style="margin-right:6px;vertical-align:middle"/> 购买额度包</span></template>
     <el-form :model="rf" label-width="100px">
       <el-form-item label="购买点数"><el-input-number v-model="rf.amount" :min="paymentOptions.minimum" :max="paymentOptions.maximum" :step="1" :precision="2" style="width:100%"/></el-form-item>
       <el-form-item label="支付方式"><el-radio-group v-model="rf.payment_method"><el-radio v-if="paymentOptions.methods.includes('alipay')" value="alipay">支付宝</el-radio><el-radio v-if="paymentOptions.methods.includes('wechat')" value="wechat">微信支付</el-radio><el-radio v-if="!paymentOptions.enabled" value="manual_transfer">手动转账</el-radio></el-radio-group></el-form-item>

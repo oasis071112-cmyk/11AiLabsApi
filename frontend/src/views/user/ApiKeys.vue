@@ -98,7 +98,7 @@
   </div>
 
   <!-- 弹窗 -->
-  <el-dialog v-model="createDialog" width="520px"><template #header><span style="font-weight:700;font-size:16px"><Key :size="18" style="margin-right:6px;vertical-align:middle"/> 创建 API Key</span></template>
+  <el-dialog v-model="createDialog" width="520px" class="user-theme-dialog key-create-dialog"><template #header><span style="font-weight:700;font-size:16px"><Key :size="18" style="margin-right:6px;vertical-align:middle"/> 创建 API Key</span></template>
     <el-form label-width="80px">
       <el-form-item label="Key 名称"><el-input v-model="newKeyName" placeholder="例如：我的开发密钥"/></el-form-item>
       <el-form-item label="选择分组" required>
@@ -115,14 +115,14 @@
     <template #footer><el-button @click="createDialog=false">取消</el-button><el-button type="primary" :loading="creating" @click="createKey" :disabled="!selectedChannelId">创建</el-button></template>
   </el-dialog>
 
-  <el-dialog v-model="resultDialog" width="540px" :close-on-click-modal="false" :close-on-press-escape="false"><template #header><div style="display:flex;align-items:center;gap:8px"><CircleCheck :size="20" color="#22c55e"/> API Key 创建成功</div></template>
+  <el-dialog v-model="resultDialog" width="540px" :close-on-click-modal="false" :close-on-press-escape="false" class="user-theme-dialog key-result-dialog"><template #header><div style="display:flex;align-items:center;gap:8px"><CircleCheck :size="20" color="#22c55e"/> API Key 创建成功</div></template>
     <el-alert title="请立即复制保存此 Key！关闭后无法再次查看" type="error" show-icon :closable="false"/>
     <div style="background:#f5f5f5;padding:12px;border-radius:6px;margin-top:16px;word-break:break-all;font-family:monospace;font-size:14px">{{ newKeyRaw }}</div>
     <el-button type="primary" style="margin-top:12px" @click="copyKey"><Clipboard :size="14" style="margin-right:4px"/> {{ keyCopied ? '已复制 ✓' : '复制到剪贴板' }}</el-button>
     <template #footer><el-button @click="resultDialog=false">我已知晓，关闭</el-button></template>
   </el-dialog>
 
-  <el-dialog v-model="exportDialog" width="440px" :close-on-click-modal="false"><template #header><span style="font-weight:700;font-size:16px"><Shield :size="18" style="margin-right:6px;vertical-align:middle"/> 验证身份 — 获取完整密钥</span></template>
+  <el-dialog v-model="exportDialog" width="440px" :close-on-click-modal="false" class="user-theme-dialog key-auth-dialog"><template #header><span style="font-weight:700;font-size:16px"><Shield :size="18" style="margin-right:6px;vertical-align:middle"/> 验证身份 — 获取完整密钥</span></template>
     <el-form label-width="80px">
       <el-form-item label="目标密钥"><span style="font-family:monospace;font-size:13px;color:#0EA5E9">{{ exportTarget?.key_name }}</span><br/><span style="color:#a3a3a3;font-size:12px">{{ exportTarget?.key_prefix }}</span></el-form-item>
       <el-form-item label="登录密码"><el-input v-model="exportPwd" type="password" show-password placeholder="请输入您的登录密码"/></el-form-item>
@@ -130,13 +130,13 @@
     <template #footer><el-button @click="exportDialog=false">取消</el-button><el-button type="primary" :loading="exportLoading" @click="doExport">验证并获取</el-button></template>
   </el-dialog>
 
-  <el-dialog v-model="exportResultDialog" width="540px" :close-on-click-modal="false" :close-on-press-escape="false"><template #header><span style="font-weight:700;font-size:16px"><CircleCheck :size="18" style="margin-right:6px;vertical-align:middle;color:#22c55e"/> 完整 API Key</span></template>
+  <el-dialog v-model="exportResultDialog" width="540px" :close-on-click-modal="false" :close-on-press-escape="false" class="user-theme-dialog key-export-result-dialog"><template #header><span style="font-weight:700;font-size:16px"><CircleCheck :size="18" style="margin-right:6px;vertical-align:middle;color:#22c55e"/> 完整 API Key</span></template>
     <div style="background:#f5f5f5;padding:12px;border-radius:6px;word-break:break-all;font-family:monospace;font-size:14px">{{ exportedRaw }}</div>
     <el-button type="primary" style="margin-top:12px" @click="copyExported"><Clipboard :size="14" style="margin-right:4px"/> {{ exportedCopied ? '已复制 ✓' : '复制到剪贴板' }}</el-button>
     <template #footer><el-button @click="exportResultDialog=false">关闭</el-button></template>
   </el-dialog>
 
-  <el-dialog v-model="docsDialog" width="700px" :close-on-click-modal="false" destroy-on-close><template #header><span style="font-weight:700;font-size:16px"><BookOpen :size="18" style="margin-right:6px;vertical-align:middle"/> {{ docsChannelName }} — 使用说明</span></template>
+  <el-dialog v-model="docsDialog" width="700px" :close-on-click-modal="false" destroy-on-close class="user-theme-dialog key-docs-dialog"><template #header><span style="font-weight:700;font-size:16px"><BookOpen :size="18" style="margin-right:6px;vertical-align:middle"/> {{ docsChannelName }} — 使用说明</span></template>
     <div v-if="docsLoading" style="text-align:center;padding:40px"><Loader2 :size="28" color="#0EA5E9" style="animation:spin 1s linear infinite"/><p style="color:#a3a3a3;margin-top:12px">加载文档...</p></div>
     <template v-else>
       <div v-if="docsData.protocol_docs?.length>1" style="margin-bottom:12px"><span style="font-size:12px;color:#737373;margin-right:8px">该分组支持：</span><el-radio-group v-model="docsProtocol" size="small"><el-radio-button v-for="item in docsData.protocol_docs" :key="item.protocol_type" :value="item.protocol_type">{{ item.protocol_label }}</el-radio-button></el-radio-group></div>
