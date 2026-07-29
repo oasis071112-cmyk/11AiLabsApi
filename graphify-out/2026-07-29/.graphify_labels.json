@@ -94,5 +94,6 @@
   "92": "pricingPayload",
   "93": "public.js",
   "94": "channel-model-policy.js",
-  "95": "model-sync.js"
+  "95": "model-sync.js",
+  "96": "check-user-actions.mjs"
 }

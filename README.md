@@ -61,7 +61,8 @@ npm run dev     # 启动开发服务器，默认 http://localhost:5173
 
 | 页面 | 地址 | 账号 |
 |------|------|------|
-| 用户端 | http://localhost:5173/ | testuser / user123 |
+| 公开前置页 | http://localhost:5173/ | 无需登录 |
+| 用户端 | http://localhost:5173/console | testuser / user123 |
 | 管理端 | http://localhost:5173/admin | admin / admin123 |
 
 ## 生产环境部署

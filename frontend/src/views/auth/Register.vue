@@ -20,7 +20,7 @@ import { ref, reactive } from 'vue';import { useRouter } from 'vue-router';impor
 const router=useRouter(),authStore=useAuthStore(),frm=ref(null),loading=ref(false),result=ref('')
 const form=reactive({username:'',email:'',password:'',cp:''})
 const rules={username:[{required:true,message:'请输入用户名',trigger:'blur'},{min:3,max:32,message:'3-32字符',trigger:'blur'}],password:[{required:true,message:'请输入密码',trigger:'blur'},{min:6,message:'至少6位',trigger:'blur'}],cp:[{required:true,message:'请确认密码',trigger:'blur'},{validator:(r,v,cb)=>v===form.password?cb():cb(new Error('两次密码不一致')),trigger:'blur'}]}
-async function handleRegister(){const v=await frm.value.validate().catch(()=>false);if(!v)return;loading.value=true;try{await authStore.register({username:form.username,password:form.password,email:form.email});result.value='注册成功，登录中...';ElMessage.success('注册成功，登录中...');setTimeout(()=>router.replace('/'),800)}catch(e){}loading.value=false}
+async function handleRegister(){const v=await frm.value.validate().catch(()=>false);if(!v)return;loading.value=true;try{await authStore.register({username:form.username,password:form.password,email:form.email});result.value='注册成功，登录中...';ElMessage.success('注册成功，登录中...');setTimeout(()=>router.replace('/console'),800)}catch(e){}loading.value=false}
 </script>
 <style scoped>
 .auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc;padding:24px}

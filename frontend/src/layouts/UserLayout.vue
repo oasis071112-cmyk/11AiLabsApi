@@ -66,7 +66,7 @@ const narrowScreen=useMobile(1180)
 const isCompactDesktop=computed(()=>narrowScreen.value&&!isMobile.value)
 const userInitial=computed(()=>(authStore.user?.username||'U').slice(0,1).toUpperCase())
 const navItems=[
-  {path:'/',label:'控制台',icon:LayoutDashboard},
+  {path:'/console',label:'控制台',icon:LayoutDashboard},
   {path:'/wallet',label:'钱包',icon:Wallet},
   {path:'/subscribe',label:'订阅额度',icon:ShoppingCart},
   {path:'/keys',label:'API Key',icon:Key},

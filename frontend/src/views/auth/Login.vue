@@ -37,7 +37,7 @@ async function handleLogin() {
   if (!valid) { loading.value = false; return }
   try {
     await authStore.login(form.username, form.password)
-    router.push(authStore.isAdmin ? '/admin' : '/')
+    router.push(authStore.isAdmin ? '/admin' : '/console')
   } catch (e) {
     loginError.value = e.response?.data?.error || e.message || '登录失败，请稍后重试'
   } finally {

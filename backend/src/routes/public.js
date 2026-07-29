@@ -8,7 +8,15 @@ router.get('/info', (req, res) => {
   const platformName = db.prepare("SELECT config_value FROM system_config WHERE config_key='platform_name'").get();
   const announcement = db.prepare("SELECT config_value FROM system_config WHERE config_key='platform_announcement'").get();
   const regEnabled = db.prepare("SELECT config_value FROM system_config WHERE config_key='registration_enabled'").get();
-  res.json({ platform_name: platformName?.config_value||'IonAiLabs', announcement: announcement?.config_value||'', registration_enabled: regEnabled?.config_value!=='false' });
+  const customerServiceText = db.prepare("SELECT config_value FROM system_config WHERE config_key='customer_service_text'").get();
+  const customerServiceUrl = db.prepare("SELECT config_value FROM system_config WHERE config_key='customer_service_url'").get();
+  res.json({
+    platform_name: platformName?.config_value||'IonAiLabs',
+    announcement: announcement?.config_value||'',
+    registration_enabled: regEnabled?.config_value!=='false',
+    customer_service_text: customerServiceText?.config_value||'',
+    customer_service_url: customerServiceUrl?.config_value||''
+  });
 });
 
 router.get('/models', (req, res) => {

@@ -590,6 +590,8 @@ function createTables() {
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('default_rate_limit', '60', '默认每分钟限速')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('platform_name', 'IonAiLabs', '平台名称')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('platform_announcement', '欢迎使用 IonAiLabs API调用中心！新用户注册即送 1 额度点数', '平台公告')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('customer_service_text', '', '前置页客服联系方式文案')");
+  sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('customer_service_url', '', '前置页客服或社群跳转地址')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('usd_cny_exchange_rate', '7', '美元兑人民币汇率；1点=1人民币')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('usd_cny_rate_updated_at', '', '美元兑人民币汇率最近更新时间')");
   sqlDb.run("INSERT OR IGNORE INTO system_config (config_key, config_value, description) VALUES ('official_pricing_last_sync_at', '', '官方价格最近同步时间')");

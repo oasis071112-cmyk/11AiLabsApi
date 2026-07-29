@@ -1,16 +1,16 @@
 # Graph Report - ai-api-proxy  (2026-07-29)
 
 ## Corpus Check
-- 114 files · ~64,479 words
+- 115 files · ~64,459 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1143 nodes · 1660 edges · 96 communities (83 shown, 13 thin omitted)
+- 1144 nodes · 1659 edges · 97 communities (84 shown, 13 thin omitted)
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 96 edges (avg confidence: 0.5)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `e1768456`
+- Built from commit: `a845f121`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -104,6 +104,7 @@
 - public.js
 - channel-model-policy.js
 - model-sync.js
+- check-user-actions.mjs
 
 ## God Nodes (most connected - your core abstractions)
 1. `getDatabase()` - 39 edges
@@ -132,7 +133,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (96 total, 13 thin omitted)
+## Communities (97 total, 13 thin omitted)
 
 ### Community 0 - "proxy.js"
 Cohesion: 0.06
@@ -154,11 +155,11 @@ Nodes (31): allLogs, autoRefresh, billingBreakdown, billingDialog, billingSum, b
 
 ### Community 3 - "dependencies"
 Cohesion: 0.04
-Nodes (46): chart.js, dayjs, echarts, element-plus, @element-plus/icons-vue, dependencies, axios, chart.js (+38 more)
+Nodes (47): chart.js, dayjs, echarts, element-plus, @element-plus/icons-vue, dependencies, axios, chart.js (+39 more)
 
 ### Community 4 - "ApiKeys.vue"
-Cohesion: 0.05
-Nodes (38): activeCode, activeTab, channelLoading, channels, copyExported(), copyKey(), createDialog, createKey() (+30 more)
+Cohesion: 0.06
+Nodes (31): activeCode, activeTab, channelLoading, channels, copyingKeyId, copyKey(), createDialog, createKey() (+23 more)
 
 ### Community 5 - "dependencies"
 Cohesion: 0.05
@@ -170,7 +171,7 @@ Nodes (28): activeModels, activeProvider, activeType, asMultimodal(), currency()
 
 ### Community 7 - "Wallet.vue"
 Cohesion: 0.08
-Nodes (22): activeTab, availableBalance, fetchOrders(), fetchTx(), fetchWallet(), lo, ltx, oPage (+14 more)
+Nodes (23): activeTab, availableBalance, fetchOrders(), fetchTx(), fetchWallet(), lo, ltx, oPage (+15 more)
 
 ### Community 8 - "admin.js"
 Cohesion: 0.08
@@ -443,6 +444,10 @@ Nodes (4): express, { getDatabase }, { listSystemModelCapabilities }, router
 ### Community 94 - "channel-model-policy.js"
 Cohesion: 0.60
 Nodes (4): reconcileModelStatus(), routedModelCodesForChannels(), setChannelModelStatus(), validateMappingActivation()
+
+### Community 96 - "check-user-actions.mjs"
+Cohesion: 0.33
+Nodes (4): apiKeys, router, userRoutes, wallet
 
 ## Knowledge Gaps
 - **582 isolated node(s):** `backup.sh script`, `name`, `version`, `main`, `start` (+577 more)

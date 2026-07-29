@@ -9,7 +9,8 @@
     "test:mobile-bundle": "node scripts/check-mobile-bundle.mjs",
     "test:login-error-ui": "node scripts/check-login-error-ui.mjs",
     "test:user-actions": "node scripts/check-user-actions.mjs",
-    "test:user-logs": "node scripts/check-user-logs.mjs"
+    "test:user-logs": "node scripts/check-user-logs.mjs",
+    "test:landing": "node scripts/check-landing-page.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
@@ -19,6 +20,7 @@
     "dayjs": "^1.11.10",
     "echarts": "^5.4.3",
     "element-plus": "^2.4.4",
+    "gsap": "^3.13.0",
     "pinia": "^2.1.7",
     "vue": "^3.4.0",
     "vue-chartjs": "^5.3.4",

@@ -16,7 +16,7 @@ assert.match(exportRoute, /WHERE id=\? AND user_id=\?/)
 assert.match(exportRoute, /res\.json\(\{ key_raw: raw \}\)/)
 assert.doesNotMatch(exportRoute, /password|password_hash|compareSync/)
 
-assert.match(router, /\{path:'subscribe',name:'Subscribe',component:\(\)=>import\('@\/views\/user\/Wallet\.vue'\)\}/)
+assert.match(router, /\{path:'\/subscribe',name:'Subscribe',component:\(\)=>import\('@\/views\/user\/Wallet\.vue'\)\}/)
 assert.match(wallet, /watch\(\(\)=>route\.path,path=>\{if\(path==='\/subscribe'\)rechargeDialog\.value=true\},\{immediate:true\}\)/)
 assert.match(wallet, /@closed="onRechargeClosed"/)
 

@@ -95,5 +95,9 @@
   "93": "public.js",
   "94": "channel-model-policy.js",
   "95": "model-sync.js",
-  "96": "check-user-actions.mjs"
+  "96": "check-user-actions.mjs",
+  "97": "element-plus",
+  "98": "vue",
+  "99": "vue-chartjs",
+  "100": "vue-router"
 }
