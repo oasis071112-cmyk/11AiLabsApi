@@ -23,7 +23,7 @@
       <div class="mobile-key-head"><div><span class="status-dot" :class="row.status==='active'?'dot-on':'dot-off'"></span><strong>{{ row.key_name }}</strong></div><el-tag :type="row.status==='active'?'success':'info'" size="small" effect="plain">{{ row.status==='active'?'启用':'禁用' }}</el-tag></div>
       <code>{{ row.key_prefix }}</code>
       <div class="mobile-key-meta"><span><small>分组</small>{{ row.channel_name||'未分组' }}</span><span><small>模型数</small>{{ row.models?.length||0 }} 个</span><span><small>最后使用</small>{{ formatBeijingTime(row.last_used_at) }}</span></div>
-      <div class="mobile-key-actions"><el-button size="small" type="primary" :loading="copyingKeyId===row.id" @click="copyStoredKey(row)">复制</el-button><el-button size="small" @click="toggleKey(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button><el-button v-if="row.channel_name" size="small" type="success" @click="openDocs(row)" :loading="docsLoading&&docsTarget===row"><BookOpen :size="13"/>文档</el-button><el-popconfirm title="确定删除？" @confirm="deleteKey(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm></div>
+      <div class="mobile-key-actions"><el-button size="small" type="primary" :loading="copyingKeyId===row.id" @click="copyStoredKey(row)">{{ copiedKeyId===row.id ? '已复制 ✓' : '复制' }}</el-button><el-button size="small" @click="toggleKey(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button><el-button v-if="row.channel_name" size="small" type="success" @click="openDocs(row)" :loading="docsLoading&&docsTarget===row"><BookOpen :size="13"/>文档</el-button><el-popconfirm title="确定删除？" @confirm="deleteKey(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm></div>
     </article>
     <el-empty v-if="!loading&&!keys.length" description="暂无 API Key"/>
   </div>
@@ -82,7 +82,7 @@
       <el-table-column label="操作" width="230" align="center">
         <template #default="{row}">
           <div style="display:flex;gap:6px;justify-content:center">
-          <el-button size="small" type="primary" :loading="copyingKeyId===row.id" @click="copyStoredKey(row)">复制</el-button>
+          <el-button size="small" type="primary" :loading="copyingKeyId===row.id" @click="copyStoredKey(row)">{{ copiedKeyId===row.id ? '已复制 ✓' : '复制' }}</el-button>
           <el-button size="small" @click="toggleKey(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button>
           <el-popconfirm title="确定删除？" @confirm="deleteKey(row.id)"><template #reference><el-button size="small" type="danger">删除</el-button></template></el-popconfirm>
           </div>
@@ -150,7 +150,7 @@ import { Key, BookOpen, CircleCheck, Clipboard, Shield, RefreshCw, Loader2 } fro
 const keys=ref([]),loading=ref(false),createDialog=ref(false),resultDialog=ref(false),creating=ref(false),newKeyName=ref(''),newKeyRaw=ref('')
 const channels=ref([]),selectedChannelId=ref(null),channelLoading=ref(false)
 const selectedChannel=computed(()=>channels.value.find(c=>c.id===selectedChannelId.value))
-const keyCopied=ref(false),copyingKeyId=ref(null)
+const keyCopied=ref(false),copyingKeyId=ref(null),copiedKeyId=ref(null)
 const docsDialog=ref(false),docsLoading=ref(false),docsTarget=ref(null),docsData=ref({}),docsChannelName=ref(''),docsCopied=ref(false),docsProtocol=ref('')
 const tabs=[{key:'curl',label:'cURL'},{key:'python',label:'Python'},{key:'nodejs',label:'Node.js'}]
 const displayedDocs=computed(()=>docsData.value.protocol_docs?.find(item=>item.protocol_type===docsProtocol.value)||docsData.value)
@@ -164,7 +164,7 @@ async function toggleKey(k){await api.patch('/api/user/keys/'+k.id+'/toggle');El
 async function deleteKey(id){await api.delete('/api/user/keys/'+id);ElMessage.success('已删除');fetchKeys()}
 async function showCopied(state,text){try{await copyText(text);state.value=true;ElMessage.success('复制成功');setTimeout(()=>state.value=false,2000)}catch(e){ElMessage.error('复制失败，请长按内容手动复制')}}
 async function copyKey(){await showCopied(keyCopied,newKeyRaw.value)}
-async function copyStoredKey(row){copyingKeyId.value=row.id;try{const r=await api.post('/api/user/keys/'+row.id+'/export');await copyText(r.data.key_raw);ElMessage.success('复制成功')}catch(e){ElMessage.error(e?.response?.data?.error||'复制失败，请稍后重试')}finally{copyingKeyId.value=null}}
+async function copyStoredKey(row){copyingKeyId.value=row.id;try{const r=await api.post('/api/user/keys/'+row.id+'/export');await copyText(r.data.key_raw);copiedKeyId.value=row.id;ElMessage.success('复制成功');const copiedId=row.id;setTimeout(()=>{if(copiedKeyId.value===copiedId)copiedKeyId.value=null},2000)}catch(e){ElMessage.error(e?.response?.data?.error||'复制失败，请稍后重试')}finally{copyingKeyId.value=null}}
 async function openDocs(row){docsTarget.value=row;docsDialog.value=true;docsLoading.value=true;docsData.value={};docsProtocol.value='';docsChannelName.value=row.channel_name;activeTab.value='curl';docsCopied.value=false;try{const r=await api.get('/api/user/docs/channel?channel_name='+encodeURIComponent(row.channel_name));docsData.value=r.data;docsProtocol.value=r.data.protocol_docs?.[0]?.protocol_type||r.data.protocol_type||''}catch(e){ElMessage.error('获取文档失败')};docsLoading.value=false}
 async function copyDocsCode(){try{await copyText(activeCode.value);docsCopied.value=true;ElMessage.success('复制成功');setTimeout(()=>docsCopied.value=false,2000)}catch(e){ElMessage.error('复制失败，请长按代码手动复制')}}
 </script>

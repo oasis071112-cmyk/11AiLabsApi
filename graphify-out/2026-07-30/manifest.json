@@ -260,7 +260,7 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1785346624.8651862,
+    "mtime": 1785346932.1136281,
     "ast_hash": "6b8d14708b6271bee11c056cc10bca38",
     "semantic_hash": "6b8d14708b6271bee11c056cc10bca38"
   },
@@ -345,8 +345,8 @@
     "semantic_hash": ""
   },
   "frontend/src/stores/auth.js": {
-    "mtime": 1785346593.689298,
-    "ast_hash": "8910fb653c64abef2a28e16af88cc233",
+    "mtime": 1785346921.9711838,
+    "ast_hash": "48a00d2bfda930361bcb2c628621f58e",
     "semantic_hash": ""
   },
   "frontend/src/utils/clipboard.js": {
@@ -425,8 +425,8 @@
     "semantic_hash": "2b7d948ea545bfd73ca128a8dd047502"
   },
   "frontend/src/views/user/Dashboard.vue": {
-    "mtime": 1785346593.6956832,
-    "ast_hash": "436525df1acdfa9cd67f5c6aa6e30320",
+    "mtime": 1785346921.973256,
+    "ast_hash": "cb27dc55255d19c2c977f4d1ec8e41ea",
     "semantic_hash": ""
   },
   "frontend/src/views/user/Docs.vue": {
@@ -615,8 +615,8 @@
     "semantic_hash": ""
   },
   "frontend/scripts/check-login-bootstrap.mjs": {
-    "mtime": 1785346538.5646107,
-    "ast_hash": "2ae771c016a5bad924848aac9b474878",
+    "mtime": 1785346877.3322122,
+    "ast_hash": "f25b71c1e3eba004eea1a73e2c7d5cec",
     "semantic_hash": ""
   }
 }

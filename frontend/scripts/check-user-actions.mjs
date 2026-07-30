@@ -10,6 +10,8 @@ const userRoutes = read('../../backend/src/routes/user.js')
 assert.match(apiKeys, /@click="copyStoredKey\(row\)"/)
 assert.match(apiKeys, /api\.post\('\/api\/user\/keys\/'\+row\.id\+'\/export'\)/)
 assert.doesNotMatch(apiKeys, /openExport|exportPwd|key-auth-dialog|key-export-result-dialog/)
+assert.equal((apiKeys.match(/copiedKeyId===row\.id\s*\?\s*'已复制 ✓'\s*:\s*'复制'/g) || []).length, 2)
+assert.match(apiKeys, /async function copyStoredKey\(row\)\{[\s\S]*?await copyText\(r\.data\.key_raw\);copiedKeyId\.value=row\.id;ElMessage\.success\('复制成功'\)/)
 
 const exportRoute = userRoutes.match(/router\.post\('\/keys\/:id\/export'[\s\S]*?\n\}\);/)?.[0] || ''
 assert.match(exportRoute, /WHERE id=\? AND user_id=\?/)

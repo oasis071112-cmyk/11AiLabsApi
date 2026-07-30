@@ -260,7 +260,7 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1785346932.1136281,
+    "mtime": 1785422806.892889,
     "ast_hash": "6b8d14708b6271bee11c056cc10bca38",
     "semantic_hash": "6b8d14708b6271bee11c056cc10bca38"
   },
@@ -415,8 +415,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/user/ApiKeys.vue": {
-    "mtime": 1785324451.244039,
-    "ast_hash": "d62cf7f2f10590acdcc60b4d3e0bfebd",
+    "mtime": 1785422789.2756307,
+    "ast_hash": "1d1bac54f75d2ffe0a897438d14955a0",
     "semantic_hash": ""
   },
   "frontend/src/views/user/ChangePassword.vue": {
@@ -590,8 +590,8 @@
     "semantic_hash": ""
   },
   "frontend/scripts/check-user-actions.mjs": {
-    "mtime": 1785330335.6390657,
-    "ast_hash": "046625907fbf8c5d060a46535bc0e4c4",
+    "mtime": 1785422764.001456,
+    "ast_hash": "e80502286caaed0fd088f1d85e828bd0",
     "semantic_hash": ""
   },
   "frontend/scripts/check-landing-page.mjs": {

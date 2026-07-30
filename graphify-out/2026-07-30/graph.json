@@ -1503,8 +1503,8 @@
       "source_location": "L171",
       "_origin": "ast",
       "id": "backend_src_routes_admin_pricingpolicymodelcodes",
-      "community": 8,
-      "community_name": "admin.js",
+      "community": 103,
+      "community_name": "channel-model-policy.js",
       "norm_label": "pricingpolicymodelcodes()"
     },
     {
@@ -1514,8 +1514,8 @@
       "source_location": "L178",
       "_origin": "ast",
       "id": "backend_src_routes_admin_enforcepricingpolicyconsistency",
-      "community": 8,
-      "community_name": "admin.js",
+      "community": 103,
+      "community_name": "channel-model-policy.js",
       "norm_label": "enforcepricingpolicyconsistency()"
     },
     {
@@ -1635,8 +1635,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_payment",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "payment.js"
     },
     {
@@ -1646,8 +1646,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_payment_express",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "express"
     },
     {
@@ -1657,8 +1657,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_routes_payment_router",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "router"
     },
     {
@@ -1668,8 +1668,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_routes_payment_getdatabase",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "{ getdatabase }"
     },
     {
@@ -1679,8 +1679,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_routes_payment_verifyeasypaycallback",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "{ verifyeasypaycallback }"
     },
     {
@@ -1690,8 +1690,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_routes_payment_grantquotaorder",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "{ grantquotaorder }"
     },
     {
@@ -1701,8 +1701,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_routes_payment_fail",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "fail()"
     },
     {
@@ -1712,8 +1712,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_src_routes_payment_easypaynotify",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "easypaynotify()"
     },
     {
@@ -1932,8 +1932,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_channelhastokenpricing",
-      "community": 76,
-      "community_name": "handleImageBilledRequest",
+      "community": 15,
+      "community_name": "init.js",
       "norm_label": "channelhastokenpricing()"
     },
     {
@@ -1976,8 +1976,8 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_buildimagepricing",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 15,
+      "community_name": "init.js",
       "norm_label": "buildimagepricing()"
     },
     {
@@ -1987,8 +1987,8 @@
       "source_location": "L136",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_buildchannelimagepricing",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 15,
+      "community_name": "init.js",
       "norm_label": "buildchannelimagepricing()"
     },
     {
@@ -2086,8 +2086,8 @@
       "source_location": "L361",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_listmodels",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "listmodels()"
     },
     {
@@ -2460,8 +2460,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_public",
-      "community": 102,
-      "community_name": "public.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "public.js"
     },
     {
@@ -2471,8 +2471,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_public_express",
-      "community": 102,
-      "community_name": "public.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "express"
     },
     {
@@ -2482,8 +2482,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_routes_public_router",
-      "community": 102,
-      "community_name": "public.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "router"
     },
     {
@@ -2493,8 +2493,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_routes_public_getdatabase",
-      "community": 102,
-      "community_name": "public.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "{ getdatabase }"
     },
     {
@@ -2504,8 +2504,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_routes_public_listsystemmodelcapabilities",
-      "community": 102,
-      "community_name": "public.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "{ listsystemmodelcapabilities }"
     },
     {
@@ -2746,8 +2746,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail",
-      "community": 87,
-      "community_name": "billing-detail.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "billing-detail.js"
     },
     {
@@ -2757,8 +2757,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_calculatepricing",
-      "community": 87,
-      "community_name": "billing-detail.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "{ calculatepricing }"
     },
     {
@@ -2768,8 +2768,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_number",
-      "community": 87,
-      "community_name": "billing-detail.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "number()"
     },
     {
@@ -2779,8 +2779,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_rounded",
-      "community": 87,
-      "community_name": "billing-detail.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "rounded()"
     },
     {
@@ -2790,8 +2790,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_permillionprice",
-      "community": 87,
-      "community_name": "billing-detail.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "permillionprice()"
     },
     {
@@ -2801,8 +2801,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_buildbillingdetail",
-      "community": 87,
-      "community_name": "billing-detail.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "buildbillingdetail()"
     },
     {
@@ -2900,8 +2900,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_capabilities",
-      "community": 98,
-      "community_name": "vue",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "channel-capabilities.js"
     },
     {
@@ -2911,8 +2911,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_capabilities_channel_capabilities_by_protocol",
-      "community": 98,
-      "community_name": "vue",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "channel_capabilities_by_protocol"
     },
     {
@@ -2922,8 +2922,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_channel_capabilities_default_channel_capabilities",
-      "community": 98,
-      "community_name": "vue",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "default_channel_capabilities"
     },
     {
@@ -2933,8 +2933,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_src_utils_channel_capabilities_allowed_channel_capabilities",
-      "community": 98,
-      "community_name": "vue",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "allowed_channel_capabilities"
     },
     {
@@ -2944,8 +2944,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_src_utils_channel_capabilities_defaultchannelcapabilities",
-      "community": 98,
-      "community_name": "vue",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "defaultchannelcapabilities()"
     },
     {
@@ -2955,8 +2955,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_src_utils_channel_capabilities_parsechannelcapabilities",
-      "community": 98,
-      "community_name": "vue",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "parsechannelcapabilities()"
     },
     {
@@ -2966,8 +2966,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "backend_src_utils_channel_capabilities_serializechannelcapabilities",
-      "community": 98,
-      "community_name": "vue",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "serializechannelcapabilities()"
     },
     {
@@ -2977,8 +2977,8 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "backend_src_utils_channel_capabilities_channelsupportscapability",
-      "community": 98,
-      "community_name": "vue",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "channelsupportscapability()"
     },
     {
@@ -2988,8 +2988,8 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "backend_src_utils_channel_capabilities_channelmodelsupportsimageinput",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "channelmodelsupportsimageinput()"
     },
     {
@@ -2999,8 +2999,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs",
-      "community": 83,
-      "community_name": "payment.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "channel-docs.js"
     },
     {
@@ -3010,8 +3010,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_protocols",
-      "community": 83,
-      "community_name": "payment.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "protocols"
     },
     {
@@ -3021,8 +3021,8 @@
       "source_location": "L248",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_channel_protocol_map",
-      "community": 83,
-      "community_name": "payment.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "channel_protocol_map"
     },
     {
@@ -3032,8 +3032,8 @@
       "source_location": "L269",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_getprotocol",
-      "community": 83,
-      "community_name": "payment.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "getprotocol()"
     },
     {
@@ -3043,8 +3043,8 @@
       "source_location": "L275",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_getconfiguredprotocol",
-      "community": 83,
-      "community_name": "payment.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "getconfiguredprotocol()"
     },
     {
@@ -3054,8 +3054,8 @@
       "source_location": "L284",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_generatedocs",
-      "community": 83,
-      "community_name": "payment.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "generatedocs()"
     },
     {
@@ -3098,8 +3098,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_utils_channel_model_policy_validateactiveroutingpolicies",
-      "community": 8,
-      "community_name": "admin.js",
+      "community": 103,
+      "community_name": "channel-model-policy.js",
       "norm_label": "validateactiveroutingpolicies()"
     },
     {
@@ -3296,8 +3296,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto",
-      "community": 89,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "crypto.js"
     },
     {
@@ -3307,8 +3307,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_crypto",
-      "community": 89,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "crypto"
     },
     {
@@ -3318,8 +3318,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_getkey",
-      "community": 89,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "getkey()"
     },
     {
@@ -3329,8 +3329,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_encrypt",
-      "community": 89,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "encrypt()"
     },
     {
@@ -3351,8 +3351,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_desensitize",
-      "community": 89,
-      "community_name": "crypto.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "desensitize()"
     },
     {
@@ -3824,8 +3824,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "pricing-engine.js"
     },
     {
@@ -3835,8 +3835,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_number",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "number()"
     },
     {
@@ -3846,8 +3846,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_normalizecurrency",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "normalizecurrency()"
     },
     {
@@ -3857,8 +3857,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_tocny",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "tocny()"
     },
     {
@@ -3868,8 +3868,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_hasnumericprice",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "hasnumericprice()"
     },
     {
@@ -3879,8 +3879,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_normalizedmodelcode",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "normalizedmodelcode()"
     },
     {
@@ -3890,8 +3890,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_usessub2apilongcontextpricing",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "usessub2apilongcontextpricing()"
     },
     {
@@ -3901,8 +3901,8 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_servicetiermultiplier",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "servicetiermultiplier()"
     },
     {
@@ -3912,8 +3912,8 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_calculatedimensions",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "calculatedimensions()"
     },
     {
@@ -3923,8 +3923,8 @@
       "source_location": "L176",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_calculatepricing",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "calculatepricing()"
     },
     {
@@ -3934,8 +3934,8 @@
       "source_location": "L216",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_calculateimagepricing",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "calculateimagepricing()"
     },
     {
@@ -3945,8 +3945,8 @@
       "source_location": "L235",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_parseimageprices",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "parseimageprices()"
     },
     {
@@ -3956,8 +3956,8 @@
       "source_location": "L248",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_configuredimageunitprice",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "configuredimageunitprice()"
     },
     {
@@ -3967,8 +3967,8 @@
       "source_location": "L266",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_resolveimageunitprice",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "resolveimageunitprice()"
     },
     {
@@ -3978,8 +3978,8 @@
       "source_location": "L276",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_defaultimagedisplaypricing",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "defaultimagedisplaypricing()"
     },
     {
@@ -4231,8 +4231,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_quota_orders",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "quota-orders.js"
     },
     {
@@ -4242,8 +4242,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_quota_orders_quotaordererror",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "quotaordererror()"
     },
     {
@@ -4253,8 +4253,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_src_utils_quota_orders_grantquotaorder",
-      "community": 92,
-      "community_name": "pricingPayload",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "grantquotaorder()"
     },
     {
@@ -4264,8 +4264,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 9,
+      "community_name": "pricing-engine.js",
       "norm_label": "request-limits.js"
     },
     {
@@ -4275,8 +4275,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits_provider_output_limits",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 9,
+      "community_name": "pricing-engine.js",
       "norm_label": "provider_output_limits"
     },
     {
@@ -4286,8 +4286,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits_positiveinteger",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 9,
+      "community_name": "pricing-engine.js",
       "norm_label": "positiveinteger()"
     },
     {
@@ -4297,8 +4297,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits_resolvechatoutputlimit",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 9,
+      "community_name": "pricing-engine.js",
       "norm_label": "resolvechatoutputlimit()"
     },
     {
@@ -4308,8 +4308,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "routing-group-models.js"
     },
     {
@@ -4319,8 +4319,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_channelmodelsupportsimageinput_channelsupportscapability",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "{ channelmodelsupportsimageinput, channelsupportscapability }"
     },
     {
@@ -4330,8 +4330,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_channel_protocols",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "{ channel_protocols }"
     },
     {
@@ -4341,8 +4341,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_listroutinggroupprotocoltypes",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "listroutinggroupprotocoltypes()"
     },
     {
@@ -4352,8 +4352,8 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_mergeavailablemodel",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "mergeavailablemodel()"
     },
     {
@@ -4363,8 +4363,8 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_listroutinggroupmodels",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "listroutinggroupmodels()"
     },
     {
@@ -4374,8 +4374,8 @@
       "source_location": "L114",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_listmodelsforapikey",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "listmodelsforapikey()"
     },
     {
@@ -4385,8 +4385,8 @@
       "source_location": "L149",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_apikeycanusemodel",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "apikeycanusemodel()"
     },
     {
@@ -4396,8 +4396,8 @@
       "source_location": "L153",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_listsystemmodelcapabilities",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "listsystemmodelcapabilities()"
     },
     {
@@ -4407,8 +4407,8 @@
       "source_location": "L182",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_listusermodelcapabilities",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "listusermodelcapabilities()"
     },
     {
@@ -4418,8 +4418,8 @@
       "source_location": "L208",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_listroutinggroupchannelsformodel",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "listroutinggroupchannelsformodel()"
     },
     {
@@ -4429,8 +4429,8 @@
       "source_location": "L238",
       "_origin": "ast",
       "id": "backend_src_utils_routing_group_models_finduserchannelformodel",
-      "community": 43,
-      "community_name": "crypto.js",
+      "community": 10,
+      "community_name": "user.js",
       "norm_label": "finduserchannelformodel()"
     },
     {
@@ -4715,8 +4715,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_billing_detail_test",
-      "community": 87,
-      "community_name": "billing-detail.js",
+      "community": 21,
+      "community_name": "Proposed Changes",
       "norm_label": "billing-detail.test.js"
     },
     {
@@ -5309,8 +5309,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_pricing_engine_test",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 15,
+      "community_name": "init.js",
       "norm_label": "pricing-engine.test.js"
     },
     {
@@ -5320,8 +5320,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_tests_pricing_engine_test_require",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 15,
+      "community_name": "init.js",
       "norm_label": "require"
     },
     {
@@ -5331,8 +5331,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_tests_pricing_engine_test_channeltokenofficial",
-      "community": 9,
-      "community_name": "pricing-engine.js",
+      "community": 15,
+      "community_name": "init.js",
       "norm_label": "{ channeltokenofficial }"
     },
     {
@@ -5397,8 +5397,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_request_limits_test",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 9,
+      "community_name": "pricing-engine.js",
       "norm_label": "request-limits.test.js"
     },
     {
@@ -10803,7 +10803,7 @@
       "label": "appStore",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_appstore",
       "community": 30,
@@ -10814,7 +10814,7 @@
       "label": "authStore",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_authstore",
       "community": 30,
@@ -10825,7 +10825,7 @@
       "label": "stats",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_stats",
       "community": 30,
@@ -10836,7 +10836,7 @@
       "label": "models",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_models",
       "community": 30,
@@ -10847,7 +10847,7 @@
       "label": "hasApiKeys",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_hasapikeys",
       "community": 30,
@@ -10858,7 +10858,7 @@
       "label": "chartLoading",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_chartloading",
       "community": 30,
@@ -10869,7 +10869,7 @@
       "label": "modelsLoading",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_modelsloading",
       "community": 30,
@@ -10880,7 +10880,7 @@
       "label": "DashboardCharts",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L37",
+      "source_location": "L38",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_dashboardcharts",
       "community": 30,
@@ -10891,7 +10891,7 @@
       "label": "isMobile",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L38",
+      "source_location": "L39",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_ismobile",
       "community": 30,
@@ -10902,7 +10902,7 @@
       "label": "wallet",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L39",
+      "source_location": "L40",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_wallet",
       "community": 30,
@@ -10913,7 +10913,7 @@
       "label": "walletLoading",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L46",
+      "source_location": "L47",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_walletloading",
       "community": 30,
@@ -10924,7 +10924,7 @@
       "label": "todaySuccess",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L47",
+      "source_location": "L48",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_todaysuccess",
       "community": 30,
@@ -10935,7 +10935,7 @@
       "label": "fetchStats()",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L49",
+      "source_location": "L50",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_fetchstats",
       "community": 30,
@@ -10946,7 +10946,7 @@
       "label": "fetchModels()",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L50",
+      "source_location": "L51",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_fetchmodels",
       "community": 30,
@@ -10954,10 +10954,21 @@
       "norm_label": "fetchmodels()"
     },
     {
+      "label": "walletAmount()",
+      "file_type": "code",
+      "source_file": "frontend/src/views/user/Dashboard.vue",
+      "source_location": "L53",
+      "_origin": "ast",
+      "id": "frontend_src_views_user_dashboard_walletamount",
+      "community": 30,
+      "community_name": "user/Dashboard.vue",
+      "norm_label": "walletamount()"
+    },
+    {
       "label": "protocolLabel()",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L52",
+      "source_location": "L54",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_protocollabel",
       "community": 30,
@@ -10968,7 +10979,7 @@
       "label": "modelTypeLabel()",
       "file_type": "code",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L53",
+      "source_location": "L55",
       "_origin": "ast",
       "id": "frontend_src_views_user_dashboard_modeltypelabel",
       "community": 30,
@@ -30423,7 +30434,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30434,7 +30445,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30445,7 +30456,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30456,7 +30467,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L37",
+      "source_location": "L38",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30467,7 +30478,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L50",
+      "source_location": "L51",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30478,7 +30489,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L49",
+      "source_location": "L50",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30489,7 +30500,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30500,7 +30511,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L38",
+      "source_location": "L39",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30511,7 +30522,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30522,7 +30533,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30533,7 +30544,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L53",
+      "source_location": "L55",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30544,7 +30555,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L52",
+      "source_location": "L54",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30555,7 +30566,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30566,7 +30577,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L47",
+      "source_location": "L48",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30577,7 +30588,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L39",
+      "source_location": "L40",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -30588,7 +30599,18 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/Dashboard.vue",
-      "source_location": "L46",
+      "source_location": "L53",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "frontend_src_views_user_dashboard",
+      "target": "frontend_src_views_user_dashboard_walletamount",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend/src/views/user/Dashboard.vue",
+      "source_location": "L47",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_views_user_dashboard",
@@ -33017,5 +33039,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "a42fa1e8b2fca8293cc44ae739ab9694e053190a"
+  "built_at_commit": "263ce223098b459068748c5247f220b56765e745"
 }

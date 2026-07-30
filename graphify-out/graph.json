@@ -524,8 +524,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_database_init",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "init.js"
     },
     {
@@ -535,8 +535,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_database_init_initsqljs",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "initsqljs"
     },
     {
@@ -546,8 +546,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_database_init_path",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "path"
     },
     {
@@ -557,8 +557,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_database_init_fs",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "fs"
     },
     {
@@ -568,8 +568,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_database_init_os",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "os"
     },
     {
@@ -579,8 +579,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_database_init_logger",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "logger"
     },
     {
@@ -590,8 +590,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_database_init_migrateroutinggroups",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "migrateroutinggroups()"
     },
     {
@@ -601,8 +601,8 @@
       "source_location": "L104",
       "_origin": "ast",
       "id": "backend_src_database_init_migrateroutinggroupmultipliers",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "migrateroutinggroupmultipliers()"
     },
     {
@@ -656,8 +656,8 @@
       "source_location": "L270",
       "_origin": "ast",
       "id": "backend_src_database_init_createtables",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "createtables()"
     },
     {
@@ -667,8 +667,8 @@
       "source_location": "L623",
       "_origin": "ast",
       "id": "backend_src_database_init_initdatabase",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "initdatabase()"
     },
     {
@@ -788,8 +788,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_database_seed",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "seed.js"
     },
     {
@@ -799,8 +799,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_database_seed_getdatabase_initdatabase_migrateroutinggroups",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "{ getdatabase, initdatabase, migrateroutinggroups }"
     },
     {
@@ -810,8 +810,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_database_seed_bcrypt",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "bcrypt"
     },
     {
@@ -821,8 +821,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_database_seed_seed",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "seed()"
     },
     {
@@ -1030,8 +1030,8 @@
       "source_location": "L100",
       "_origin": "ast",
       "id": "backend_src_index_start",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "start()"
     },
     {
@@ -1360,8 +1360,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "backend_src_routes_admin_supported_providers",
-      "community": 101,
-      "community_name": "pricingPayload",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "supported_providers"
     },
     {
@@ -1371,8 +1371,8 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "backend_src_routes_admin_supportedprovider",
-      "community": 101,
-      "community_name": "pricingPayload",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "supportedprovider()"
     },
     {
@@ -1393,8 +1393,8 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "backend_src_routes_admin_routinggroupmultiplierpayload",
-      "community": 97,
-      "community_name": "element-plus",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "routinggroupmultiplierpayload()"
     },
     {
@@ -1404,8 +1404,8 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "backend_src_routes_admin_nonnegativeprice",
-      "community": 101,
-      "community_name": "pricingPayload",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "nonnegativeprice()"
     },
     {
@@ -1470,8 +1470,8 @@
       "source_location": "L100",
       "_origin": "ast",
       "id": "backend_src_routes_admin_imagepricespayload",
-      "community": 101,
-      "community_name": "pricingPayload",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "imagepricespayload()"
     },
     {
@@ -1481,8 +1481,8 @@
       "source_location": "L138",
       "_origin": "ast",
       "id": "backend_src_routes_admin_pricingpayload",
-      "community": 101,
-      "community_name": "pricingPayload",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "pricingpayload()"
     },
     {
@@ -1503,8 +1503,8 @@
       "source_location": "L171",
       "_origin": "ast",
       "id": "backend_src_routes_admin_pricingpolicymodelcodes",
-      "community": 103,
-      "community_name": "channel-model-policy.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "pricingpolicymodelcodes()"
     },
     {
@@ -1514,8 +1514,8 @@
       "source_location": "L178",
       "_origin": "ast",
       "id": "backend_src_routes_admin_enforcepricingpolicyconsistency",
-      "community": 103,
-      "community_name": "channel-model-policy.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "enforcepricingpolicyconsistency()"
     },
     {
@@ -1635,8 +1635,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_payment",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "payment.js"
     },
     {
@@ -1646,8 +1646,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_payment_express",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "express"
     },
     {
@@ -1657,8 +1657,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_routes_payment_router",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "router"
     },
     {
@@ -1668,8 +1668,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_routes_payment_getdatabase",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "{ getdatabase }"
     },
     {
@@ -1679,8 +1679,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_routes_payment_verifyeasypaycallback",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "{ verifyeasypaycallback }"
     },
     {
@@ -1690,8 +1690,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_routes_payment_grantquotaorder",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "{ grantquotaorder }"
     },
     {
@@ -1701,8 +1701,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_routes_payment_fail",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "fail()"
     },
     {
@@ -1712,8 +1712,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_src_routes_payment_easypaynotify",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "easypaynotify()"
     },
     {
@@ -1910,8 +1910,8 @@
       "source_location": "L49",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_requestmultipliers",
-      "community": 97,
-      "community_name": "element-plus",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "requestmultipliers()"
     },
     {
@@ -1921,8 +1921,8 @@
       "source_location": "L54",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_getusdcnyrate",
-      "community": 15,
-      "community_name": "init.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "getusdcnyrate()"
     },
     {
@@ -1932,8 +1932,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_channelhastokenpricing",
-      "community": 15,
-      "community_name": "init.js",
+      "community": 76,
+      "community_name": "handleImageBilledRequest",
       "norm_label": "channelhastokenpricing()"
     },
     {
@@ -1976,8 +1976,8 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_buildimagepricing",
-      "community": 15,
-      "community_name": "init.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "buildimagepricing()"
     },
     {
@@ -1987,8 +1987,8 @@
       "source_location": "L136",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_buildchannelimagepricing",
-      "community": 15,
-      "community_name": "init.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "buildchannelimagepricing()"
     },
     {
@@ -2295,8 +2295,8 @@
       "source_location": "L654",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_safe_failover_statuses",
-      "community": 76,
-      "community_name": "handleImageBilledRequest",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "safe_failover_statuses"
     },
     {
@@ -2306,8 +2306,8 @@
       "source_location": "L656",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_postwithsafefailover",
-      "community": 76,
-      "community_name": "handleImageBilledRequest",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "postwithsafefailover()"
     },
     {
@@ -2339,8 +2339,8 @@
       "source_location": "L712",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_anthropicupstreamheaders",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "anthropicupstreamheaders()"
     },
     {
@@ -2746,8 +2746,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 92,
+      "community_name": "billing-detail.js",
       "norm_label": "billing-detail.js"
     },
     {
@@ -2757,8 +2757,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_calculatepricing",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 92,
+      "community_name": "billing-detail.js",
       "norm_label": "{ calculatepricing }"
     },
     {
@@ -2768,8 +2768,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_number",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 92,
+      "community_name": "billing-detail.js",
       "norm_label": "number()"
     },
     {
@@ -2779,8 +2779,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_rounded",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 92,
+      "community_name": "billing-detail.js",
       "norm_label": "rounded()"
     },
     {
@@ -2790,8 +2790,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_permillionprice",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 92,
+      "community_name": "billing-detail.js",
       "norm_label": "permillionprice()"
     },
     {
@@ -2801,8 +2801,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "backend_src_utils_billing_detail_buildbillingdetail",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 92,
+      "community_name": "billing-detail.js",
       "norm_label": "buildbillingdetail()"
     },
     {
@@ -2999,8 +2999,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 95,
+      "community_name": "model-sync.js",
       "norm_label": "channel-docs.js"
     },
     {
@@ -3010,8 +3010,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_protocols",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 95,
+      "community_name": "model-sync.js",
       "norm_label": "protocols"
     },
     {
@@ -3021,8 +3021,8 @@
       "source_location": "L248",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_channel_protocol_map",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 95,
+      "community_name": "model-sync.js",
       "norm_label": "channel_protocol_map"
     },
     {
@@ -3032,8 +3032,8 @@
       "source_location": "L269",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_getprotocol",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 95,
+      "community_name": "model-sync.js",
       "norm_label": "getprotocol()"
     },
     {
@@ -3043,8 +3043,8 @@
       "source_location": "L275",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_getconfiguredprotocol",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 95,
+      "community_name": "model-sync.js",
       "norm_label": "getconfiguredprotocol()"
     },
     {
@@ -3054,8 +3054,8 @@
       "source_location": "L284",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_generatedocs",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 95,
+      "community_name": "model-sync.js",
       "norm_label": "generatedocs()"
     },
     {
@@ -3065,8 +3065,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_model_policy",
-      "community": 103,
-      "community_name": "channel-model-policy.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "channel-model-policy.js"
     },
     {
@@ -3076,8 +3076,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_model_policy_reconcilemodelstatus",
-      "community": 103,
-      "community_name": "channel-model-policy.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "reconcilemodelstatus()"
     },
     {
@@ -3087,8 +3087,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_channel_model_policy_routedmodelcodesforchannels",
-      "community": 103,
-      "community_name": "channel-model-policy.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "routedmodelcodesforchannels()"
     },
     {
@@ -3098,8 +3098,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_utils_channel_model_policy_validateactiveroutingpolicies",
-      "community": 103,
-      "community_name": "channel-model-policy.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "validateactiveroutingpolicies()"
     },
     {
@@ -3109,8 +3109,8 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "backend_src_utils_channel_model_policy_validatemappingactivation",
-      "community": 103,
-      "community_name": "channel-model-policy.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "validatemappingactivation()"
     },
     {
@@ -3120,8 +3120,8 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "backend_src_utils_channel_model_policy_setchannelmodelstatus",
-      "community": 103,
-      "community_name": "channel-model-policy.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "setchannelmodelstatus()"
     },
     {
@@ -3131,8 +3131,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_protocols",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "channel-protocols.js"
     },
     {
@@ -3142,8 +3142,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_protocols_channel_protocols",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "channel_protocols"
     },
     {
@@ -3153,8 +3153,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_src_utils_channel_protocols_supported_channel_protocols",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "supported_channel_protocols"
     },
     {
@@ -3164,8 +3164,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_src_utils_channel_protocols_issupportedchannelprotocol",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "issupportedchannelprotocol()"
     },
     {
@@ -3175,8 +3175,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "backend_src_utils_channel_protocols_upstreamrequestheaders",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "upstreamrequestheaders()"
     },
     {
@@ -3186,8 +3186,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "channel-selector.js"
     },
     {
@@ -3197,8 +3197,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector_axios",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "axios"
     },
     {
@@ -3208,8 +3208,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector_channelmodelsupportsimageinput_channelsupportscapability",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "{ channelmodelsupportsimageinput, channelsupportscapability }"
     },
     {
@@ -3219,8 +3219,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector_upstreamrequestheaders",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "{ upstreamrequestheaders }"
     },
     {
@@ -3230,8 +3230,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector_state",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "state"
     },
     {
@@ -3241,8 +3241,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector_weightedroundrobin",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "weightedroundrobin()"
     },
     {
@@ -3252,8 +3252,8 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector_healthcheck",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "healthcheck()"
     },
     {
@@ -3263,8 +3263,8 @@
       "source_location": "L104",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector_selectchannel",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "selectchannel()"
     },
     {
@@ -3274,8 +3274,8 @@
       "source_location": "L192",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector_reportresult",
-      "community": 76,
-      "community_name": "handleImageBilledRequest",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "reportresult()"
     },
     {
@@ -3285,8 +3285,8 @@
       "source_location": "L211",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector_starthealthcheck",
-      "community": 10,
-      "community_name": "user.js",
+      "community": 87,
+      "community_name": "channel-selector.js",
       "norm_label": "starthealthcheck()"
     },
     {
@@ -3296,8 +3296,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 97,
+      "community_name": "element-plus",
       "norm_label": "crypto.js"
     },
     {
@@ -3307,8 +3307,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_crypto",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 97,
+      "community_name": "element-plus",
       "norm_label": "crypto"
     },
     {
@@ -3318,8 +3318,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_getkey",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 97,
+      "community_name": "element-plus",
       "norm_label": "getkey()"
     },
     {
@@ -3329,8 +3329,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_encrypt",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 97,
+      "community_name": "element-plus",
       "norm_label": "encrypt()"
     },
     {
@@ -3340,8 +3340,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_decrypt",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 97,
+      "community_name": "element-plus",
       "norm_label": "decrypt()"
     },
     {
@@ -3351,8 +3351,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_desensitize",
-      "community": 19,
-      "community_name": "easypay-payment.test.js",
+      "community": 97,
+      "community_name": "element-plus",
       "norm_label": "desensitize()"
     },
     {
@@ -3714,8 +3714,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_model_sync",
-      "community": 104,
-      "community_name": "model-sync.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "model-sync.js"
     },
     {
@@ -3725,8 +3725,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_model_sync_normalizeupstreammodels",
-      "community": 104,
-      "community_name": "model-sync.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "normalizeupstreammodels()"
     },
     {
@@ -3736,8 +3736,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_src_utils_model_sync_infermodeltype",
-      "community": 104,
-      "community_name": "model-sync.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "infermodeltype()"
     },
     {
@@ -3747,8 +3747,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy",
-      "community": 97,
-      "community_name": "element-plus",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "multiplier-policy.js"
     },
     {
@@ -3758,8 +3758,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_positivemultiplier",
-      "community": 97,
-      "community_name": "element-plus",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "positivemultiplier()"
     },
     {
@@ -3769,8 +3769,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_multiplierfields",
-      "community": 97,
-      "community_name": "element-plus",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "multiplierfields"
     },
     {
@@ -3780,8 +3780,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_resolveeffectivemultiplierpolicy",
-      "community": 97,
-      "community_name": "element-plus",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "resolveeffectivemultiplierpolicy()"
     },
     {
@@ -3791,8 +3791,8 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_activerule",
-      "community": 97,
-      "community_name": "element-plus",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "activerule()"
     },
     {
@@ -3802,8 +3802,8 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_multiplierpolicycontext",
-      "community": 97,
-      "community_name": "element-plus",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "multiplierpolicycontext()"
     },
     {
@@ -3813,8 +3813,8 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_resolvemodelmultiplierpolicy",
-      "community": 97,
-      "community_name": "element-plus",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "resolvemodelmultiplierpolicy()"
     },
     {
@@ -3824,8 +3824,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "pricing-engine.js"
     },
     {
@@ -3835,8 +3835,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_number",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "number()"
     },
     {
@@ -3846,8 +3846,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_normalizecurrency",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "normalizecurrency()"
     },
     {
@@ -3857,8 +3857,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_tocny",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "tocny()"
     },
     {
@@ -3868,8 +3868,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_hasnumericprice",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "hasnumericprice()"
     },
     {
@@ -3879,8 +3879,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_normalizedmodelcode",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "normalizedmodelcode()"
     },
     {
@@ -3890,8 +3890,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_usessub2apilongcontextpricing",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "usessub2apilongcontextpricing()"
     },
     {
@@ -3901,8 +3901,8 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_servicetiermultiplier",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "servicetiermultiplier()"
     },
     {
@@ -3912,8 +3912,8 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_calculatedimensions",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "calculatedimensions()"
     },
     {
@@ -3923,8 +3923,8 @@
       "source_location": "L176",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_calculatepricing",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 92,
+      "community_name": "billing-detail.js",
       "norm_label": "calculatepricing()"
     },
     {
@@ -3934,8 +3934,8 @@
       "source_location": "L216",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_calculateimagepricing",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "calculateimagepricing()"
     },
     {
@@ -3945,8 +3945,8 @@
       "source_location": "L235",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_parseimageprices",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "parseimageprices()"
     },
     {
@@ -3956,8 +3956,8 @@
       "source_location": "L248",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_configuredimageunitprice",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "configuredimageunitprice()"
     },
     {
@@ -3967,8 +3967,8 @@
       "source_location": "L266",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_resolveimageunitprice",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "resolveimageunitprice()"
     },
     {
@@ -3978,8 +3978,8 @@
       "source_location": "L276",
       "_origin": "ast",
       "id": "backend_src_utils_pricing_engine_defaultimagedisplaypricing",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "defaultimagedisplaypricing()"
     },
     {
@@ -4231,8 +4231,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_quota_orders",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "quota-orders.js"
     },
     {
@@ -4242,8 +4242,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_quota_orders_quotaordererror",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "quotaordererror()"
     },
     {
@@ -4253,8 +4253,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_src_utils_quota_orders_grantquotaorder",
-      "community": 14,
-      "community_name": "src/index.js",
+      "community": 89,
+      "community_name": "payment.js",
       "norm_label": "grantquotaorder()"
     },
     {
@@ -4704,8 +4704,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_auth_test",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "auth.test.js"
     },
     {
@@ -4715,8 +4715,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_billing_detail_test",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 92,
+      "community_name": "billing-detail.js",
       "norm_label": "billing-detail.test.js"
     },
     {
@@ -5177,8 +5177,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_manual_pricing_test",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "manual-pricing.test.js"
     },
     {
@@ -5287,8 +5287,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_model_sync_test",
-      "community": 104,
-      "community_name": "model-sync.js",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "model-sync.test.js"
     },
     {
@@ -5298,8 +5298,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_multiplier_policy_test",
-      "community": 97,
-      "community_name": "element-plus",
+      "community": 8,
+      "community_name": "admin.js",
       "norm_label": "multiplier-policy.test.js"
     },
     {
@@ -5309,8 +5309,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_pricing_engine_test",
-      "community": 15,
-      "community_name": "init.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "pricing-engine.test.js"
     },
     {
@@ -5320,8 +5320,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_tests_pricing_engine_test_require",
-      "community": 15,
-      "community_name": "init.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "require"
     },
     {
@@ -5331,8 +5331,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_tests_pricing_engine_test_channeltokenofficial",
-      "community": 15,
-      "community_name": "init.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "{ channeltokenofficial }"
     },
     {
@@ -5408,8 +5408,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_routing_groups_test",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "routing-groups.test.js"
     },
     {
@@ -5944,8 +5944,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "frontend_package_dependencies_axios",
-      "community": 3,
-      "community_name": "dependencies",
+      "community": 98,
+      "community_name": "axios",
       "norm_label": "axios"
     },
     {
@@ -5955,8 +5955,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "frontend_package_json_axios",
-      "community": 3,
-      "community_name": "dependencies",
+      "community": 98,
+      "community_name": "axios",
       "norm_label": "axios"
     },
     {
@@ -5966,8 +5966,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "frontend_package_dependencies_chart_js",
-      "community": 95,
-      "community_name": "model-sync.js",
+      "community": 3,
+      "community_name": "dependencies",
       "norm_label": "chart.js"
     },
     {
@@ -5977,8 +5977,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "chart_js",
-      "community": 95,
-      "community_name": "model-sync.js",
+      "community": 3,
+      "community_name": "dependencies",
       "norm_label": "chart.js"
     },
     {
@@ -10479,6 +10479,17 @@
       "community": 4,
       "community_name": "ApiKeys.vue",
       "norm_label": "copyingkeyid"
+    },
+    {
+      "label": "copiedKeyId",
+      "file_type": "code",
+      "source_file": "frontend/src/views/user/ApiKeys.vue",
+      "source_location": "L153",
+      "_origin": "ast",
+      "id": "frontend_src_views_user_apikeys_copiedkeyid",
+      "community": 4,
+      "community_name": "ApiKeys.vue",
+      "norm_label": "copiedkeyid"
     },
     {
       "label": "docsDialog",
@@ -29981,6 +29992,17 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/views/user/ApiKeys.vue",
+      "source_location": "L153",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "frontend_src_views_user_apikeys",
+      "target": "frontend_src_views_user_apikeys_copiedkeyid",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend/src/views/user/ApiKeys.vue",
       "source_location": "L169",
       "weight": 1.0,
       "_origin": "ast",
@@ -33039,5 +33061,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "263ce223098b459068748c5247f220b56765e745"
+  "built_at_commit": "014118dd72cbf48ffe499d356a71d1bbb6a4cf75"
 }
