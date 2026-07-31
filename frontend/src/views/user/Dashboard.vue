@@ -16,7 +16,8 @@
 <el-col :span="8"><el-card shadow="hover" @click="$router.push('/keys')" style="cursor:pointer"><div class="dashboard-action-content" style="text-align:center;padding:12px"><div class="action-icon" style="background:#f59e0b"><BookOpen :size="24" color="#fff"/></div><div class="dashboard-action-title" style="margin-top:12px;font-weight:600;font-size:15px">API 使用说明</div><div class="dashboard-action-description" style="font-size:12px;color:var(--text-muted);margin-top:4px">各渠道接入指南</div></div></el-card></el-col>
 </el-row>
 
-<div v-if="isMobile" class="mobile-stats-card">
+<div v-if="chartLoading&&!hasStatsData" class="dashboard-skeleton dashboard-chart-skeleton" aria-busy="true" aria-label="正在加载调用数据"><span/><span/><span/></div>
+<div v-else-if="isMobile" class="mobile-stats-card">
   <div class="mobile-stats-head"><strong>今日调用</strong><el-button size="small" text :loading="chartLoading" @click="fetchStats"><RefreshCw :size="14"/>刷新</el-button></div>
   <div class="mobile-stats-grid"><div><span>总调用</span><strong>{{ stats.today_calls||0 }}</strong></div><div><span>成功</span><strong class="success-value">{{ todaySuccess }}</strong></div><div><span>累计费用</span><strong>{{ Number(stats.total_consumption||0).toFixed(4) }} 点</strong></div></div>
   <div v-if="stats.model_usage?.length" class="mobile-rank"><span>常用模型</span><div v-for="item in stats.model_usage.slice(0,3)" :key="item.model_code"><code>{{ item.model_code }}</code><strong>{{ item.calls }} 次</strong></div></div>
@@ -34,11 +35,11 @@ import { computed, defineAsyncComponent, onMounted, ref } from 'vue';import { us
 import { DollarSign, Wallet, Gift, Activity, ShoppingCart, Key, BookOpen, Cpu, RefreshCw } from '@lucide/vue'
 import { useMobile } from '@/composables/useMobile'
 
-const appStore=useAppStore(),authStore=useAuthStore(),stats=ref({}),models=ref([]),hasApiKeys=ref(false),chartLoading=ref(true),modelsLoading=ref(true)
+const appStore=useAppStore(),authStore=useAuthStore(),stats=ref({}),models=ref([]),hasApiKeys=ref(false),bootstrapWallet=ref(null),chartLoading=ref(true),modelsLoading=ref(true)
 const DashboardCharts=defineAsyncComponent(()=>import('@/components/DashboardCharts.vue'))
 const isMobile=useMobile()
 const wallet=computed(()=>{
-  const source=authStore.wallet
+  const source=bootstrapWallet.value||authStore.wallet
   if(!source)return null
   const quotaBalance=Number(source.quota_balance??source.recharge_balance??0)
   const giftQuota=Number(source.gift_quota??source.gift_balance??0)
@@ -46,14 +47,39 @@ const wallet=computed(()=>{
 })
 const walletLoading=computed(()=>!wallet.value&&!authStore.authError)
 const todaySuccess=computed(()=>stats.value.today_status?.find(item=>item.status==='success')?.count||0)
+const hasStatsData=computed(()=>Boolean(Number(stats.value.today_calls||0)||stats.value.model_usage?.length))
 
-async function fetchStats(){chartLoading.value=true;try{const s=await api.get('/api/user/stats');stats.value=s.data}catch(e){}finally{chartLoading.value=false}}
-async function fetchModels(){modelsLoading.value=true;try{const m=await api.get('/api/user/models');models.value=m.data.data||[];hasApiKeys.value=Boolean(m.data.has_api_keys)}catch(e){}finally{modelsLoading.value=false}}
+async function fetchStats(){
+  chartLoading.value=true
+  modelsLoading.value=true
+  try{
+    const response=await api.get('/api/user/dashboard/bootstrap')
+    const snapshot=response.data||{}
+    stats.value=snapshot.stats||{}
+    models.value=snapshot.models||[]
+    hasApiKeys.value=Boolean(snapshot.has_api_keys)
+    bootstrapWallet.value=snapshot.wallet||null
+  }catch(e){
+    // 兼容尚未切换聚合接口的旧后端。
+    const [statsResult,modelsResult]=await Promise.allSettled([
+      api.get('/api/user/stats'),
+      api.get('/api/user/models'),
+    ])
+    if(statsResult.status==='fulfilled')stats.value=statsResult.value.data||{}
+    if(modelsResult.status==='fulfilled'){
+      models.value=modelsResult.value.data.data||[]
+      hasApiKeys.value=Boolean(modelsResult.value.data.has_api_keys)
+    }
+  }finally{
+    chartLoading.value=false
+    modelsLoading.value=false
+  }
+}
 
 function walletAmount(field){return wallet.value?`${Number(wallet.value[field]||0).toFixed(4)} 点`:'—'}
 function protocolLabel(protocols=[]){return protocols.map(protocol=>protocol==='anthropic'?'Anthropic Messages':'OpenAI 兼容').join(' / ')||'—'}
 function modelTypeLabel(modelType){return modelType==='image'?'生图':'LLM'}
-onMounted(()=>{void fetchStats();void fetchModels()})
+onMounted(()=>{void fetchStats()})
 </script>
 
 <style scoped>
@@ -62,6 +88,7 @@ onMounted(()=>{void fetchStats();void fetchModels()})
 .action-icon{width:48px;height:48px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center}
 .mobile-stats-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}.mobile-stats-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.mobile-stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.mobile-stats-grid>div{background:#f8fafc;border-radius:10px;padding:10px}.mobile-stats-grid span,.mobile-rank>span{display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px}.mobile-stats-grid strong{font-size:13px}.success-value{color:#16a34a}.mobile-rank{border-top:1px solid var(--border);margin-top:13px;padding-top:11px}.mobile-rank>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0}.mobile-rank code{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobile-rank strong{font-size:12px;white-space:nowrap}
 .dashboard-model-code{font-size:11px;color:#94a3b8;font-family:monospace;margin-top:2px}
+.dashboard-skeleton{overflow:hidden;border:1px solid var(--border);border-radius:var(--radius);background:#fff;box-shadow:var(--shadow-sm)}.dashboard-chart-skeleton{min-height:168px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:end;padding:28px 30px;margin-bottom:0}.dashboard-skeleton span{display:block;border-radius:8px;background:linear-gradient(90deg,#f6f8f5 25%,#edf2eb 37%,#f6f8f5 63%);background-size:400% 100%;animation:dashboard-skeleton 1.2s ease-in-out infinite}.dashboard-skeleton span:nth-child(1){height:36%}.dashboard-skeleton span:nth-child(2){height:64%;animation-delay:.12s}.dashboard-skeleton span:nth-child(3){height:88%;animation-delay:.24s}@keyframes dashboard-skeleton{to{background-position:-400% 0}}
 @media(max-width:768px){
   .page-container>:deep(.el-alert){margin-bottom:10px!important}
   .dashboard-balance-row{margin-left:0!important;margin-right:0!important;row-gap:0!important;overflow:hidden;border-radius:12px}
@@ -86,6 +113,7 @@ onMounted(()=>{void fetchStats();void fetchModels()})
   .dashboard-action-title{margin-top:6px!important;font-size:12px!important;white-space:nowrap}
   .dashboard-action-description{display:none}
   .mobile-stats-card{padding:11px 12px;margin-bottom:10px;border-radius:12px}
+  .dashboard-chart-skeleton{min-height:108px;margin-bottom:10px;padding:16px 14px;gap:8px;border-radius:12px}
   .mobile-stats-head{margin-bottom:7px}
   .mobile-stats-grid{grid-template-columns:repeat(3,1fr);gap:0}
   .mobile-stats-grid>div{padding:5px 7px;border-radius:0}

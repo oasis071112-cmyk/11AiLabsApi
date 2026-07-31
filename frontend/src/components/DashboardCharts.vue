@@ -4,12 +4,13 @@
   <div><h3>暂无调用数据</h3><p>创建 API Key 并完成一次调用后，这里将展示今日统计和模型使用排行。</p></div>
   <router-link to="/keys" class="dashboard-empty-action">创建 API Key</router-link>
 </section>
-<el-row v-else :gutter="20">
+<div v-else ref="chartRoot">
+<el-row :gutter="20">
   <el-col :span="12">
     <el-card class="chart-card"><template #header><div class="chart-heading"><BarChart3 :size="18"/> 今日统计<el-button size="small" text :loading="loading" @click="$emit('refresh')"><RefreshCw :size="14"/></el-button></div></template>
       <div v-if="stats.today_calls" class="chart-content">
         <div class="chart-metric"><span>今日成功率</span><strong>{{ successRate }}%</strong><small>{{ successCount.toLocaleString() }} 次成功调用</small></div>
-        <div class="chart-canvas"><Bar :data="todayChartData" :options="todayChartOptions"/></div>
+        <div class="chart-canvas"><LazyBarChart v-if="chartsVisible" :data="todayChartData" :options="todayChartOptions"/><div v-else class="chart-deferred-placeholder" aria-label="图表将在可见时加载"/></div>
       </div>
       <el-empty v-else description="暂无数据" :image-size="60" style="padding:40px 0"/>
     </el-card>
@@ -18,27 +19,45 @@
     <el-card class="chart-card"><template #header><div class="chart-heading"><TrendingUp :size="18"/> 模型使用排行<el-button size="small" text :loading="loading" @click="$emit('refresh')"><RefreshCw :size="14"/></el-button></div></template>
       <div v-if="stats.model_usage?.length" class="chart-content">
         <div class="chart-metric"><span>TOP 1 模型</span><strong class="model-name" :title="topModel?.model_code">{{ topModel?.model_code }}</strong><small>占前八模型调用的 {{ topModelShare }}%</small></div>
-        <div class="chart-canvas"><Bar :data="modelChartData" :options="modelChartOptions"/></div>
+        <div class="chart-canvas"><LazyBarChart v-if="chartsVisible" :data="modelChartData" :options="modelChartOptions"/><div v-else class="chart-deferred-placeholder" aria-label="图表将在可见时加载"/></div>
       </div>
       <el-empty v-else description="暂无数据" :image-size="60" style="padding:40px 0"/>
     </el-card>
   </el-col>
 </el-row>
+</div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { BarChart3, RefreshCw, TrendingUp } from '@lucide/vue'
-import { Bar } from 'vue-chartjs'
-import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } from 'chart.js'
 import { useMobile } from '@/composables/useMobile'
 
-ChartJS.register(BarElement,CategoryScale,LinearScale,Tooltip)
+const LazyBarChart=defineAsyncComponent(()=>import('@/components/charts/LazyBarChart.vue'))
 
 const props=defineProps({stats:{type:Object,default:()=>({})},loading:Boolean})
 const isMobile=useMobile()
+const chartRoot=ref(null)
+const chartsVisible=ref(false)
+let chartObserver=null
 const showDesktopEmptyState=computed(()=>!isMobile.value&&!Number(props.stats.today_calls||0)&&!props.stats.model_usage?.length)
 defineEmits(['refresh'])
+
+function observeCharts(){
+  if(chartsVisible.value||chartObserver||!chartRoot.value)return
+  if(!('IntersectionObserver' in window)){chartsVisible.value=true;return}
+  chartObserver=new IntersectionObserver(entries=>{
+    if(entries.some(entry=>entry.isIntersecting)){
+      chartsVisible.value=true
+      chartObserver?.disconnect()
+      chartObserver=null
+    }
+  },{rootMargin:'160px 0px'})
+  chartObserver.observe(chartRoot.value)
+}
+onMounted(()=>void nextTick(observeCharts))
+watch(showDesktopEmptyState,async empty=>{if(!empty){await nextTick();observeCharts()}})
+onBeforeUnmount(()=>chartObserver?.disconnect())
 
 const statusCount=status=>Number(props.stats.today_status?.find(item=>item.status===status)?.count||0)
 const successCount=computed(()=>statusCount('success'))
@@ -75,6 +94,6 @@ const modelChartOptions={...baseOptions,scales:{...baseOptions.scales,y:{...base
 </script>
 
 <style scoped>
-.chart-heading{display:flex;align-items:center;gap:8px;width:100%;color:var(--text-primary)}.chart-heading>svg{color:var(--primary-dark)}.chart-heading .el-button{margin-left:auto}.chart-card{height:100%}.chart-card :deep(.el-card__body){padding:14px 16px}.chart-content{display:grid;grid-template-columns:minmax(128px,.72fr) minmax(0,1.5fr);align-items:center;gap:18px;min-height:286px}.chart-metric{min-width:0;padding:16px;border-radius:12px;background:#F4F7F2}.chart-metric span,.chart-metric small{display:block;color:var(--text-muted);font-size:11px;font-weight:600}.chart-metric strong{display:block;margin:5px 0;color:var(--primary-dark);font-size:28px;line-height:1.15;font-variant-numeric:tabular-nums;letter-spacing:-.035em}.chart-metric .model-name{overflow:hidden;font-size:17px;white-space:nowrap;text-overflow:ellipsis;letter-spacing:-.01em}.chart-canvas{position:relative;height:250px;min-width:0}.dashboard-empty-state{min-height:168px;display:flex;align-items:center;gap:18px;padding:26px 30px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;box-shadow:var(--shadow-sm)}.dashboard-empty-icon{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:12px;background:#eef3ec;color:var(--primary-dark)}.dashboard-empty-state h3{margin:0 0 5px;font-size:16px;color:var(--text-primary)}.dashboard-empty-state p{margin:0;color:var(--text-secondary);font-size:13px;line-height:1.65}.dashboard-empty-action{margin-left:auto;flex:0 0 auto;padding:8px 12px;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;text-decoration:none}
+.chart-heading{display:flex;align-items:center;gap:8px;width:100%;color:var(--text-primary)}.chart-heading>svg{color:var(--primary-dark)}.chart-heading .el-button{margin-left:auto}.chart-card{height:100%}.chart-card :deep(.el-card__body){padding:14px 16px}.chart-content{display:grid;grid-template-columns:minmax(128px,.72fr) minmax(0,1.5fr);align-items:center;gap:18px;min-height:286px}.chart-metric{min-width:0;padding:16px;border-radius:12px;background:#F4F7F2}.chart-metric span,.chart-metric small{display:block;color:var(--text-muted);font-size:11px;font-weight:600}.chart-metric strong{display:block;margin:5px 0;color:var(--primary-dark);font-size:28px;line-height:1.15;font-variant-numeric:tabular-nums;letter-spacing:-.035em}.chart-metric .model-name{overflow:hidden;font-size:17px;white-space:nowrap;text-overflow:ellipsis;letter-spacing:-.01em}.chart-canvas{position:relative;height:250px;min-width:0}.chart-deferred-placeholder{height:100%;border-radius:8px;background:linear-gradient(90deg,#f6f8f5 25%,#edf2eb 37%,#f6f8f5 63%);background-size:400% 100%;animation:chart-skeleton 1.2s ease-in-out infinite}.dashboard-empty-state{min-height:168px;display:flex;align-items:center;gap:18px;padding:26px 30px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;box-shadow:var(--shadow-sm)}.dashboard-empty-icon{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:12px;background:#eef3ec;color:var(--primary-dark)}.dashboard-empty-state h3{margin:0 0 5px;font-size:16px;color:var(--text-primary)}.dashboard-empty-state p{margin:0;color:var(--text-secondary);font-size:13px;line-height:1.65}.dashboard-empty-action{margin-left:auto;flex:0 0 auto;padding:8px 12px;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;text-decoration:none}@keyframes chart-skeleton{to{background-position:-400% 0}}
 @media(max-width:1100px){.chart-content{grid-template-columns:1fr;gap:8px}.chart-metric{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:10px;padding:11px 13px}.chart-metric strong{grid-row:1/3;grid-column:2;margin:0;font-size:22px}.chart-metric .model-name{max-width:180px;font-size:15px}.chart-canvas{height:220px}}
 </style>

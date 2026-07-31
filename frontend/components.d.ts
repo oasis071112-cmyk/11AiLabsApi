@@ -49,6 +49,8 @@ declare module 'vue' {
     ElTabs: typeof import('element-plus/es')['ElTabs']
     ElTag: typeof import('element-plus/es')['ElTag']
     FadeContent: typeof import('./src/components/public/FadeContent.vue')['default']
+    LazyBarChart: typeof import('./src/components/charts/LazyBarChart.vue')['default']
+    LazyDoughnutChart: typeof import('./src/components/charts/LazyDoughnutChart.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     UsageCharts: typeof import('./src/components/logs/UsageCharts.vue')['default']

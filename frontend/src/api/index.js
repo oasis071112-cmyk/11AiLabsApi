@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 const api=axios.create({baseURL:'',timeout:30000})
 api.interceptors.request.use(c=>{const t=localStorage.getItem('token');if(t)c.headers.Authorization=`Bearer ${t}`;return c})
 api.interceptors.response.use(r=>r,e=>{
+  if(axios.isCancel(e)||e?.code==='ERR_CANCELED')return Promise.reject(e)
   const errorMessage=e.response?.data?.error||e.message||'请求失败'
   ElMessage.error(errorMessage)
   const isLoginRequest=String(e.config?.url||'').includes('/api/auth/login')

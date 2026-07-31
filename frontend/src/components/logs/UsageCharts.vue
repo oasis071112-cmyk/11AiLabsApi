@@ -1,5 +1,5 @@
 <template>
-  <div class="analysis-layout">
+  <div ref="chartRoot" class="analysis-layout">
     <section class="metrics-panel" aria-label="调用概览">
       <div class="metric-item">
         <div class="metric-icon metric-icon-cost"><TrendingUp :size="18"/></div>
@@ -21,14 +21,16 @@
       <section class="chart-card">
         <div class="chart-header"><ChartPie :size="15"/><span>费用分布</span></div>
         <div v-if="hasCostData" class="chart-body chart-body-doughnut">
-          <Doughnut :data="costChartData" :options="costChartOptions"/>
+          <LazyDoughnutChart v-if="chartsVisible" :data="costChartData" :options="costChartOptions"/>
+          <div v-else class="chart-deferred-placeholder" aria-label="图表将在可见时加载"/>
         </div>
         <div v-else class="empty">暂无费用数据</div>
       </section>
       <section class="chart-card">
         <div class="chart-header"><BarChart3 :size="15"/><span>模型调用排行</span></div>
         <div v-if="hasCallData" class="chart-body chart-body-bar">
-          <Bar :data="rankChartData" :options="rankChartOptions"/>
+          <LazyBarChart v-if="chartsVisible" :data="rankChartData" :options="rankChartOptions"/>
+          <div v-else class="chart-deferred-placeholder" aria-label="图表将在可见时加载"/>
         </div>
         <div v-else class="empty">暂无调用数据</div>
       </section>
@@ -37,22 +39,16 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { Bar, Doughnut } from 'vue-chartjs'
-import {
-  ArcElement,
-  BarElement,
-  CategoryScale,
-  Chart as ChartJS,
-  Legend,
-  LinearScale,
-  Tooltip,
-} from 'chart.js'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { TrendingUp, Hash, ChartPie, BarChart3 } from '@lucide/vue'
 
-ChartJS.register(ArcElement,BarElement,CategoryScale,LinearScale,Tooltip,Legend)
+const LazyBarChart=defineAsyncComponent(()=>import('@/components/charts/LazyBarChart.vue'))
+const LazyDoughnutChart=defineAsyncComponent(()=>import('@/components/charts/LazyDoughnutChart.vue'))
 
 const props=defineProps({stats:{type:Object,default:()=>({})},dailyData:{type:Array,default:()=>[]}})
+const chartRoot=ref(null)
+const chartsVisible=ref(false)
+let chartObserver=null
 const palette=['#10A37F','#2563EB','#F2B544','#6753D8','#8FA3B8','#D97706','#64748B','#B8C4D1']
 const modelUsage=computed(()=>(props.stats.model_usage||[]).slice(0,8))
 const totalCost=computed(()=>Number(props.stats.total_consumption||0))
@@ -61,6 +57,19 @@ const hasCostData=computed(()=>modelUsage.value.some(item=>Number(item.cost||0)>
 const hasCallData=computed(()=>modelUsage.value.some(item=>Number(item.calls||0)>0))
 const formatPoints=value=>Number(value||0).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:4})
 const formatCompact=value=>Intl.NumberFormat('zh-CN',{notation:'compact',maximumFractionDigits:1}).format(Number(value||0))
+
+onMounted(()=>{
+  if(!('IntersectionObserver' in window)){chartsVisible.value=true;return}
+  chartObserver=new IntersectionObserver(entries=>{
+    if(entries.some(entry=>entry.isIntersecting)){
+      chartsVisible.value=true
+      chartObserver?.disconnect()
+      chartObserver=null
+    }
+  },{rootMargin:'160px 0px'})
+  chartObserver.observe(chartRoot.value)
+})
+onBeforeUnmount(()=>chartObserver?.disconnect())
 
 const costChartData=computed(()=>({
   labels:modelUsage.value.map(item=>item.model_code),
@@ -103,7 +112,7 @@ const rankChartOptions={
 </script>
 
 <style scoped>
-.analysis-layout{margin-bottom:14px}.metrics-panel{display:flex;gap:1px;margin-bottom:14px;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius);background:var(--border);box-shadow:var(--shadow-sm)}.metric-item{display:flex;align-items:center;gap:12px;flex:1;min-width:0;padding:16px 18px;background:var(--bg-card)}.metric-icon{width:38px;height:38px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:10px}.metric-icon-cost{background:#eef3ec;color:var(--primary-dark)}.metric-icon-token{background:#f5f0e3;color:#8a713b}.metric-label{display:block;margin-bottom:2px;color:var(--text-muted);font-size:12px;font-weight:600}.metric-value{display:block;color:var(--text-primary);font-size:21px;line-height:1.2;font-variant-numeric:tabular-nums;letter-spacing:-.025em}.metric-value small{font-size:12px;font-weight:600;color:var(--text-secondary)}.charts-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.chart-card{min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-card);box-shadow:var(--shadow-sm)}.chart-header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text-primary);font-size:13px;font-weight:650}.chart-header svg{color:var(--primary-dark)}.chart-body{position:relative;width:100%;padding:14px}.chart-body-doughnut{height:286px}.chart-body-bar{height:286px}.empty{height:286px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px}
+.analysis-layout{margin-bottom:14px}.metrics-panel{display:flex;gap:1px;margin-bottom:14px;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius);background:var(--border);box-shadow:var(--shadow-sm)}.metric-item{display:flex;align-items:center;gap:12px;flex:1;min-width:0;padding:16px 18px;background:var(--bg-card)}.metric-icon{width:38px;height:38px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:10px}.metric-icon-cost{background:#eef3ec;color:var(--primary-dark)}.metric-icon-token{background:#f5f0e3;color:#8a713b}.metric-label{display:block;margin-bottom:2px;color:var(--text-muted);font-size:12px;font-weight:600}.metric-value{display:block;color:var(--text-primary);font-size:21px;line-height:1.2;font-variant-numeric:tabular-nums;letter-spacing:-.025em}.metric-value small{font-size:12px;font-weight:600;color:var(--text-secondary)}.charts-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.chart-card{min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-card);box-shadow:var(--shadow-sm)}.chart-header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text-primary);font-size:13px;font-weight:650}.chart-header svg{color:var(--primary-dark)}.chart-body{position:relative;width:100%;padding:14px}.chart-body-doughnut{height:286px}.chart-body-bar{height:286px}.chart-deferred-placeholder{height:100%;border-radius:8px;background:linear-gradient(90deg,#f6f8f5 25%,#edf2eb 37%,#f6f8f5 63%);background-size:400% 100%;animation:chart-skeleton 1.2s ease-in-out infinite}.empty{height:286px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px}@keyframes chart-skeleton{to{background-position:-400% 0}}
 @media(max-width:768px){.analysis-layout{margin-bottom:8px}.metrics-panel{margin-bottom:8px}.metric-item{padding:12px 10px;gap:8px}.metric-icon{width:32px;height:32px;border-radius:8px}.metric-value{font-size:16px}.charts-grid{grid-template-columns:1fr;gap:8px}.chart-body-doughnut,.chart-body-bar,.empty{height:238px}.chart-header{padding:10px 12px}}
 @media(prefers-reduced-motion:reduce){.chart-body{transition:none}}
 </style>

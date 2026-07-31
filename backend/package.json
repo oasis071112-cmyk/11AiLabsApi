@@ -4,9 +4,15 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "worker": "node src/worker.js",
     "dev": "nodemon src/index.js",
     "seed": "node src/database/seed.js",
     "create-initial-admin": "node scripts/create-initial-admin.js",
+    "backup:sqljs": "node scripts/backup-sqljs-control-plane.js",
+    "migrate:postgres": "node scripts/migrate-postgres.js",
+    "import:control-plane": "node scripts/import-sqljs-control-plane.js",
+    "load:mock": "node load/mock-upstream.js",
+    "load:autocannon": "node load/run-autocannon.js",
     "test": "vitest run"
   },
   "dependencies": {
@@ -21,11 +27,20 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "morgan": "^1.10.0",
+    "pg": "^8.22.0",
+    "redis": "^6.1.0",
     "sql.js": "^1.10.3",
-    "uuid": "^9.0.0",
+    "uuid": "^11.1.1",
     "winston": "^3.19.0"
   },
+  "overrides": {
+    "body-parser": "1.20.6",
+    "brace-expansion": "5.0.9",
+    "postcss": "8.5.25",
+    "hyperid": "4.0.0"
+  },
   "devDependencies": {
+    "autocannon": "^8.0.0",
     "nodemon": "^3.0.2",
     "vitest": "^4.1.10"
   }

@@ -7,7 +7,7 @@ const testDbDirectory = fs.mkdtempSync(path.join(os.tmpdir(), '11ailabs-vitest-'
 const testDbPath = path.join(testDbDirectory, 'proxy.db');
 
 process.env.DB_PATH = testDbPath;
-process.env.JWT_SECRET = 'test-secret';
+process.env.JWT_SECRET = 'test-secret-with-at-least-32-bytes!';
 
 afterAll(() => {
   fs.rmSync(testDbDirectory, { recursive: true, force: true });

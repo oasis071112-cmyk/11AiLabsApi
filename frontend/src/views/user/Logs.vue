@@ -140,7 +140,7 @@ import { ElMessage } from 'element-plus'
 import api from '@/api'
 import dayjs from 'dayjs'
 import { formatBeijingDate, formatBeijingTime } from '@/utils/time'
-import { createLatestRequest } from '@/utils/latest-request'
+import { createRequestCoordinator } from '@/utils/request-coordinator'
 
 const UsageCharts=defineAsyncComponent(()=>import('@/components/logs/UsageCharts.vue'))
 
@@ -167,8 +167,9 @@ const autoRefresh = ref(false)
 const chartsReady = ref(false)
 let refreshTimer = null
 let mobileMedia = null
-const fetchAllRequest = createLatestRequest()
-const fetchLogsRequest = createLatestRequest()
+const dashboardRequest = createRequestCoordinator()
+const analyticsRequest = createRequestCoordinator()
+const logsRequest = createRequestCoordinator()
 function syncMobile(){isMobile.value=mobileMedia.matches}
 
 const successRate = computed(() => {
@@ -221,25 +222,42 @@ function logParams(){const range=normalizeRange(logFilter.value.dateRange);retur
 function onLogFilterChange(){if(!validateRange(logFilter.value.dateRange))return;logPage.value=1;fetchLogs()}
 
 async function fetchAll() {
-  const version=fetchAllRequest.begin()
   const range=[...dateRange.value]
   const model=filterModel.value||undefined
+  analyticsRequest.cancel()
+  const request=dashboardRequest.run(`overview:${range.join(':')}:${model||''}`, (_signal, request) => Promise.allSettled([
+    api.get('/api/user/models',{signal:request.signal}),
+    api.get('/api/user/logs/overview',{params:{limit:10,model,start_date:range[0],end_date:range[1]},signal:request.signal}),
+  ]))
   loading.value = true
-  const results=await Promise.allSettled([
-    api.get('/api/user/models'),
-    api.get('/api/user/stats'),
-    api.get('/api/user/stats/daily',{params:{start_date:range[0],end_date:range[1]}}),
-    api.get('/api/user/logs',{params:{limit:10,model,start_date:range[0],end_date:range[1]}}),
-  ])
-  if(!fetchAllRequest.isLatest(version))return
-  if(results[0].status==='fulfilled')modelList.value=results[0].value.data.data||[]
-  if(results[1].status==='fulfilled')stats.value=results[1].value.data||{}
-  if(results[2].status==='fulfilled')dailyData.value=results[2].value.data.data||[]
-  if(results[3].status==='fulfilled')recentLogs.value=results[3].value.data.data||[]
-  loading.value=false
-  scheduleCharts()
+  try{
+    const results=await request.promise
+    if(!dashboardRequest.isCurrent(request))return
+    if(results[0].status==='fulfilled')modelList.value=results[0].value.data.data||[]
+    if(results[1].status==='fulfilled'){
+      const overview=results[1].value.data||{}
+      stats.value=overview.stats||overview.summary||{}
+      recentLogs.value=overview.data||[]
+      dailyData.value=overview.daily||[]
+    }else{
+      // 兼容旧后端；聚合接口切换完成后此分支可移除。
+      const fallback=await Promise.allSettled([
+        api.get('/api/user/stats',{signal:request.signal}),
+        api.get('/api/user/logs',{params:{limit:10,model,start_date:range[0],end_date:range[1]},signal:request.signal}),
+        api.get('/api/user/stats/daily',{params:{start_date:range[0],end_date:range[1]},signal:request.signal}),
+      ])
+      if(fallback[0].status==='fulfilled')stats.value=fallback[0].value.data||{}
+      if(fallback[1].status==='fulfilled')recentLogs.value=fallback[1].value.data.data||[]
+      if(fallback[2].status==='fulfilled')dailyData.value=fallback[2].value.data.data||[]
+    }
+    scheduleCharts()
+  }catch(e){
+    if(dashboardRequest.isCurrent(request))dailyData.value=[]
+  }finally{
+    if(dashboardRequest.isCurrent(request))loading.value=false
+  }
 }
-async function fetchLogs(){if(!validateRange(logFilter.value.dateRange))return;const version=fetchLogsRequest.begin();const p={page:logPage.value,limit:20,...logParams()};logLoading.value=true;try{const r=await api.get('/api/user/logs',{params:p});if(!fetchLogsRequest.isLatest(version))return;allLogs.value=r.data.data;logTotal.value=r.data.pagination.total}catch(e){}finally{if(fetchLogsRequest.isLatest(version))logLoading.value=false}}
+async function fetchLogs(){if(!validateRange(logFilter.value.dateRange))return;const p={page:logPage.value,limit:20,...logParams()};const request=logsRequest.run(`logs:${JSON.stringify(p)}`,(_signal,request)=>api.get('/api/user/logs',{params:p,signal:request.signal}));logLoading.value=true;try{const r=await request.promise;if(!logsRequest.isCurrent(request))return;allLogs.value=r.data.data;logTotal.value=r.data.pagination.total}catch(e){}finally{if(logsRequest.isCurrent(request))logLoading.value=false}}
 async function exportLogs(){if(!validateRange(logFilter.value.dateRange))return;exportLoading.value=true;try{const r=await api.get('/api/user/logs/export',{params:logParams(),responseType:'blob'});const disposition=r.headers['content-disposition']||'';const encoded=disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];const fallback=`调用记录_${logFilter.value.dateRange[0]}_${logFilter.value.dateRange[1]}.csv`;const filename=encoded?decodeURIComponent(encoded):fallback;const url=URL.createObjectURL(r.data);const link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);ElMessage.success('CSV 导出成功')}catch(e){}exportLoading.value=false}
 function onPresetChange(val){if(val!=='custom'){dateRange.value=getPresetRange(val);customRange.value=[...dateRange.value];fetchAll()}else{customRange.value=[...dateRange.value]}}
 function onCustomChange(val){const range=normalizeRange(val);if(validateRange(range)){customRange.value=range;dateRange.value=range;fetchAll()}}
@@ -251,7 +269,7 @@ function scheduleCharts(){
   else window.setTimeout(show,80)
 }
 onMounted(()=>{mobileMedia=window.matchMedia('(max-width: 768px)');syncMobile();mobileMedia.addEventListener('change',syncMobile);dateRange.value=getPresetRange('7d');customRange.value=[...dateRange.value];fetchAll()})
-onUnmounted(()=>{fetchAllRequest.invalidate();fetchLogsRequest.invalidate();clearInterval(refreshTimer);mobileMedia?.removeEventListener('change',syncMobile)})
+onUnmounted(()=>{dashboardRequest.cancel();analyticsRequest.cancel();logsRequest.cancel();clearInterval(refreshTimer);mobileMedia?.removeEventListener('change',syncMobile)})
 </script>
 
 <style scoped>
