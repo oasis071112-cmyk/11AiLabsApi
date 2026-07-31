@@ -1,6 +1,30 @@
 const { channelModelSupportsImageInput, channelSupportsCapability } = require('./channel-capabilities');
 const { CHANNEL_PROTOCOLS } = require('./channel-protocols');
 
+const IMAGE_INPUT_OPERATION_CAPABILITIES = Object.freeze([
+  'image_edits',
+  'image_variations',
+  'image_transformations',
+]);
+
+function imageOperationCapabilities(channelModel) {
+  const supportsImageInput = channelModelSupportsImageInput(channelModel);
+  return Object.fromEntries(IMAGE_INPUT_OPERATION_CAPABILITIES.map(capability => [
+    capability,
+    channelSupportsCapability(channelModel, capability) && supportsImageInput,
+  ]));
+}
+
+function emptyImageOperationCapabilities() {
+  return Object.fromEntries(IMAGE_INPUT_OPERATION_CAPABILITIES.map(capability => [capability, false]));
+}
+
+function mergeImageOperationCapabilities(target, source = {}) {
+  for (const capability of IMAGE_INPUT_OPERATION_CAPABILITIES) {
+    target[capability] ||= Boolean(source[capability]);
+  }
+}
+
 function listRoutingGroupProtocolTypes(db, groupId, visitedGroups = new Set()) {
   if (visitedGroups.has(groupId)) return [];
   visitedGroups.add(groupId);
@@ -77,11 +101,11 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
   for (const row of rows) {
     const chatCompletions = channelSupportsCapability(row, 'chat_completions');
     const imageGenerations = channelSupportsCapability(row, 'image_generations');
+    const supportsImageInput = channelModelSupportsImageInput(row);
     const responses = channelSupportsCapability(row, 'responses');
     const anthropicMessages = channelSupportsCapability(row, 'anthropic_messages');
     const anthropicCountTokens = channelSupportsCapability(row, 'anthropic_count_tokens');
-    const imageInput = (chatCompletions || anthropicMessages)
-      && channelModelSupportsImageInput(row);
+    const imageInput = (chatCompletions || anthropicMessages) && supportsImageInput;
     const candidate = {
       model_code: row.model_code,
       model_name: row.model_name,
@@ -96,6 +120,7 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
         anthropic_count_tokens: anthropicCountTokens,
         image_input: imageInput,
         image_generations: imageGenerations,
+        ...imageOperationCapabilities(row),
         responses,
       },
     };
@@ -114,10 +139,11 @@ function listRoutingGroupModels(db, groupId, visitedGroups = new Set()) {
 function listModelsForApiKey(db, apiKey) {
   if (!apiKey.routing_group_id) {
     return db.prepare(`SELECT DISTINCT m.model_code,m.model_name,m.model_type,m.context_length,
-      m.sort_order,m.is_multimodal,uc.capabilities,uc.protocol_type
+      m.sort_order,m.is_multimodal,cm.supports_image_input,uc.capabilities,uc.protocol_type
       FROM api_key_permissions permission
       JOIN models m ON m.model_code=permission.model_code AND m.status='active'
       LEFT JOIN upstream_channels uc ON uc.id=m.channel_id AND uc.status='active'
+      LEFT JOIN channel_models cm ON cm.channel_id=uc.id AND cm.model_code=m.model_code AND cm.status='active'
       WHERE permission.api_key_id=? AND permission.status='active'
       ORDER BY m.sort_order,m.model_code`).all(apiKey.id).map(model => ({
       model_code: model.model_code,
@@ -135,6 +161,7 @@ function listModelsForApiKey(db, apiKey) {
             || channelSupportsCapability(model, 'anthropic_messages')
           ) && Number(model.is_multimodal) === 1,
           image_generations: channelSupportsCapability(model, 'image_generations'),
+          ...imageOperationCapabilities(model),
           responses: channelSupportsCapability(model, 'responses'),
         },
       }));
@@ -164,6 +191,7 @@ function listSystemModelCapabilities(db) {
       anthropic_count_tokens: false,
       image_input: false,
       image_generations: false,
+      ...emptyImageOperationCapabilities(),
       responses: false,
     };
     const supportsChat = channelSupportsCapability(row, 'chat_completions');
@@ -173,6 +201,7 @@ function listSystemModelCapabilities(db) {
     current.anthropic_count_tokens ||= channelSupportsCapability(row, 'anthropic_count_tokens');
     current.image_input ||= (supportsChat || supportsAnthropicMessages) && channelModelSupportsImageInput(row);
     current.image_generations ||= channelSupportsCapability(row, 'image_generations');
+    mergeImageOperationCapabilities(current, imageOperationCapabilities(row));
     current.responses ||= channelSupportsCapability(row, 'responses');
     capabilities.set(row.model_code, current);
   }
@@ -191,6 +220,7 @@ function listUserModelCapabilities(db, userId) {
         anthropic_count_tokens: false,
         image_input: false,
         image_generations: false,
+        ...emptyImageOperationCapabilities(),
         responses: false,
       };
       current.chat_completions ||= Boolean(model.capabilities?.chat_completions);
@@ -198,6 +228,7 @@ function listUserModelCapabilities(db, userId) {
       current.anthropic_count_tokens ||= Boolean(model.capabilities?.anthropic_count_tokens);
       current.image_input ||= Boolean(model.capabilities?.image_input);
       current.image_generations ||= Boolean(model.capabilities?.image_generations);
+      mergeImageOperationCapabilities(current, model.capabilities);
       current.responses ||= Boolean(model.capabilities?.responses);
       capabilities.set(model.model_code, current);
     }

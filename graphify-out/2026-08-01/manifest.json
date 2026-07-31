@@ -60,8 +60,8 @@
     "semantic_hash": "84b6ec069e2a06ec97029413d7e9ad29"
   },
   "backend/src/routes/proxy.js": {
-    "mtime": 1785516378.0080442,
-    "ast_hash": "78d6f9b3261c3a60db6ca8d7dbeb1b31",
+    "mtime": 1785516081.7532475,
+    "ast_hash": "947b9256b0b2496eac8b6755a81c7f6e",
     "semantic_hash": ""
   },
   "backend/src/routes/public.js": {
@@ -145,8 +145,8 @@
     "semantic_hash": "93c81aa262fa872ba3fa7bee11f51acf"
   },
   "backend/src/utils/routing-group-models.js": {
-    "mtime": 1785516312.867563,
-    "ast_hash": "534b2aefd879f60bf7282477f9a4459f",
+    "mtime": 1785515991.956437,
+    "ast_hash": "b1ed9fcca5e17a19925b35fe94be9b83",
     "semantic_hash": ""
   },
   "backend/src/utils/wallet-billing.js": {
@@ -200,8 +200,8 @@
     "semantic_hash": "c2189ad1c654399d0226bd71887efb6b"
   },
   "backend/tests/image-generations.test.js": {
-    "mtime": 1785516434.514853,
-    "ast_hash": "74b4a81137197e5fe8a3972429ddfb83",
+    "mtime": 1785516105.0921876,
+    "ast_hash": "9da8575b762cb65cf18cfea819490327",
     "semantic_hash": ""
   },
   "backend/tests/manual-pricing.test.js": {
@@ -210,8 +210,8 @@
     "semantic_hash": "f10ca9d48e05e0f4e675a289e46ca6e6"
   },
   "backend/tests/model-capabilities.test.js": {
-    "mtime": 1785516434.5127487,
-    "ast_hash": "6afef00e60d98a7d2c6403440c1b1ca8",
+    "mtime": 1785257400.2710862,
+    "ast_hash": "41fa5a8c831fd5a49314058c1b0d1a8f",
     "semantic_hash": ""
   },
   "backend/tests/model-sync.test.js": {
@@ -260,7 +260,7 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1785516457.302017,
+    "mtime": 1785516138.1859045,
     "ast_hash": "6b8d14708b6271bee11c056cc10bca38",
     "semantic_hash": "6b8d14708b6271bee11c056cc10bca38"
   },

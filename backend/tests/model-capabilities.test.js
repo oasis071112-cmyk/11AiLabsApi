@@ -347,6 +347,39 @@ describe('模型能力与图片请求边界', () => {
     expect(await imageResponse.json()).toMatchObject({ choices: [{ message: { content: 'ok' } }] });
   });
 
+  it('旧版 API Key 的模型列表遵循渠道级图片输入开关', async () => {
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const legacyModelCode = `legacy-image-input-${suffix}`;
+    const legacyChannelId = db.prepare(`INSERT INTO upstream_channels
+      (channel_name,base_url,api_key,status,protocol_type,capabilities) VALUES (?,?,?,'active','openai_compatible',?)`)
+      .run(`legacy-image-input-channel-${suffix}`, upstreamBaseUrl, 'legacy-image-input-key',
+        JSON.stringify(['chat_completions', 'image_edits', 'image_variations', 'image_transformations']))
+      .lastInsertRowid;
+    db.prepare(`INSERT INTO models
+      (model_code,model_name,upstream_model_name,channel_id,model_type,is_multimodal,status)
+      VALUES (?,?,?,?,?,1,'active')`)
+      .run(legacyModelCode, 'Legacy image input model', legacyModelCode, legacyChannelId, 'image');
+    db.prepare(`INSERT INTO channel_models
+      (channel_id,model_code,upstream_model_name,supports_image_input,status) VALUES (?,?,?,0,'active')`)
+      .run(legacyChannelId, legacyModelCode, legacyModelCode);
+    const legacyApiKey = `sk-legacy-image-input-${suffix}`;
+    const legacyApiKeyId = db.prepare(`INSERT INTO api_keys
+      (user_id,key_hash,key_prefix,permission_mode,status) VALUES (?,?,?,?, 'active')`)
+      .run(
+        db.prepare('SELECT user_id FROM api_keys WHERE key_prefix=?').get(apiKey.substring(0, 12)).user_id,
+        bcrypt.hashSync(legacyApiKey, 4), legacyApiKey.substring(0, 12), 'legacy',
+      ).lastInsertRowid;
+    db.prepare("INSERT INTO api_key_permissions (api_key_id,model_code,status) VALUES (?,?,'active')")
+      .run(legacyApiKeyId, legacyModelCode);
+
+    const models = await request('/v1/models', { headers: { Authorization: `Bearer ${legacyApiKey}` } })
+      .then(response => response.json());
+    expect(models.data.find(item => item.id === legacyModelCode).capabilities).toMatchObject({
+      image_edits: false, image_variations: false, image_transformations: false,
+    });
+  });
+
   it('大 Base64 图片不应按传输文本预估额度，最终按上游真实 usage 结算', async () => {
     const db = getDatabase();
     const userId = db.prepare('SELECT user_id FROM api_keys WHERE key_prefix=?').get(apiKey.substring(0, 12)).user_id;

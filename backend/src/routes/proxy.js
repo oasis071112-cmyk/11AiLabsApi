@@ -20,6 +20,12 @@ const {
   imageBillingIntent,
   resolveImageBillingSize,
 } = require('../utils/image-billing');
+const {
+  ImageRequestExecutor,
+  createImageUploadMiddleware,
+  imageFilesFromRequest,
+  imageOperationForEndpoint,
+} = require('../utils/image-request-executor');
 const { resolveChatOutputLimit } = require('../utils/request-limits');
 const {
   billingModeForRequest,
@@ -290,11 +296,19 @@ function insertUpstreamFailureLog(db, {
   requestId, userId, apiKeyId, modelCode, channelId, requestIp, latencyMs, error, billingMode = 'token',
   requestProtocol = CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
   upstreamProtocol = requestProtocol,
+  imageOperation = null, imageInputCount = 0, imageOutputFormat = '', imageOutputCompression = null,
 }) {
   db.prepare("INSERT OR IGNORE INTO api_request_logs (request_id,user_id,api_key_id,model_code,upstream_channel_id,billing_mode,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,?,?,'failed',?,'upstream_error',?,?)")
     .run(requestId, userId, apiKeyId, modelCode, channelId || null, billingMode, error, requestIp, latencyMs);
   setLogProtocols(db, requestId, requestProtocol, upstreamProtocol);
   setLogBillingAudit(db, requestId, channelId);
+  if (imageOperation) {
+    db.prepare(`UPDATE api_request_logs SET
+      image_operation=?,image_input_count=?,image_output_format=?,image_output_compression=?
+      WHERE request_id=?`).run(
+      imageOperation, imageInputCount, imageOutputFormat, imageOutputCompression, requestId,
+    );
+  }
 }
 
 function insertImageSuccessLog(db, {
@@ -302,6 +316,7 @@ function insertImageSuccessLog(db, {
   size, inputSize, outputSize, sizeSource, sizeBreakdown, quality, pricing, model,
   multiplier, requestIp, latencyMs, billingModelSource = 'channel_mapped',
   billingMode = 'image', usage = {}, tokenMultipliers = { input: 1, output: 1 },
+  imageOperation = 'generation', imageInputCount = 0, imageOutputFormat = '', imageOutputCompression = null,
 }) {
   db.prepare(`INSERT INTO api_request_logs (
     request_id,user_id,api_key_id,model_code,billing_model,upstream_channel_id,total_cost,
@@ -319,9 +334,10 @@ function insertImageSuccessLog(db, {
     input_tokens=?,cached_input_tokens=?,cache_creation_tokens=?,output_tokens=?,image_input_tokens=?,image_output_tokens=?,
     service_tier=?,long_context_billing_applied=?,
     official_input_price=?,official_output_price=?,official_cached_input_price=?,official_unit_tokens=?,
-    official_cache_creation_price=?,official_image_input_price=?,official_image_output_price=?,
-    billing_multiplier_input=?,billing_multiplier_output=?
-    WHERE request_id=?`).run(
+     official_cache_creation_price=?,official_image_input_price=?,official_image_output_price=?,
+     billing_multiplier_input=?,billing_multiplier_output=?,
+     image_operation=?,image_input_count=?,image_output_format=?,image_output_compression=?
+     WHERE request_id=?`).run(
     inputSize, outputSize, sizeSource, JSON.stringify(sizeBreakdown || []), billingModelSource,
     usage.inputTokens || 0, usage.cachedInputTokens || 0, usage.cacheCreationTokens || 0,
     usage.outputTokens || 0, usage.imageInputTokens || 0, usage.imageOutputTokens || 0,
@@ -334,6 +350,7 @@ function insertImageSuccessLog(db, {
     pricing.officialPrices?.imageInput ?? null,
     pricing.officialPrices?.imageOutput ?? null,
     tokenMultipliers.input, tokenMultipliers.output,
+    imageOperation, imageInputCount, imageOutputFormat, imageOutputCompression,
     requestId,
   );
   setLogProtocols(db, requestId);
@@ -343,6 +360,7 @@ function insertImageSuccessLog(db, {
 function insertImageSettlementFailureLog(db, {
   requestId, userId, apiKeyId, modelCode, billingModel, channelId, imageCount, size, quality,
   pricing, model, multiplier, multiplierSources = {}, requestIp, latencyMs, error,
+  imageOperation = 'generation', imageInputCount = 0, imageOutputFormat = '', imageOutputCompression = null,
 }) {
   db.prepare(`INSERT OR IGNORE INTO api_request_logs (
     request_id,user_id,api_key_id,model_code,billing_model,upstream_channel_id,total_cost,
@@ -353,6 +371,11 @@ function insertImageSettlementFailureLog(db, {
     requestId, userId, apiKeyId, modelCode, billingModel, channelId, pricing.userCostPoints,
     model.official_provider, model.official_currency, pricing.usdCnyRate, pricing.officialCostCny,
     imageCount, size, quality, pricing.unitPrice, multiplier, error, requestIp, latencyMs,
+  );
+  db.prepare(`UPDATE api_request_logs SET
+    image_operation=?,image_input_count=?,image_output_format=?,image_output_compression=?
+    WHERE request_id=?`).run(
+    imageOperation, imageInputCount, imageOutputFormat, imageOutputCompression, requestId,
   );
   setLogProtocols(db, requestId);
   setLogBillingAudit(db, requestId, channelId, { sources: multiplierSources });
@@ -370,9 +393,12 @@ function listModels(req, res) {
       chat_completions: true,
       anthropic_messages: false,
       anthropic_count_tokens: false,
-      image_input: false,
-      image_generations: false,
-      responses: false,
+       image_input: false,
+       image_generations: false,
+       image_edits: false,
+       image_variations: false,
+       image_transformations: false,
+       responses: false,
     },
   })) });
 }
@@ -654,7 +680,7 @@ function availableWalletBalance(db, userId) {
 const SAFE_FAILOVER_STATUSES = new Set([401, 403, 404, 429]);
 
 async function postWithSafeFailover({
-  db, modelCode, routingGroupId, initialChannel, endpoint, body, config, requirements = {}, transformBody,
+  db, modelCode, routingGroupId, initialChannel, endpoint, body, config, requirements = {}, transformBody, createRequest,
 }) {
   let channel = initialChannel;
   const excludedChannelIds = new Set();
@@ -662,7 +688,18 @@ async function postWithSafeFailover({
     const mappedBody = { ...body, model: channel.upstream_model_name || body.model || modelCode };
     const requestBody = transformBody ? transformBody(mappedBody, channel) : mappedBody;
     try {
-      const response = await axios.post(`${channel.base_url}/${endpoint}`, requestBody, config(channel));
+      const outbound = createRequest ? createRequest(requestBody, channel) : { data: requestBody, headers: {} };
+      const requestConfig = config(channel);
+      const headers = { ...(requestConfig.headers || {}) };
+      if (Object.keys(outbound.headers || {}).some(key => key.toLowerCase() === 'content-type')) {
+        for (const key of Object.keys(headers)) {
+          if (key.toLowerCase() === 'content-type') delete headers[key];
+        }
+      }
+      const response = await axios.post(`${channel.base_url}/${endpoint}`, outbound.data, {
+        ...requestConfig,
+        headers: { ...headers, ...(outbound.headers || {}) },
+      });
       return { response, channel, requestBody };
     } catch (error) {
       if (!SAFE_FAILOVER_STATUSES.has(Number(error.response?.status))) {
@@ -1291,12 +1328,19 @@ router.post('/messages', authenticateApiKey, async (req, res) => {
 router.get('/', authenticateApiKey, listModels);
 router.get('/models', authenticateApiKey, listModels);
 
-async function handleImageBilledRequest(req, res, { endpoint, endpointCapability }) {
+const imageRequestExecutor = new ImageRequestExecutor({ postWithSafeFailover });
+const parseImageMultipart = createImageUploadMiddleware();
+
+async function handleImageBilledRequest(req, res, { endpoint, endpointCapability, preparedRequest = null }) {
   const db = getDatabase();
   const requestId = 'req_' + uuidv4().replace(/-/g, '').substring(0, 16);
-  const modelCode = String(req.body.model || '').trim();
+  const requestBody = preparedRequest?.body || req.body || {};
+  const upstreamEndpoint = preparedRequest?.endpoint || endpoint;
+  const imageOperation = preparedRequest?.operation || imageOperationForEndpoint(endpoint);
+  const imageMetadata = preparedRequest?.metadata || { inputCount: 0, outputFormat: '', outputCompression: null };
+  const modelCode = String(requestBody.model || '').trim();
   const startTime = Date.now();
-  const intent = imageBillingIntent({ endpoint, body: req.body });
+  const intent = imageBillingIntent({ endpoint: upstreamEndpoint, body: requestBody });
   let channel = null;
   let reservedAmount = 0;
   let upstreamConfirmed = false;
@@ -1304,7 +1348,6 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   let settlementPricing = null;
   let confirmedBillingModel = intent?.billingModel || modelCode;
   let resolvedImageSize = resolveImageBillingSize({ inputSize: intent?.size });
-  let billingMode = 'image';
   let billingChannel = null;
 
   if (!intent) {
@@ -1313,8 +1356,8 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       type: 'image_generation_intent_required',
     } });
   }
-  const imageTools = Array.isArray(req.body.tools)
-    ? req.body.tools.filter(tool => tool?.type === 'image_generation')
+  const imageTools = Array.isArray(requestBody.tools)
+    ? requestBody.tools.filter(tool => tool?.type === 'image_generation')
     : [];
   if (imageTools.length > 1) {
     return res.status(400).json({ error: {
@@ -1322,7 +1365,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       type: 'multiple_image_generation_tools',
     } });
   }
-  if (endpoint === 'responses' && req.body.stream === true) {
+  if (upstreamEndpoint === 'responses' && requestBody.stream === true) {
     return res.status(400).json({ error: {
       message: '当前图片计费模式暂不支持流式 Responses，请设置 stream=false',
       type: 'streaming_image_generation_unsupported',
@@ -1330,7 +1373,7 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   }
 
   if (!modelCode || !apiKeyCanUseModel(db, req.apiKey, modelCode)) {
-    const message = modelCode ? `模型 ${modelCode} 未授权` : '图片生成请求必须指定模型';
+    const message = modelCode ? `模型 ${modelCode} 未授权` : '图片请求必须指定模型';
     db.prepare("INSERT INTO api_request_logs (request_id,user_id,api_key_id,model_code,billing_mode,status,error_message,error_type,request_ip,latency_ms) VALUES (?,?,?,?,'image','blocked',?,'unauthorized_model',?,?)")
       .run(requestId, req.userId, req.apiKey.id, modelCode || null, message, req.ip, Date.now() - startTime);
     return res.status(modelCode ? 403 : 400).json({ error: { message, type: 'unauthorized_model' } });
@@ -1353,24 +1396,16 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   const requirements = {
     protocolType: CHANNEL_PROTOCOLS.OPENAI_COMPATIBLE,
     endpointCapability,
+    requiresImageInput: imageOperation !== 'generation' || requestContainsImage(requestBody.input ?? requestBody),
     requiredMappedModelCode: intent.billingModel !== modelCode ? intent.billingModel : null,
   };
   channel = selectChannel(db, modelCode, req.apiKey.routing_group_id, new Set(), new Set(), requirements);
   if (!channel) {
     return res.status(503).json({ error: { message: `暂无支持 ${endpoint} 的可用上游渠道`, type: 'no_channel' } });
   }
-  tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, req.apiKey.routing_group_id);
-  imageMultiplier = tokenMultipliers.image;
   billingChannel = channelBillingForModel(db, channel, intent.billingModel);
-  billingMode = billingModeForRequest(billingChannel, true);
   const reservationPricingModel = pricingModelForChannel(db, pricingModel, billingChannel);
-  const reservationPricing = billingMode === 'token'
-    ? buildImagePricing(db, reservationPricingModel, {
-      imageCount: intent.requestedCount,
-      size: resolvedImageSize.billingSize,
-      multiplier: imageMultiplier,
-    })
-    : buildChannelImagePricing(db, reservationPricingModel, billingChannel, {
+  const reservationPricing = buildChannelImagePricing(db, reservationPricingModel, billingChannel, {
     imageCount: intent.requestedCount,
     size: resolvedImageSize.billingSize,
     multiplier: imageMultiplier,
@@ -1385,15 +1420,14 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   }
 
   try {
-    const upstreamResult = await postWithSafeFailover({
+    const upstreamResult = await imageRequestExecutor.execute({
+      prepared: preparedRequest || { endpoint: upstreamEndpoint, body: requestBody },
       db,
       modelCode,
       routingGroupId: req.apiKey.routing_group_id,
       initialChannel: channel,
-      endpoint,
-      body: req.body,
       requirements,
-      transformBody: endpoint === 'responses' ? (body, selected) => {
+      transformBody: upstreamEndpoint === 'responses' ? (body, selected) => {
         const mappedImageModel = intent.billingModel === modelCode
           ? selected.upstream_model_name
           : db.prepare("SELECT upstream_model_name FROM channel_models WHERE channel_id=? AND model_code=? AND status='active'")
@@ -1415,9 +1449,8 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, req.apiKey.routing_group_id);
     imageMultiplier = tokenMultipliers.image;
     billingChannel = channelBillingForModel(db, channel, intent.billingModel);
-    billingMode = billingModeForRequest(billingChannel, true);
     upstreamConfirmed = true;
-    const channelMappedBillingModel = endpoint === 'images/generations'
+    const channelMappedBillingModel = upstreamEndpoint.startsWith('images/')
       ? String(upstreamResult.requestBody.model || intent.billingModel)
       : String(upstreamResult.requestBody.tools?.find(tool => tool?.type === 'image_generation')?.model || intent.billingModel);
     let effectiveBillingModelSource = billingChannel.billing_model_source || 'channel_mapped';
@@ -1433,6 +1466,8 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
       insertUpstreamFailureLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel.id,
         requestIp: req.ip, latencyMs: Date.now() - startTime, error: '上游未返回有效图片结果', billingMode: 'image',
+        imageOperation, imageInputCount: imageMetadata.inputCount,
+        imageOutputFormat: imageMetadata.outputFormat, imageOutputCompression: imageMetadata.outputCompression,
       });
       reportResult(db, channel.id, false);
       return res.status(502).json({ error: { message: '上游未返回有效图片，本次未扣费', type: 'empty_image_result' } });
@@ -1440,23 +1475,17 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     const outputSizes = generatedImageOutputSizes(upstreamResult.response.data);
     resolvedImageSize = resolveImageBillingSize({ inputSize: intent.size, outputSizes });
     const usage = extractUsage(upstreamResult.response.data?.usage || {});
-    usage.serviceTier = upstreamResult.response.data?.service_tier || req.body.service_tier || '';
+    usage.serviceTier = upstreamResult.response.data?.service_tier || requestBody.service_tier || '';
     usage.upstreamModel = String(upstreamResult.response.data?.model || channelMappedBillingModel);
     const settlementPricingModel = pricingModelForChannel(db, pricingModel, billingChannel, usage);
-    const hasExplicitChannelPrice = billingMode === 'token'
-      ? channelHasTokenPricing(billingChannel)
-      : resolveFixedUnitPrice(billingChannel, resolvedImageSize.billingSize) !== null;
-    if (!hasExplicitChannelPrice && confirmedBillingModel !== settlementPricingModel.model_code) {
+    if (resolveFixedUnitPrice(billingChannel, resolvedImageSize.billingSize) === null
+        && confirmedBillingModel !== settlementPricingModel.model_code) {
       confirmedBillingModel = settlementPricingModel.model_code;
       effectiveBillingModelSource = 'requested';
     }
-    settlementPricing = billingMode === 'token'
-      ? buildPricing(db, settlementPricingModel, usage, tokenMultipliers, {
-        channel: billingChannel, serviceTier: usage.serviceTier,
-      })
-      : buildChannelImagePricing(db, settlementPricingModel, billingChannel, {
-        imageCount: actualImageCount, size: resolvedImageSize.billingSize, multiplier: imageMultiplier,
-      });
+    settlementPricing = buildChannelImagePricing(db, settlementPricingModel, billingChannel, {
+      imageCount: actualImageCount, size: resolvedImageSize.billingSize, multiplier: imageMultiplier,
+    });
     settleWalletReservation(db, {
       userId: req.userId,
       reservedAmount,
@@ -1471,8 +1500,10 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
         sizeSource: resolvedImageSize.source,
         sizeBreakdown: outputSizes.map(size => classifyImageBillingTier(size)).filter(Boolean),
         quality: intent.quality, pricing: settlementPricing, model: settlementPricingModel,
-        billingMode, billingModelSource: effectiveBillingModelSource,
+        billingMode: 'image', billingModelSource: effectiveBillingModelSource,
         usage, tokenMultipliers,
+        imageOperation, imageInputCount: imageMetadata.inputCount,
+        imageOutputFormat: imageMetadata.outputFormat, imageOutputCompression: imageMetadata.outputCompression,
         multiplier: imageMultiplier, requestIp: req.ip, latencyMs: Date.now() - startTime,
       }),
     });
@@ -1492,12 +1523,14 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     if (upstreamConfirmed || executionUncertain) {
       const message = executionUncertain
         ? `上游响应不确定，已保留 ${reservedAmount} 点冻结额度等待核对：${error.message}`
-        : `图片生成成功但结算失败，已保留 ${reservedAmount} 点冻结额度等待核对：${error.message}`;
+        : `图片请求成功但结算失败，已保留 ${reservedAmount} 点冻结额度等待核对：${error.message}`;
       insertImageSettlementFailureLog(db, {
         requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode,
         billingModel: confirmedBillingModel, channelId: channel?.id, imageCount: actualImageCount,
         size: intent.size, quality: intent.quality, pricing: settlementPricing || reservationPricing,
         model: pricingModel, multiplier: imageMultiplier, multiplierSources: tokenMultipliers.sources,
+        imageOperation, imageInputCount: imageMetadata.inputCount,
+        imageOutputFormat: imageMetadata.outputFormat, imageOutputCompression: imageMetadata.outputCompression,
         requestIp: req.ip, latencyMs: Date.now() - startTime, error: message,
       });
       return res.status(executionUncertain ? 504 : 500).json({ error: {
@@ -1509,13 +1542,37 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     insertUpstreamFailureLog(db, {
       requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel?.id,
       requestIp: req.ip, latencyMs: Date.now() - startTime, error: upstreamMessage, billingMode: 'image',
+      imageOperation, imageInputCount: imageMetadata.inputCount,
+      imageOutputFormat: imageMetadata.outputFormat, imageOutputCompression: imageMetadata.outputCompression,
     });
-    return res.status(error.response?.status || 500).json({ error: { message: `上游图片生成失败: ${upstreamMessage}`, type: 'upstream_error' } });
+    return res.status(error.response?.status || 500).json({ error: { message: `上游图片请求失败: ${upstreamMessage}`, type: 'upstream_error' } });
+  }
+}
+
+function handleMultipartImageRequest(req, res, { endpoint, endpointCapability }) {
+  try {
+    const files = imageFilesFromRequest(req);
+    const preparedRequest = imageRequestExecutor.prepare({ endpoint, body: req.body || {}, files });
+    return handleImageBilledRequest(req, res, { endpoint, endpointCapability, preparedRequest });
+  } catch (error) {
+    return res.status(error.status || 400).json({ error: {
+      message: error.message || '图片 multipart 请求无效',
+      type: error.type || 'invalid_image_request',
+    } });
   }
 }
 
 router.post('/images/generations', authenticateApiKey, (req, res) => handleImageBilledRequest(
   req, res, { endpoint: 'images/generations', endpointCapability: 'image_generations' },
+));
+router.post('/images/edits', authenticateApiKey, parseImageMultipart, (req, res) => handleMultipartImageRequest(
+  req, res, { endpoint: 'images/edits', endpointCapability: 'image_edits' },
+));
+router.post('/images/variations', authenticateApiKey, parseImageMultipart, (req, res) => handleMultipartImageRequest(
+  req, res, { endpoint: 'images/variations', endpointCapability: 'image_variations' },
+));
+router.post('/images/transformations', authenticateApiKey, parseImageMultipart, (req, res) => handleMultipartImageRequest(
+  req, res, { endpoint: 'images/transformations', endpointCapability: 'image_transformations' },
 ));
 router.post('/responses', authenticateApiKey, (req, res) => handleImageBilledRequest(
   req, res, { endpoint: 'responses', endpointCapability: 'responses' },

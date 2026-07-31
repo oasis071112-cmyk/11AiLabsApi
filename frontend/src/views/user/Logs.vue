@@ -100,6 +100,7 @@
     <div v-if="selectedBilling" class="billing-dialog">
       <div class="billing-summary">
         <div><span>模型</span><strong>{{ selectedBilling.model_code }}</strong></div>
+        <div v-if="selectedBilling.image_operation"><span>图片操作</span><strong>{{ imageOperationLabel(selectedBilling.image_operation) }}</strong></div>
         <div><span>请求时间</span><strong>{{ formatBeijingTime(selectedBilling.created_at) }}</strong></div>
         <div class="billing-total"><span>本次实际扣费</span><strong>{{ point(selectedBilling.total_cost) }} 点</strong></div>
       </div>
@@ -206,6 +207,7 @@ const billingVersion = computed(()=>({snapshot:'调用时官方价格',image_sna
 function statusLabel(s) { const m = { success: '成功', failed: '失败', blocked: '拦截' }; return m[s] || s }
 function billingModeType(mode){return mode==='image'?'warning':mode==='per_request'?'success':'info'}
 function billingModeLabel(row){return row.billing_mode==='image'?`图片 ${row.image_count||0} 张`:row.billing_mode==='per_request'?'每请求':'Token'}
+function imageOperationLabel(operation){return ({generation:'生成',edit:'编辑',variation:'变体',transformation:'变换'})[operation]||operation}
 function openBilling(row){selectedBilling.value=row;billingDialog.value=true}
 function openAllLogs(){logFilter.value={model:filterModel.value,dateRange:[...dateRange.value]};logPage.value=1;showAllLogs.value=true;fetchLogs()}
 function hasBillingDetail(row){return Boolean(row?.billing_detail)}

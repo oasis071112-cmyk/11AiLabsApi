@@ -132,13 +132,15 @@ function generatedImageOutputSizes(payload = {}) {
 
 function imageBillingIntent({ endpoint, body = {} } = {}) {
   const normalizedEndpoint = String(endpoint || '').replace(/^\/?v1\//, '').replace(/^\/+/, '');
-  if (normalizedEndpoint === 'images/generations') {
+  if (['images/generations', 'images/edits', 'images/variations'].includes(normalizedEndpoint)) {
     return {
       billingModel: String(body.model || '').trim(),
       size: String(body.size || 'auto').trim(),
       quality: String(body.quality || 'auto').trim().toLowerCase(),
       requestedCount: positiveInteger(body.n),
-      source: 'images_endpoint',
+      source: normalizedEndpoint === 'images/generations'
+        ? 'images_endpoint'
+        : `images_${normalizedEndpoint.split('/').pop()}`,
     };
   }
   if (normalizedEndpoint === 'responses') {

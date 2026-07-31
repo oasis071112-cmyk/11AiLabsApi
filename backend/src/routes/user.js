@@ -407,7 +407,8 @@ router.get('/logs', authenticate, (req, res) => {
     official_cache_creation_price,official_image_input_price,official_image_output_price,official_unit_tokens,
     usd_cny_rate,billing_multiplier_input,billing_multiplier_output,official_cost_cny,
     billing_mode,billing_model_source,service_tier,long_context_billing_applied,
-    image_count,image_size,image_quality,official_image_unit_price,billing_multiplier_image,
+    image_count,image_size,image_quality,image_operation,image_input_count,image_output_format,image_output_compression,
+    official_image_unit_price,billing_multiplier_image,
     (SELECT base_input_price FROM models WHERE models.model_code=api_request_logs.model_code) as legacy_input_price,
     (SELECT base_output_price FROM models WHERE models.model_code=api_request_logs.model_code) as legacy_output_price
     FROM api_request_logs ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);

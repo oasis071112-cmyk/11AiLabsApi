@@ -12,7 +12,9 @@ const proxyRoutes = require('../src/routes/proxy.js');
 describe('图片生成端点计费', () => {
   let apiServer;
   let upstreamServer;
+  let fallbackUpstreamServer;
   let apiBaseUrl;
+  let fallbackUpstreamBaseUrl;
   let apiKey;
   let apiKeyId;
   let userId;
@@ -23,18 +25,41 @@ describe('图片生成端点计费', () => {
   let groupId;
   let upstreamMode = 'images';
   let upstreamImageSize = null;
+  let lastUpstreamRequest = null;
+  let fallbackUpstreamRequest = null;
 
   beforeAll(async () => {
     upstreamServer = http.createServer((req, res) => {
-      if (req.method !== 'POST' || !['/v1/images/generations', '/v1/responses'].includes(req.url)) {
+      if (req.method !== 'POST' || ![
+        '/v1/images/generations',
+        '/v1/images/edits',
+        '/v1/images/variations',
+        '/v1/responses',
+      ].includes(req.url)) {
         res.writeHead(404).end();
         return;
       }
-      let raw = '';
-      req.setEncoding('utf8');
-      req.on('data', chunk => { raw += chunk; });
+      const chunks = [];
+      req.on('data', chunk => { chunks.push(Buffer.from(chunk)); });
       req.on('end', () => {
-        const body = JSON.parse(raw || '{}');
+        const raw = Buffer.concat(chunks);
+        const contentType = String(req.headers['content-type'] || '');
+        const body = contentType.includes('application/json') ? JSON.parse(raw.toString('utf8') || '{}') : {};
+        lastUpstreamRequest = { url: req.url, contentType, body, raw: raw.toString('utf8') };
+        if (upstreamMode === 'reject') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: 'image rejected by upstream' } }));
+          return;
+        }
+        if (upstreamMode === 'failover') {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: 'primary credentials rejected' } }));
+          return;
+        }
+        if (upstreamMode === 'disconnect') {
+          req.socket.destroy();
+          return;
+        }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(upstreamMode === 'empty'
           ? { created: 1, data: [] }
@@ -57,6 +82,28 @@ describe('图片生成端点计费', () => {
     });
     await new Promise(resolve => upstreamServer.listen(0, '127.0.0.1', resolve));
     const upstreamBaseUrl = `http://127.0.0.1:${upstreamServer.address().port}/v1`;
+    fallbackUpstreamServer = http.createServer((req, res) => {
+      if (req.method !== 'POST' || req.url !== '/v1/images/edits') {
+        res.writeHead(404).end();
+        return;
+      }
+      const chunks = [];
+      req.on('data', chunk => { chunks.push(Buffer.from(chunk)); });
+      req.on('end', () => {
+        fallbackUpstreamRequest = {
+          contentType: String(req.headers['content-type'] || ''),
+          raw: Buffer.concat(chunks).toString('utf8'),
+        };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          created: 1,
+          model: 'fallback-upstream-image-model',
+          data: [{ b64_json: 'fallback-image' }],
+        }));
+      });
+    });
+    await new Promise(resolve => fallbackUpstreamServer.listen(0, '127.0.0.1', resolve));
+    fallbackUpstreamBaseUrl = `http://127.0.0.1:${fallbackUpstreamServer.address().port}/v1`;
 
     await initDatabase();
     const db = getDatabase();
@@ -73,12 +120,17 @@ describe('图片生成端点计费', () => {
       JSON.stringify({ default: 0.04, '1024x1024': 0.04 }), 1.2, 'active',
     );
     channelId = db.prepare(`INSERT INTO upstream_channels
-      (channel_name,base_url,api_key,status,capabilities) VALUES (?,?,?,'active',?)`)
-      .run(`image-channel-${suffix}`, upstreamBaseUrl, 'upstream-image-key', JSON.stringify(['image_generations', 'responses'])).lastInsertRowid;
+      (channel_name,base_url,api_key,status,protocol_type,capabilities) VALUES (?,?,?,'active','openai_compatible',?)`)
+      .run(
+        `image-channel-${suffix}`,
+        upstreamBaseUrl,
+        'upstream-image-key',
+        JSON.stringify(['image_generations', 'image_edits', 'image_variations', 'image_transformations', 'responses']),
+      ).lastInsertRowid;
     groupId = db.prepare('INSERT INTO routing_groups (group_name,status) VALUES (?,?)')
       .run(`image-group-${suffix}`, 'active').lastInsertRowid;
     db.prepare("INSERT INTO routing_group_channels (group_id,channel_id,status) VALUES (?,?,'active')").run(groupId, channelId);
-    db.prepare("INSERT INTO channel_models (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')")
+    db.prepare("INSERT INTO channel_models (channel_id,model_code,upstream_model_name,supports_image_input,status) VALUES (?,?,?,1,'active')")
       .run(channelId, modelCode, 'upstream-image-model');
     secondaryImageModelCode = `secondary-image-model-${suffix}`;
     db.prepare(`INSERT INTO models (
@@ -111,12 +163,21 @@ describe('图片生成端点计费', () => {
   afterAll(async () => {
     if (apiServer) await new Promise(resolve => apiServer.close(resolve));
     if (upstreamServer) await new Promise(resolve => upstreamServer.close(resolve));
+    if (fallbackUpstreamServer) await new Promise(resolve => fallbackUpstreamServer.close(resolve));
   });
 
   async function request(path, options = {}) {
     return fetch(`${apiBaseUrl}${path}`, {
       ...options,
       headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    });
+  }
+
+  async function multipartRequest(path, form) {
+    return fetch(`${apiBaseUrl}${path}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
     });
   }
 
@@ -239,6 +300,32 @@ describe('图片生成端点计费', () => {
     }
   });
 
+  it('Responses 图片编辑输入在请求上游前校验模型图片输入能力', async () => {
+    const db = getDatabase();
+    db.prepare('UPDATE channel_models SET supports_image_input=0 WHERE channel_id=? AND model_code=?')
+      .run(channelId, modelCode);
+    try {
+      const response = await request('/v1/responses', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: modelCode,
+          input: [{ role: 'user', content: [
+            { type: 'input_text', text: 'edit this image' },
+            { type: 'input_image', image_url: 'data:image/png;base64,c291cmNlLWltYWdl' },
+          ] }],
+          tools: [{ type: 'image_generation', model: modelCode, action: 'edit' }],
+          tool_choice: { type: 'image_generation' },
+        }),
+      });
+      expect(response.status).toBe(503);
+      expect((await response.json()).error.type).toBe('no_channel');
+    } finally {
+      db.prepare('UPDATE channel_models SET supports_image_input=1 WHERE channel_id=? AND model_code=?')
+        .run(channelId, modelCode);
+    }
+  });
+
   it('Responses 主模型与图片工具模型不同时使用图片模型映射的计费配置', async () => {
     const response = await request('/v1/responses', {
       method: 'POST',
@@ -294,7 +381,7 @@ describe('图片生成端点计费', () => {
       .run(JSON.stringify({ default: 0.04, '1024x1024': 0.04 }), modelCode);
   });
 
-  it('图片渠道显式 token 模式时按 Sub2API 独占 token 桶计费且只扣一次', async () => {
+  it('图片渠道即使配置 Token 单价仍按图片张数结算且只扣一次', async () => {
     const db = getDatabase();
     db.prepare(`UPDATE channel_models SET
       billing_mode='token',billing_model_source='requested',
@@ -320,7 +407,7 @@ describe('图片生成端点计费', () => {
     expect(response.status).toBe(200);
     const logs = db.prepare("SELECT * FROM api_request_logs WHERE api_key_id=? AND status='success' ORDER BY id DESC LIMIT 2").all(apiKeyId);
     expect(logs[0]).toMatchObject({
-      billing_mode: 'token',
+      billing_mode: 'image',
       billing_model: modelCode,
       billing_model_source: 'requested',
       input_tokens: 1000,
@@ -328,10 +415,11 @@ describe('图片生成端点计费', () => {
       cache_creation_tokens: 100,
       output_tokens: 500,
     });
-    expect(logs[0].total_cost).toBeCloseTo(0.04578, 8);
+    const expectedImageCost = 2 * logs[0].official_image_unit_price * 7 * logs[0].billing_multiplier_image;
+    expect(logs[0].total_cost).toBeCloseTo(expectedImageCost, 8);
     expect(db.prepare('SELECT COUNT(*) count FROM api_request_logs WHERE request_id=?').get(logs[0].request_id).count).toBe(1);
     expect(db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance)
-      .toBeCloseTo(before - 0.04578, 8);
+      .toBeCloseTo(before - expectedImageCost, 8);
 
     db.prepare(`UPDATE channel_models SET
       billing_mode='',billing_model_source='channel_mapped',
@@ -389,5 +477,157 @@ describe('图片生成端点计费', () => {
     expect(wallet.frozen_balance).toBe(0);
     expect(db.prepare("SELECT billing_mode FROM api_request_logs WHERE api_key_id=? AND status='failed' ORDER BY id DESC").get(apiKeyId))
       .toMatchObject({ billing_mode: 'image' });
+    upstreamMode = 'images';
+    db.prepare('UPDATE upstream_channels SET health_score=100,consecutive_failures=0,circuit_breaker_until=NULL WHERE id=?').run(channelId);
+  });
+
+  it('multipart 图片编辑透传图片与蒙版，并沿用单张图片价格结算', async () => {
+    const form = new FormData();
+    form.set('model', modelCode);
+    form.set('prompt', 'replace the sky');
+    form.append('image', new Blob(['source-image'], { type: 'image/png' }), 'source.png');
+    form.append('mask', new Blob(['mask-image'], { type: 'image/png' }), 'mask.png');
+    const response = await multipartRequest('/v1/images/edits', form);
+
+    expect(response.status).toBe(200);
+    expect(lastUpstreamRequest).toMatchObject({ url: '/v1/images/edits' });
+    expect(lastUpstreamRequest.contentType).toContain('multipart/form-data');
+    expect(lastUpstreamRequest.raw).toContain('name="image"; filename="source.png"');
+    expect(lastUpstreamRequest.raw).toContain('name="mask"; filename="mask.png"');
+    const log = getDatabase().prepare(`SELECT image_operation,image_input_count,image_output_format,image_output_compression,
+      image_count,billing_mode FROM api_request_logs WHERE api_key_id=? AND status='success' ORDER BY id DESC`).get(apiKeyId);
+    expect(log).toMatchObject({
+      image_operation: 'edit', image_input_count: 1, image_count: 2, billing_mode: 'image',
+    });
+  });
+
+  it('multipart 图片变体要求图片输入并转发到标准 variations 端点', async () => {
+    const form = new FormData();
+    form.set('model', modelCode);
+    form.set('n', '1');
+    form.append('image', new Blob(['source-image'], { type: 'image/webp' }), 'source.webp');
+    const response = await multipartRequest('/v1/images/variations', form);
+
+    expect(response.status).toBe(200);
+    expect(lastUpstreamRequest).toMatchObject({ url: '/v1/images/variations' });
+    expect(lastUpstreamRequest.raw).toContain('name="image"; filename="source.webp"');
+    const log = getDatabase().prepare('SELECT image_operation,image_input_count FROM api_request_logs WHERE api_key_id=? AND status=\'success\' ORDER BY id DESC').get(apiKeyId);
+    expect(log).toMatchObject({ image_operation: 'variation', image_input_count: 1 });
+  });
+
+  it('扩展变换映射为非流式 Responses 图片编辑工具，并转发格式与压缩参数', async () => {
+    const form = new FormData();
+    form.set('model', modelCode);
+    form.set('prompt', 'preserve content and optimize file size');
+    form.set('output_format', 'webp');
+    form.set('output_compression', '60');
+    form.set('input_fidelity', 'high');
+    form.append('image', new Blob(['source-image'], { type: 'image/jpeg' }), 'source.jpg');
+    const response = await multipartRequest('/v1/images/transformations', form);
+
+    expect(response.status).toBe(200);
+    expect(lastUpstreamRequest).toMatchObject({ url: '/v1/responses' });
+    expect(lastUpstreamRequest.body).toMatchObject({
+      stream: false,
+      tool_choice: { type: 'image_generation' },
+      tools: [{ type: 'image_generation', action: 'edit', output_format: 'webp', output_compression: 60, input_fidelity: 'high' }],
+    });
+    expect(lastUpstreamRequest.body.input[0].content).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'input_image', image_url: expect.stringContaining('data:image/jpeg;base64,') }),
+    ]));
+    const log = getDatabase().prepare(`SELECT image_operation,image_input_count,image_output_format,image_output_compression
+      FROM api_request_logs WHERE api_key_id=? AND status='success' ORDER BY id DESC`).get(apiKeyId);
+    expect(log).toMatchObject({
+      image_operation: 'transformation', image_input_count: 1, image_output_format: 'webp', image_output_compression: 60,
+    });
+    expect(JSON.stringify(log)).not.toContain('source-image');
+  });
+
+  it('图片编辑在安全故障切换后重建 multipart 并由备用渠道成功处理', async () => {
+    const db = getDatabase();
+    const fallbackChannelId = db.prepare(`INSERT INTO upstream_channels
+      (channel_name,base_url,api_key,status,protocol_type,capabilities) VALUES (?,?,?,'active','openai_compatible',?)`)
+      .run(`image-fallback-${Date.now()}`, fallbackUpstreamBaseUrl, 'fallback-image-key',
+        JSON.stringify(['image_edits']))
+      .lastInsertRowid;
+    db.prepare("INSERT INTO routing_group_channels (group_id,channel_id,priority,status) VALUES (?,?,10,'active')")
+      .run(groupId, fallbackChannelId);
+    db.prepare(`INSERT INTO channel_models
+      (channel_id,model_code,upstream_model_name,supports_image_input,status) VALUES (?,?,?,1,'active')`)
+      .run(fallbackChannelId, modelCode, 'fallback-upstream-image-model');
+    db.prepare('UPDATE routing_group_channels SET priority=1 WHERE group_id=? AND channel_id=?')
+      .run(groupId, channelId);
+    upstreamMode = 'failover';
+    fallbackUpstreamRequest = null;
+    try {
+      const form = new FormData();
+      form.set('model', modelCode);
+      form.set('prompt', 'retry through fallback');
+      form.append('image', new Blob(['source-image'], { type: 'image/png' }), 'source.png');
+      const response = await multipartRequest('/v1/images/edits', form);
+
+      expect(response.status).toBe(200);
+      expect(lastUpstreamRequest).toMatchObject({ url: '/v1/images/edits' });
+      expect(fallbackUpstreamRequest).toMatchObject({ contentType: expect.stringContaining('multipart/form-data') });
+      expect(fallbackUpstreamRequest.raw).toContain('name="image"; filename="source.png"');
+      expect(fallbackUpstreamRequest.contentType).not.toBe(lastUpstreamRequest.contentType);
+    } finally {
+      upstreamMode = 'images';
+      db.prepare("UPDATE upstream_channels SET status='inactive' WHERE id=?").run(fallbackChannelId);
+      db.prepare('UPDATE upstream_channels SET health_score=100,consecutive_failures=0,circuit_breaker_until=NULL WHERE id=?').run(channelId);
+    }
+  });
+
+  it('图片编辑收到上游明确 4xx 时释放冻结额度并保留审计快照', async () => {
+    const db = getDatabase();
+    const before = db.prepare('SELECT quota_balance,frozen_balance FROM wallets WHERE user_id=?').get(userId);
+    upstreamMode = 'reject';
+    try {
+      const form = new FormData();
+      form.set('model', modelCode);
+      form.set('prompt', 'the upstream will reject this');
+      form.set('output_format', 'webp');
+      form.append('image', new Blob(['source-image'], { type: 'image/png' }), 'source.png');
+      const response = await multipartRequest('/v1/images/edits', form);
+
+      expect(response.status).toBe(400);
+      expect((await response.json()).error.type).toBe('upstream_error');
+      expect(db.prepare('SELECT quota_balance,frozen_balance FROM wallets WHERE user_id=?').get(userId)).toMatchObject(before);
+      expect(db.prepare(`SELECT error_type,image_operation,image_input_count,image_output_format
+        FROM api_request_logs WHERE api_key_id=? ORDER BY id DESC`).get(apiKeyId)).toMatchObject({
+        error_type: 'upstream_error', image_operation: 'edit', image_input_count: 1, image_output_format: 'webp',
+      });
+    } finally {
+      upstreamMode = 'images';
+      db.prepare('UPDATE upstream_channels SET health_score=100,consecutive_failures=0,circuit_breaker_until=NULL WHERE id=?').run(channelId);
+    }
+  });
+
+  it('图片编辑在上游连接中断时保留冻结额度并写入待核对图片快照', async () => {
+    const db = getDatabase();
+    const beforeFrozen = db.prepare('SELECT frozen_balance FROM wallets WHERE user_id=?').get(userId).frozen_balance;
+    upstreamMode = 'disconnect';
+    try {
+      const form = new FormData();
+      form.set('model', modelCode);
+      form.set('prompt', 'connection will close');
+      form.set('output_format', 'webp');
+      form.set('output_compression', '60');
+      form.append('image', new Blob(['source-image'], { type: 'image/png' }), 'source.png');
+      const response = await multipartRequest('/v1/images/edits', form);
+
+      expect(response.status).toBe(504);
+      expect((await response.json()).error.type).toBe('settlement_pending');
+      expect(db.prepare('SELECT frozen_balance FROM wallets WHERE user_id=?').get(userId).frozen_balance).toBeGreaterThan(beforeFrozen);
+      expect(db.prepare(`SELECT error_type,image_operation,image_input_count,image_output_format,image_output_compression
+        FROM api_request_logs WHERE api_key_id=? ORDER BY id DESC`).get(apiKeyId)).toMatchObject({
+        error_type: 'settlement_failed', image_operation: 'edit', image_input_count: 1,
+        image_output_format: 'webp', image_output_compression: 60,
+      });
+    } finally {
+      upstreamMode = 'images';
+      db.prepare('UPDATE wallets SET frozen_balance=? WHERE user_id=?').run(beforeFrozen, userId);
+      db.prepare('UPDATE upstream_channels SET health_score=100,consecutive_failures=0,circuit_breaker_until=NULL WHERE id=?').run(channelId);
+    }
   });
 });

@@ -439,6 +439,10 @@ function createTables() {
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_multiplier_source_input TEXT'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_multiplier_source_output TEXT'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN billing_multiplier_source_image TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_operation TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_input_count INTEGER DEFAULT 0'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_output_format TEXT'); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE api_request_logs ADD COLUMN image_output_compression INTEGER'); } catch(e) {}
 
   sqlDb.run(`CREATE TABLE IF NOT EXISTS upstream_channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT, channel_name TEXT NOT NULL,

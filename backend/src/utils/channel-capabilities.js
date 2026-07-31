@@ -1,5 +1,8 @@
 const CHANNEL_CAPABILITIES_BY_PROTOCOL = Object.freeze({
-  openai_compatible: Object.freeze(['chat_completions', 'embeddings', 'image_generations', 'responses']),
+  openai_compatible: Object.freeze([
+    'chat_completions', 'embeddings', 'image_generations', 'image_edits',
+    'image_variations', 'image_transformations', 'responses',
+  ]),
   anthropic: Object.freeze(['anthropic_messages', 'anthropic_count_tokens']),
 });
 const DEFAULT_CHANNEL_CAPABILITIES = Object.freeze(['chat_completions']);
