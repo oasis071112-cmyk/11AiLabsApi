@@ -21,7 +21,7 @@ Match Sub2API's billing-rule semantics for the OpenAI-compatible endpoints alrea
    - classify sizes into `1K`, `2K`, and `4K`;
    - unknown or `auto` defaults to `2K`;
    - confirmed output dimensions take precedence over requested input size;
-   - multiple outputs use the highest confirmed tier for the request;
+   - multiple outputs are charged individually at each confirmed output tier; an output without confirmed dimensions falls back to the requested size or `2K`;
    - explicit configured tier prices take priority;
    - otherwise use the Sub2API fallback of USD 0.134 for 1K, 1.5x for 2K, and 2x for 4K.
 8. Image requests use image billing by default. If a selected channel-model mapping explicitly chooses `token`, use returned token usage instead. `per_request` and `image` mappings use their configured per-request/tier price, falling back to model/default image pricing when omitted.
