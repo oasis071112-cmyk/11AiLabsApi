@@ -7,11 +7,18 @@ function resolveRedis(redis) {
   }
 }
 
-function createRedisClient({ url = process.env.REDIS_URL, redis, ...options } = {}) {
+function createRedisClient({ url = process.env.REDIS_URL, redis, onError = () => {}, ...options } = {}) {
   if (!url) throw new Error('必须设置 REDIS_URL');
   const driver = resolveRedis(redis);
   if (typeof driver.createClient !== 'function') throw new Error('Redis 驱动未提供 createClient()');
-  return driver.createClient({ url, ...options });
+  // Gateway lease/rate-limit decisions must fail closed while Redis is down.
+  // Queuing commands offline could make a public request hang and then execute
+  // after recovery with stale scheduling assumptions.
+  const client = driver.createClient({ url, disableOfflineQueue: true, ...options });
+  // node-redis requires an error listener; without one a transient socket loss
+  // becomes an uncaught exception and interrupts its reconnect state machine.
+  if (typeof client.on === 'function') client.on('error', onError);
+  return client;
 }
 
 async function checkRedis(client) {

@@ -36,6 +36,37 @@ function optionalPositiveNumber(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function optionalNonNegativeNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function optionalNonNegativeInteger(value) {
+  const parsed = optionalNonNegativeNumber(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+function jsonObject(value) {
+  const parsed = jsonValue(value);
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalJson(value[key])]));
+}
+
+function legacyUtcTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const text = String(value).trim();
+  const naiveUtc = text.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/);
+  if (naiveUtc) return new Date(`${naiveUtc[1]}T${naiveUtc[2]}Z`).toISOString();
+  const parsed = new Date(text);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
+}
+
 function stringArray(value) {
   if (Array.isArray(value)) return value.map(String);
   if (typeof value !== 'string' || !value.trim()) return [];
@@ -67,10 +98,20 @@ function buildControlPlaneImportPlan(snapshot = {}) {
     records.push(importRecord('model', { modelCode: model.model_code }, {
       modelCode: model.model_code,
       modelName: model.model_name,
-      provider: model.official_provider || 'legacy',
+      provider: model.official_provider || model.provider || 'legacy',
       modelType: model.model_type || 'llm',
       status: model.status === 'active' ? 'active' : 'inactive',
       metadata: model,
+      contextLength: optionalNonNegativeInteger(model.context_length),
+      sortOrder: optionalNonNegativeInteger(model.sort_order) || 0,
+      capabilities: jsonObject(model.capabilities),
+      officialProvider: model.official_provider || null,
+      officialCurrency: model.official_currency || null,
+      officialInputPrice: optionalNonNegativeNumber(model.official_input_price),
+      officialOutputPrice: optionalNonNegativeNumber(model.official_output_price),
+      officialCachedInputPrice: optionalNonNegativeNumber(model.official_cached_input_price),
+      officialUnitTokens: optionalNonNegativeInteger(model.official_unit_tokens),
+      officialPriceUpdatedAt: legacyUtcTimestamp(model.official_price_updated_at),
     }));
   }
   for (const rule of snapshot.pricingRules || []) {
@@ -349,6 +390,24 @@ function createPostgresControlPlaneSink(client) {
       throw new Error(`${label} 导入核对失败: expected=${expectedValue ?? 'null'} actual=${actualValue ?? 'null'}`);
     }
   };
+  const assertImportedJson = (label, expected, actual) => {
+    const expectedJson = JSON.stringify(canonicalJson(expected ?? {}));
+    const actualJson = JSON.stringify(canonicalJson(actual ?? {}));
+    if (expectedJson !== actualJson) {
+      throw new Error(`${label} 导入核对失败: expected=${expectedJson} actual=${actualJson}`);
+    }
+  };
+  const assertImportedTimestamp = (label, expected, actual) => {
+    if (expected === null || expected === undefined || expected === '') {
+      assertImportedValue(label, null, actual);
+      return;
+    }
+    const expectedTime = new Date(expected).getTime();
+    const actualTime = new Date(actual).getTime();
+    if (!Number.isFinite(expectedTime) || expectedTime !== actualTime) {
+      throw new Error(`${label} 导入核对失败: expected=${expected} actual=${actual ?? 'null'}`);
+    }
+  };
   return {
     async upsert(record) {
       const value = record.value;
@@ -359,10 +418,22 @@ function createPostgresControlPlaneSink(client) {
             ON CONFLICT (username) DO UPDATE SET email=EXCLUDED.email,password_hash=EXCLUDED.password_hash,role=EXCLUDED.role,status=EXCLUDED.status,updated_at=CURRENT_TIMESTAMP`,
           [value.username, value.email, value.passwordHash, value.role, value.status]);
         case 'model':
-          return client.query(`INSERT INTO models (model_code,model_name,provider,model_type,status,metadata)
-            VALUES ($1,$2,$3,$4,$5,$6::jsonb)
-            ON CONFLICT (model_code) DO UPDATE SET model_name=EXCLUDED.model_name,provider=EXCLUDED.provider,model_type=EXCLUDED.model_type,status=EXCLUDED.status,metadata=EXCLUDED.metadata,updated_at=CURRENT_TIMESTAMP`,
-          [value.modelCode, value.modelName, value.provider, value.modelType, value.status, JSON.stringify(value.metadata)]);
+          return client.query(`INSERT INTO models
+            (model_code,model_name,provider,model_type,status,metadata,context_length,sort_order,capabilities,
+              official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,
+              official_unit_tokens,official_price_updated_at)
+            VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15,$16)
+            ON CONFLICT (model_code) DO UPDATE SET model_name=EXCLUDED.model_name,provider=EXCLUDED.provider,
+              model_type=EXCLUDED.model_type,status=EXCLUDED.status,metadata=EXCLUDED.metadata,
+              context_length=EXCLUDED.context_length,sort_order=EXCLUDED.sort_order,capabilities=EXCLUDED.capabilities,
+              official_provider=EXCLUDED.official_provider,official_currency=EXCLUDED.official_currency,
+              official_input_price=EXCLUDED.official_input_price,official_output_price=EXCLUDED.official_output_price,
+              official_cached_input_price=EXCLUDED.official_cached_input_price,official_unit_tokens=EXCLUDED.official_unit_tokens,
+              official_price_updated_at=EXCLUDED.official_price_updated_at,updated_at=CURRENT_TIMESTAMP`,
+          [value.modelCode, value.modelName, value.provider, value.modelType, value.status, JSON.stringify(value.metadata),
+            value.contextLength, value.sortOrder, JSON.stringify(value.capabilities), value.officialProvider,
+            value.officialCurrency, value.officialInputPrice, value.officialOutputPrice, value.officialCachedInputPrice,
+            value.officialUnitTokens, value.officialPriceUpdatedAt]);
         case 'pricing_rule':
           return client.query(`INSERT INTO pricing_rules (rule_key,model_code,billing_mode,rule,status)
             VALUES ($1,$2,$3,$4::jsonb,$5)
@@ -436,27 +507,31 @@ function createPostgresControlPlaneSink(client) {
     },
     async verify({ plan, secretBox }) {
       const expected = entity => plan.records.filter(record => record.entity === entity);
-      const [staff, models, prices, configs, accounts, mappings, groups, members, groupModels, payments, userPlane] = await Promise.all([
-        client.query('SELECT username FROM staff_users ORDER BY username'),
-        client.query('SELECT model_code FROM models ORDER BY model_code'),
-        client.query('SELECT rule_key FROM pricing_rules ORDER BY rule_key'),
-        client.query('SELECT config_key,config_value FROM system_config ORDER BY config_key'),
-        client.query(`SELECT account_key,api_key_envelope,max_concurrency,rpm_limit,tpm_limit,cooldown_seconds,priority,weight
-          FROM upstream_accounts ORDER BY account_key`),
-        client.query(`SELECT ua.account_key,am.model_code,am.upstream_model_name,am.supports_image_input,am.status FROM account_models am
-          JOIN upstream_accounts ua ON ua.id=am.account_id ORDER BY ua.account_key,am.model_code`),
-        client.query(`SELECT rg.group_key,fallback.group_key AS fallback_group_key,rg.description,rg.restrict_models,
-            rg.billing_multiplier_input,rg.billing_multiplier_output,rg.billing_multiplier_image
-          FROM routing_groups rg LEFT JOIN routing_groups fallback ON fallback.id=rg.fallback_group_id ORDER BY rg.group_key`),
-        client.query(`SELECT rg.group_key,ua.account_key,rga.priority,rga.weight,rga.status FROM routing_group_accounts rga
-          JOIN routing_groups rg ON rg.id=rga.routing_group_id JOIN upstream_accounts ua ON ua.id=rga.account_id
-          ORDER BY rg.group_key,ua.account_key`),
-        client.query(`SELECT rg.group_key,rgm.model_code,rgm.status,rgm.billing_multiplier,
-            rgm.billing_multiplier_input,rgm.billing_multiplier_output,rgm.billing_multiplier_image
-          FROM routing_group_models rgm
-          JOIN routing_groups rg ON rg.id=rgm.routing_group_id ORDER BY rg.group_key,rgm.model_code`),
-        client.query('SELECT provider_code,secret_envelope,status FROM payment_providers ORDER BY provider_code'),
-        client.query(`SELECT
+      // A PostgreSQL transaction client is a single connection. Running these
+      // verification reads concurrently is deprecated by pg and can interleave
+      // protocol messages, so keep the audit boundary deliberately sequential.
+      const staff = await client.query('SELECT username FROM staff_users ORDER BY username');
+      const models = await client.query(`SELECT model_code,context_length,sort_order,capabilities,official_provider,
+        official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,
+        official_price_updated_at FROM models ORDER BY model_code`);
+      const prices = await client.query('SELECT rule_key FROM pricing_rules ORDER BY rule_key');
+      const configs = await client.query('SELECT config_key,config_value FROM system_config ORDER BY config_key');
+      const accounts = await client.query(`SELECT account_key,api_key_envelope,max_concurrency,rpm_limit,tpm_limit,cooldown_seconds,priority,weight
+        FROM upstream_accounts ORDER BY account_key`);
+      const mappings = await client.query(`SELECT ua.account_key,am.model_code,am.upstream_model_name,am.supports_image_input,am.status FROM account_models am
+        JOIN upstream_accounts ua ON ua.id=am.account_id ORDER BY ua.account_key,am.model_code`);
+      const groups = await client.query(`SELECT rg.group_key,fallback.group_key AS fallback_group_key,rg.description,rg.restrict_models,
+          rg.billing_multiplier_input,rg.billing_multiplier_output,rg.billing_multiplier_image
+        FROM routing_groups rg LEFT JOIN routing_groups fallback ON fallback.id=rg.fallback_group_id ORDER BY rg.group_key`);
+      const members = await client.query(`SELECT rg.group_key,ua.account_key,rga.priority,rga.weight,rga.status FROM routing_group_accounts rga
+        JOIN routing_groups rg ON rg.id=rga.routing_group_id JOIN upstream_accounts ua ON ua.id=rga.account_id
+        ORDER BY rg.group_key,ua.account_key`);
+      const groupModels = await client.query(`SELECT rg.group_key,rgm.model_code,rgm.status,rgm.billing_multiplier,
+          rgm.billing_multiplier_input,rgm.billing_multiplier_output,rgm.billing_multiplier_image
+        FROM routing_group_models rgm
+        JOIN routing_groups rg ON rg.id=rgm.routing_group_id ORDER BY rg.group_key,rgm.model_code`);
+      const payments = await client.query('SELECT provider_code,secret_envelope,status FROM payment_providers ORDER BY provider_code');
+      const userPlane = await client.query(`SELECT
           (SELECT COUNT(*) FROM users) AS users,
           (SELECT COUNT(*) FROM wallets) AS wallets,
           (SELECT COUNT(*) FROM wallet_transactions) AS wallet_transactions,
@@ -468,8 +543,7 @@ function createPostgresControlPlaneSink(client) {
           (SELECT COUNT(*) FROM user_daily_usage) AS user_daily_usage,
           (SELECT COUNT(*) FROM platform_daily_usage) AS platform_daily_usage,
           (SELECT COUNT(*) FROM upstream_account_probes) AS upstream_account_probes,
-          (SELECT COUNT(*) FROM audit_logs) AS audit_logs`),
-      ]);
+          (SELECT COUNT(*) FROM audit_logs) AS audit_logs`);
       assertSetEqual('staff_users', expected('staff_user').map(record => record.value.username), staff.rows.map(row => row.username));
       assertSetEqual('models', expected('model').map(record => record.value.modelCode), models.rows.map(row => row.model_code));
       assertSetEqual('pricing_rules', expected('pricing_rule').map(record => record.value.ruleKey), prices.rows.map(row => row.rule_key));
@@ -479,6 +553,18 @@ function createPostgresControlPlaneSink(client) {
       assertSetEqual('routing_group_accounts', expected('routing_group_account').map(record => `${record.value.groupKey}:${record.value.accountKey}`), members.rows.map(row => `${row.group_key}:${row.account_key}`));
       assertSetEqual('routing_group_models', expected('routing_group_model').map(record => `${record.value.groupKey}:${record.value.modelCode}`), groupModels.rows.map(row => `${row.group_key}:${row.model_code}`));
       assertSetEqual('payment_providers', expected('payment_provider').map(record => record.value.providerCode), payments.rows.map(row => row.provider_code));
+      const modelByCode = new Map(models.rows.map(row => [row.model_code, row]));
+      for (const record of expected('model')) {
+        const row = modelByCode.get(record.value.modelCode);
+        for (const [field, column] of [
+          ['contextLength', 'context_length'], ['sortOrder', 'sort_order'], ['officialProvider', 'official_provider'],
+          ['officialCurrency', 'official_currency'], ['officialInputPrice', 'official_input_price'],
+          ['officialOutputPrice', 'official_output_price'], ['officialCachedInputPrice', 'official_cached_input_price'],
+          ['officialUnitTokens', 'official_unit_tokens'],
+        ]) assertImportedValue(`models.${record.value.modelCode}.${column}`, record.value[field], row?.[column]);
+        assertImportedJson(`models.${record.value.modelCode}.capabilities`, record.value.capabilities, row?.capabilities);
+        assertImportedTimestamp(`models.${record.value.modelCode}.official_price_updated_at`, record.value.officialPriceUpdatedAt, row?.official_price_updated_at);
+      }
       const accountByKey = new Map(accounts.rows.map(row => [row.account_key, row]));
       for (const record of expected('upstream_account')) {
         const row = accountByKey.get(record.value.accountKey);

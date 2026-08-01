@@ -35,6 +35,23 @@ describe('PostgreSQL public proxy adapters', () => {
     }]);
   });
 
+  it('checks configured model capability inside the API key routing group', async () => {
+    const pool = { query: vi.fn().mockResolvedValue({ rows: [{ supported: false }] }) };
+    const repository = new PostgresProxyRepository(pool);
+
+    const supported = await repository.supportsCapability(
+      { routingGroupId: 7 },
+      'public-image',
+      'image_transformations',
+    );
+
+    expect(supported).toBe(false);
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("ua.capabilities ? $3"),
+      ['public-image', 7, 'image_transformations'],
+    );
+  });
+
   it('quotes token reservations and settles using catalog prices and group multipliers', async () => {
     const pool = {
       query: vi.fn().mockResolvedValue({
@@ -215,7 +232,7 @@ describe('PostgreSQL public proxy adapters', () => {
           model_code: 'public-image',
           model_type: 'image',
           context_length: null,
-          metadata: { official_image_prices: { '1K': 0.1 } },
+          metadata: { official_image_prices: { '1K': 0.1, '2K': 0.2 } },
           official_currency: 'USD',
           official_input_price: null,
           official_output_price: null,
@@ -238,19 +255,56 @@ describe('PostgreSQL public proxy adapters', () => {
       model: 'public-image',
       request: { size: '1K' },
       imageCount: 2,
+      response: { data: [{ width: 2048, height: 1024 }, { width: 2048, height: 1024 }] },
     });
 
-    expect(charge.amount).toBeCloseTo(2.8, 10);
+    expect(charge.amount).toBeCloseTo(5.6, 10);
     expect(charge).toMatchObject({
       billingMode: 'image',
       snapshot: {
-        size: '1K',
+        size: '2K',
+        input_size: '1K',
+        output_size: '2048x1024',
+        size_source: 'output',
         image_count: 2,
-        unit_price: 0.1,
+        unit_price: 0.2,
         currency: 'USD',
         multiplier: 2,
       },
     });
+  });
+
+  it('charges mixed-size image output per actual tier instead of applying the largest tier to every image', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{
+          model_code: 'public-image', model_type: 'image', context_length: null,
+          metadata: { official_image_prices: { '1K': 0.1, '4K': 0.4 } },
+          official_currency: 'USD', official_input_price: null, official_output_price: null,
+          official_cached_input_price: null, official_unit_tokens: null,
+          input_multiplier: 1, output_multiplier: 1, image_multiplier: 2,
+          billing_mode: 'image', rule: {}, usd_cny_rate: 7,
+        }],
+      }),
+    };
+    const policy = new PostgresProxyBillingPolicy(pool);
+
+    const charge = await policy.quoteCharge({
+      identity: { routingGroupId: 9 }, operation: 'image_generations', model: 'public-image',
+      request: { size: 'auto' }, imageCount: 2,
+      response: { data: [{ width: 1024, height: 1024 }, { width: 3840, height: 2160 }] },
+    });
+
+    expect(charge.amount).toBeCloseTo(7, 10);
+    expect(charge.snapshot).toMatchObject({
+      size: '4K', image_count: 2, size_breakdown: { '1K': 1, '4K': 1 },
+      tier_charges: {
+        '1K': { image_count: 1, unit_price: 0.1 },
+        '4K': { image_count: 1, unit_price: 0.4 },
+      },
+    });
+    expect(charge.snapshot.tier_charges['1K'].total_cost).toBeCloseTo(1.4, 10);
+    expect(charge.snapshot.tier_charges['4K'].total_cost).toBeCloseTo(5.6, 10);
   });
 
   it('prefreezes image output from the highest eligible mapping price when catalog pricing is absent', async () => {

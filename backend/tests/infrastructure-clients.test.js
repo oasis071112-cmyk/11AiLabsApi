@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
@@ -19,17 +19,20 @@ const { createRedisClient, checkRedis } = require('../src/infrastructure/redis.j
 
 describe('infrastructure client seams', () => {
   it('creates injected Postgres and Redis clients without importing application routes', async () => {
+    const redisOn = vi.fn();
     const pool = createPostgresPool({
       connectionString: 'postgresql://pool-test',
       pg: { Pool: class { constructor(options) { this.options = options; } } },
     });
     const redis = createRedisClient({
       url: 'redis://redis-test',
-      redis: { createClient: options => ({ options }) },
+      redis: { createClient: options => ({ options, on: redisOn }) },
     });
 
     expect(pool.options.connectionString).toBe('postgresql://pool-test');
     expect(redis.options.url).toBe('redis://redis-test');
+    expect(redis.options.disableOfflineQueue).toBe(true);
+    expect(redisOn).toHaveBeenCalledWith('error', expect.any(Function));
 
     const queries = [];
     const client = { query: async sql => { queries.push(sql); return { rows: [{ ok: 1 }] }; }, release: () => queries.push('release') };

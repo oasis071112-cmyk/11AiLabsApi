@@ -88,7 +88,11 @@ async function postgresRuntime({ env, pg, redis, logger, databaseUrl }) {
     throw new Error('PostgreSQL runtime requires JWT_SECRET with at least 32 bytes');
   }
   const secretBox = secretBoxFromEnvironment(env);
-  const redisClient = createRedisClient({ url: env.REDIS_URL, redis });
+  const redisClient = createRedisClient({
+    url: env.REDIS_URL,
+    redis,
+    onError: error => logger.warn?.(`[redis] ${error.message}`),
+  });
   const pool = createPostgresPool({
     connectionString: databaseUrl,
     pg,

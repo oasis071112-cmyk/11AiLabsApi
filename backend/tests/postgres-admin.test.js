@@ -30,8 +30,11 @@ describe('PostgreSQL management compatibility router', () => {
       getChannelMonitoring: vi.fn(async (id, options) => ({
         account: { id: Number(id), channel_name: 'primary', secret_configured: true },
         window_hours: options.windowHours,
-        summary: { total: 4, healthy: 3, availability_percent: 75, average_latency_ms: 120 },
-        history: [{ id: 1, status: 'healthy', latency_ms: 100 }],
+        summary: {
+          total: 4, healthy: 3, availability_percent: 75, average_latency_ms: 120,
+          last_checked_at: new Date('2026-08-01T00:00:00.000Z'),
+        },
+        history: [{ id: 1, status: 'healthy', latency_ms: 100, checked_at: new Date('2026-08-01T00:00:00.000Z') }],
       })),
       createChannel: vi.fn(async body => ({ id: 7, channel_name: body.channel_name, secret_configured: true })),
       updateChannel: vi.fn(async (id, body) => ({ id, channel_name: body.channel_name, secret_configured: true })),
@@ -87,7 +90,11 @@ describe('PostgreSQL management compatibility router', () => {
       ['/keys', { data: [{ key_prefix: 'sk-test' }] }],
       ['/logs', { data: [{ request_id: 'req-1' }] }],
       ['/accounts', { data: [{ channel_name: 'primary' }] }],
-      ['/accounts/7/monitor?window_hours=12&limit=25', { window_hours: 12, summary: { availability_percent: 75 } }],
+      ['/accounts/7/monitor?window_hours=12&limit=25', {
+        window_hours: 12,
+        summary: { availability_percent: 75, last_checked_at: '2026-08-01T00:00:00.000Z' },
+        history: [{ checked_at: '2026-08-01T00:00:00.000Z' }],
+      }],
     ]) {
       const response = await request(path);
       expect(response.status).toBe(200);

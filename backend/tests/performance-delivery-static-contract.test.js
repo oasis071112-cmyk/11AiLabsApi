@@ -6,12 +6,25 @@ import { describe, expect, it } from 'vitest';
 const repositoryRoot = path.resolve(import.meta.dirname, '../..');
 const require = createRequire(import.meta.url);
 const { resolveLoadConfig } = require('../load/safety.js');
+const { createMockUpstreamServer } = require('../load/mock-upstream.js');
 
 function read(relativePath) {
   return fs.readFileSync(path.join(repositoryRoot, relativePath), 'utf8');
 }
 
 describe('performance and load delivery contract', () => {
+  it('keeps worker probes healthy while serving the isolated mock upstream', async () => {
+    const mock = createMockUpstreamServer({ port: 0, logger: { info() {} } });
+    const address = await mock.listen();
+    try {
+      const response = await fetch(`http://${address.host}:${address.port}/primary/v1/models`);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ object: 'list', data: [{ id: 'load-chat' }] });
+    } finally {
+      await mock.close();
+    }
+  });
+
   it('defaults to a localhost mock and blocks external load targets without an explicit override', () => {
     expect(resolveLoadConfig({})).toMatchObject({ target: 'http://127.0.0.1:4010', isLocalTarget: true });
     expect(() => resolveLoadConfig({ LOAD_TARGET: 'https://upstream.example' })).toThrow(/ALLOW_EXTERNAL_LOAD_TARGET=true/);

@@ -35,6 +35,7 @@ function requireStatus(value, label) {
 
 function publicValue(value) {
   if (Array.isArray(value)) return value.map(publicValue);
+  if (value instanceof Date) return value.toISOString();
   if (!value || typeof value !== 'object') return value;
   const result = {};
   for (const [key, child] of Object.entries(value)) {

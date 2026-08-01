@@ -17,7 +17,15 @@ PostgreSQL 运行模式已经接入 Express API 与独立 worker。`DATABASE_URL
 {
   "status": "ok",
   "database": { "status": "ok", "driver": "postgresql", "latencyMs": 3 },
-  "schema": { "status": "ok", "missing": [], "mismatched": [], "unexpected": [] },
+  "schema": {
+    "status": "ok",
+    "expectedCount": 5,
+    "appliedCount": 5,
+    "missing": [],
+    "mismatched": [],
+    "unexpected": [],
+    "currentPartition": { "status": "ok", "attached": true, "partitionName": "api_request_logs_2026_08" }
+  },
   "redis": { "status": "ok", "latencyMs": 1 },
   "worker": { "status": "ok", "heartbeat": "2026-08-01T00:00:00.000Z" },
   "ready": true

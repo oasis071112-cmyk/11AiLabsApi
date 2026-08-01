@@ -3,6 +3,10 @@ const {
   calculatePricing,
   resolveImageUnitPrice,
 } = require('../../utils/pricing-engine');
+const {
+  generatedImageOutputSizes,
+  resolveImageBillingSize,
+} = require('../../utils/image-billing');
 
 function jsonObject(value) {
   if (!value) return {};
@@ -96,6 +100,30 @@ class PostgresProxyRepository {
       owned_by: row.provider || 'ionailabs',
       capabilities: jsonObject(row.effective_capabilities),
     }));
+  }
+
+  async supportsCapability(identity = {}, model, capability) {
+    const { rows } = await this.pool.query(`
+      WITH RECURSIVE eligible_groups AS (
+        SELECT id,fallback_group_id FROM routing_groups
+        WHERE status='active' AND ($2::bigint IS NULL OR id=$2)
+        UNION
+        SELECT fallback.id,fallback.fallback_group_id FROM routing_groups fallback
+        JOIN eligible_groups current ON fallback.id=current.fallback_group_id
+        WHERE fallback.status='active'
+      )
+      SELECT EXISTS (
+        SELECT 1 FROM account_models am
+        JOIN models m ON m.model_code=am.model_code AND m.status='active'
+        JOIN upstream_accounts ua ON ua.id=am.account_id AND ua.status='active'
+        JOIN routing_group_accounts rga ON rga.account_id=ua.id AND rga.status='active'
+        JOIN eligible_groups eligible ON eligible.id=rga.routing_group_id
+        WHERE am.model_code=$1 AND am.status='active'
+          AND ua.capabilities ? $3
+          AND ($3 NOT IN ('image_edits','image_variations','image_transformations') OR am.supports_image_input)
+      ) AS supported
+    `, [model, identity.routingGroupId ?? null, capability]);
+    return rows[0]?.supported === true || rows[0]?.supported === 't';
   }
 }
 
@@ -197,29 +225,62 @@ class PostgresProxyBillingPolicy {
 
   imageQuote(policy, context, imageCount) {
     const mapped = this.mappedConfiguration(context);
-    const size = String(context.request?.size || '2K');
-    const tier = size.toUpperCase();
-    const channelPrice = price(
-      mapped[`image_price_${tier.toLowerCase()}`],
-      mapped[`image_price_${tier.replace('K', 'k')}`],
-    );
-    let unitPrice = channelPrice > 0
-      ? channelPrice
-      : resolveImageUnitPrice({ serializedPrices: policy.imagePrices, sizeTier: size });
-    if (!(unitPrice > 0)) unitPrice = resolveImageUnitPrice({ serializedPrices: {}, sizeTier: size });
-    const result = calculateImagePricing({
-      imageCount,
-      unitPrice,
-      currency: channelPrice > 0 ? 'USD' : policy.currency,
-      multiplier: policy.multipliers.image,
-      usdCnyRate: policy.usdCnyRate,
+    const sizeResolution = resolveImageBillingSize({
+      inputSize: context.request?.size,
+      outputSizes: generatedImageOutputSizes(context.response || {}),
     });
+    const size = sizeResolution.billingSize;
+    const requestedCount = Math.max(0, Math.floor(Number(imageCount || 0)));
+    const actualBreakdown = sizeResolution.source === 'output' && sizeResolution.breakdown
+      ? sizeResolution.breakdown
+      : null;
+    const tierCounts = {};
+    let remaining = requestedCount;
+    for (const tier of ['1K', '2K', '4K']) {
+      const count = Math.min(remaining, Math.max(0, Math.floor(Number(actualBreakdown?.[tier] || 0))));
+      if (count > 0) tierCounts[tier] = count;
+      remaining -= count;
+    }
+    if (remaining > 0) tierCounts[size] = (tierCounts[size] || 0) + remaining;
+
+    let amount = 0;
+    const tierCharges = {};
+    for (const [tier, count] of Object.entries(tierCounts)) {
+      const channelPrice = price(
+        mapped[`image_price_${tier.toLowerCase()}`],
+        mapped[`image_price_${tier.replace('K', 'k')}`],
+      );
+      let unitPrice = channelPrice > 0
+        ? channelPrice
+        : resolveImageUnitPrice({ serializedPrices: policy.imagePrices, sizeTier: tier });
+      if (!(unitPrice > 0)) unitPrice = resolveImageUnitPrice({ serializedPrices: {}, sizeTier: tier });
+      const currency = channelPrice > 0 ? 'USD' : policy.currency;
+      const result = calculateImagePricing({
+        imageCount: count,
+        unitPrice,
+        currency,
+        multiplier: policy.multipliers.image,
+        usdCnyRate: policy.usdCnyRate,
+      });
+      amount += result.userCostPoints;
+      tierCharges[tier] = {
+        image_count: count,
+        unit_price: unitPrice,
+        currency,
+        total_cost: result.userCostPoints,
+      };
+    }
+    const chargeTiers = Object.keys(tierCharges);
+    const singleTier = chargeTiers.length === 1 ? tierCharges[chargeTiers[0]] : null;
     return {
-      amount: result.userCostPoints,
+      amount,
       billingMode: 'image',
       snapshot: {
-        mode: 'image', size, image_count: imageCount, unit_price: unitPrice,
-        currency: channelPrice > 0 ? 'USD' : policy.currency,
+        mode: 'image', size, requested_size: String(context.request?.size || ''),
+        input_size: sizeResolution.inputSize || '', output_size: sizeResolution.outputSize || '',
+        size_source: sizeResolution.source, size_breakdown: tierCounts,
+        image_count: requestedCount, unit_price: singleTier?.unit_price ?? null,
+        currency: singleTier?.currency ?? 'mixed', tier_charges: tierCharges,
         multiplier: policy.multipliers.image,
       },
     };
@@ -227,7 +288,7 @@ class PostgresProxyBillingPolicy {
 
   reservationImageQuote(policy, context, imageCount) {
     const quotes = [this.imageQuote(policy, context, imageCount)];
-    const size = String(context.request?.size || '2K').toUpperCase();
+    const size = quotes[0].snapshot.size;
     for (const configuration of policy.candidateConfigurations) {
       const mapped = jsonObject(configuration);
       const unitPrice = price(

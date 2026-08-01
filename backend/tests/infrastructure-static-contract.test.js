@@ -20,5 +20,7 @@ describe('infrastructure delivery contract', () => {
     expect(healthContract).toContain('checkPostgres');
     expect(healthContract).toContain('checkRedis');
     expect(healthContract).toContain('/api/ready');
+    const apiSource = fs.readFileSync(path.join(repositoryRoot, 'backend/src/index.js'), 'utf8');
+    expect(apiSource).toContain('schema: runtimeHealth.schema');
   });
 });

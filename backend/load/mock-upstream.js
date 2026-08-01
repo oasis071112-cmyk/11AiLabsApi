@@ -38,6 +38,10 @@ function isChatPath(pathname) {
   return pathname === '/v1/chat/completions' || pathname.endsWith('/v1/chat/completions');
 }
 
+function isModelsPath(pathname) {
+  return pathname === '/v1/models' || pathname.endsWith('/v1/models');
+}
+
 function isPrimaryPath(pathname) {
   return pathname.startsWith('/primary/');
 }
@@ -45,6 +49,12 @@ function isPrimaryPath(pathname) {
 function createMockUpstreamServer({ host = '127.0.0.1', port = 4010, logger = console } = {}) {
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host || host}`);
+    if (request.method === 'GET' && isModelsPath(url.pathname)) {
+      return sendJson(response, 200, {
+        object: 'list',
+        data: [{ id: 'load-chat', object: 'model', owned_by: 'mock-upstream' }],
+      });
+    }
     if (request.method !== 'POST' || !isChatPath(url.pathname)) {
       return sendJson(response, 404, { error: { message: 'mock endpoint not found', type: 'not_found' } });
     }

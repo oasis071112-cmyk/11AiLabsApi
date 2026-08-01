@@ -134,6 +134,7 @@ async function healthResponse(req, res) {
       ...(applicationRuntime?.mode === 'legacy_sqljs' ? { path: dbPath } : {}),
     },
     redis: runtimeHealth.redis,
+    schema: runtimeHealth.schema || { status: applicationRuntime?.mode === 'legacy_sqljs' ? 'disabled' : 'unknown' },
     worker: runtimeHealth.worker || { status: applicationRuntime?.mode === 'legacy_sqljs' ? 'disabled' : 'unknown' },
     runtime: applicationRuntime?.mode || 'starting',
     ready: runtimeHealth.ready,

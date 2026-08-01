@@ -142,7 +142,15 @@ function createPostgresProxyRouter({
     return null;
   }
 
-  function successLog({ requestId, identityContext, model, operation, execution, usage, imageCount, charge, reservation, startedAt }) {
+  function successLog({
+    requestId, identityContext, model, operation, endpoint, request,
+    execution, usage, imageCount, charge, reservation, startedAt,
+  }) {
+    const requestedCompression = Number(request?.output_compression);
+    const finalSize = charge.snapshot?.output_size
+      || charge.snapshot?.input_size
+      || request?.size
+      || null;
     return {
       request_id: requestId,
       user_id: identityContext.userId,
@@ -155,6 +163,18 @@ function createPostgresProxyRouter({
       output_tokens: usage.outputTokens,
       total_cost: Number(charge.amount || 0),
       billing_mode: charge.billingMode || (imageCount > 0 ? 'image' : 'token'),
+      endpoint,
+      operation,
+      output_items: imageCount,
+      final_size: finalSize,
+      output_format: request?.output_format || request?.format || null,
+      output_compression: Number.isFinite(requestedCompression) ? requestedCompression : null,
+      image_metadata: {
+        input_image_count: Number(request?.input_image_count || 0),
+        has_mask: Boolean(request?.has_mask),
+        billing_size: charge.snapshot?.size || null,
+        size_source: charge.snapshot?.size_source || null,
+      },
       billing_snapshot: {
         operation,
         image_count: imageCount,
@@ -197,6 +217,25 @@ function createPostgresProxyRouter({
       if (Array.isArray(identityContext.allowedModels) && !identityContext.allowedModels.includes(model)) {
         return apiError(res, protocol, 404, `Model ${model} is not available`, 'model_not_found');
       }
+      const requiredCapability = prepared.capability || capability;
+      if (typeof repository.supportsCapability === 'function') {
+        let supported;
+        try {
+          supported = await repository.supportsCapability(identityContext, model, requiredCapability);
+        } catch (error) {
+          return next(error);
+        }
+        if (!supported) {
+          return apiError(
+            res,
+            protocol,
+            400,
+            `${requiredCapability} is not supported for model ${model}`,
+            'invalid_request_error',
+            'capability_not_supported',
+          );
+        }
+      }
       const requestId = requestIdFactory();
       let reservedAmount = 0;
       const startedAt = Date.now();
@@ -221,7 +260,7 @@ function createPostgresProxyRouter({
           groupId: identityContext.routingGroupId,
           model,
           protocol,
-          capability,
+          capability: requiredCapability,
           estimatedTokens: Number(reservation.estimatedTokens || 0),
         }, selection => {
           if (prepared.execute) return prepared.execute(selection);
@@ -283,7 +322,8 @@ function createPostgresProxyRouter({
           chargeAmount: Number(charge.amount || 0),
           requestId,
           successLog: successLog({
-            requestId, identityContext, model, operation, execution, usage,
+            requestId, identityContext, model, operation, endpoint: upstreamPath, request: billingRequest,
+            execution, usage,
             imageCount, charge, reservation, startedAt,
           }),
         });
@@ -378,7 +418,18 @@ function createPostgresProxyRouter({
 
   for (const operation of [
     { route: '/chat/completions', operation: 'chat_completions', capability: 'chat_completions', protocol: 'openai_compatible', upstreamPath: 'chat/completions' },
-    { route: '/responses', operation: 'responses', capability: 'responses', protocol: 'openai_compatible', upstreamPath: 'responses' },
+    {
+      route: '/responses', operation: 'responses', capability: 'responses', protocol: 'openai_compatible', upstreamPath: 'responses',
+      prepareRequest(req) {
+        const usesImageTool = Array.isArray(req.body?.tools)
+          && req.body.tools.some(tool => tool?.type === 'image_generation');
+        return {
+          model: req.body?.model,
+          billingRequest: req.body,
+          capability: usesImageTool ? 'image_transformations' : 'responses',
+        };
+      },
+    },
     { route: '/embeddings', operation: 'embeddings', capability: 'embeddings', protocol: 'openai_compatible', upstreamPath: 'embeddings' },
     { route: '/messages', operation: 'anthropic_messages', capability: 'anthropic_messages', protocol: 'anthropic', upstreamPath: 'messages' },
     { route: '/messages/count_tokens', operation: 'anthropic_count_tokens', capability: 'anthropic_count_tokens', protocol: 'anthropic', upstreamPath: 'messages/count_tokens' },

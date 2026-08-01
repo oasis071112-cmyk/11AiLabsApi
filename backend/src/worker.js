@@ -36,7 +36,11 @@ async function createWorkerRuntime({
     const migrationDirectory = path.resolve(__dirname, '../migrations/postgres');
     await assertPostgresSchemaCurrent(pool, { migrationDirectory });
     await ensureApiRequestLogPartitions(pool, { monthsAhead: partitionHorizonMonths });
-    redis = createRedisClient({ url: env.REDIS_URL, redis: redisDriver });
+    redis = createRedisClient({
+      url: env.REDIS_URL,
+      redis: redisDriver,
+      onError: error => runtimeLogger.warn?.(`[worker:redis] ${error.message}`),
+    });
     if (!redis.isOpen) await redis.connect();
     const [databaseHealth, redisHealth] = await Promise.all([checkPostgres(pool), checkRedis(redis)]);
     if (databaseHealth.status !== 'ok' || redisHealth.status !== 'ok') {

@@ -82,6 +82,38 @@ describe('PostgreSQL public proxy bridge', () => {
     });
   });
 
+  it('rejects Responses image tools before billing when the model lacks transformation capability', async () => {
+    const checks = [];
+    const repository = {
+      async listModels() { return []; },
+      async supportsCapability(identity, model, capability) {
+        checks.push({ identity, model, capability });
+        return false;
+      },
+    };
+    const baseUrl = await listen(createPostgresProxyRouter(baseOptions({ repository })));
+
+    const response = await fetch(`${baseUrl}/responses`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer sk-test', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'public-image',
+        input: 'draw a small blue square',
+        tools: [{ type: 'image_generation' }],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: { type: 'invalid_request_error', code: 'capability_not_supported' },
+    });
+    expect(checks).toEqual([{
+      identity: expect.objectContaining({ routingGroupId: 'group-1' }),
+      model: 'public-image',
+      capability: 'image_transformations',
+    }]);
+  });
+
   it('builds production repository and billing adapters from the runtime pool', async () => {
     const pool = {
       async query(sql, values) {
@@ -379,7 +411,7 @@ describe('PostgreSQL public proxy bridge', () => {
         body: JSON.stringify({
           model: entry.model,
           ...(entry.route === '/images/generations'
-            ? { prompt: 'draw a safe test image', n: 1 }
+            ? { prompt: 'draw a safe test image', n: 1, size: '1024x1024', output_format: 'webp', output_compression: 55 }
             : { input: 'hello', messages: [{ role: 'user', content: 'hello' }] }),
         }),
       });
@@ -400,7 +432,11 @@ describe('PostgreSQL public proxy bridge', () => {
     expect(settlements).toHaveLength(cases.length);
     expect(settlements.at(-1)).toMatchObject({
       chargeAmount: 3,
-      successLog: { billing_mode: 'image', total_cost: 3 },
+      successLog: {
+        endpoint: 'images/generations', operation: 'image_generations', output_items: 1,
+        final_size: '1024x1024', output_format: 'webp', output_compression: 55,
+        billing_mode: 'image', total_cost: 3,
+      },
     });
   });
 
