@@ -1,7 +1,7 @@
 # Graph Report - ai-api-proxy  (2026-08-01)
 
 ## Corpus Check
-- 221 files · ~131,351 words
+- 221 files · ~131,390 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f848721e`
+- Built from commit: `e59d9b8f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -173,7 +173,7 @@
 - express-rate-limit
 - multer
 - winston
-- GatewaySchedulerError
+- gsap
 
 ## God Nodes (most connected - your core abstractions)
 1. `PostgresAdminCompatRepository` - 47 edges
@@ -224,7 +224,7 @@ Nodes (32): allLogs, analyticsRequest, autoRefresh, billingBreakdown, billingDia
 
 ### Community 3 - "dependencies"
 Cohesion: 0.10
-Nodes (21): chart.js, dayjs, @element-plus/icons-vue, dependencies, axios, chart.js, dayjs, @element-plus/icons-vue (+13 more)
+Nodes (21): chart.js, dayjs, echarts, @element-plus/icons-vue, dependencies, axios, chart.js, dayjs (+13 more)
 
 ### Community 4 - "ApiKeys.vue"
 Cohesion: 0.06
@@ -232,7 +232,7 @@ Nodes (32): activeCode, activeTab, channelLoading, channels, copiedKeyId, copyin
 
 ### Community 5 - "dependencies"
 Cohesion: 0.12
-Nodes (17): dependencies, axios, dotenv, express, form-data, helmet, jsonwebtoken, pg (+9 more)
+Nodes (17): dependencies, cors, dotenv, express, form-data, helmet, jsonwebtoken, pg (+9 more)
 
 ### Community 6 - "admin/Models.vue"
 Cohesion: 0.08
@@ -453,8 +453,8 @@ Cohesion: 0.13
 Nodes (13): allModels, currentDir, fadeContent, frontendRoot, landing, landingCss, login, modelGroups (+5 more)
 
 ### Community 76 - "handleImageBilledRequest"
-Cohesion: 0.27
-Nodes (11): availableWalletBalance(), channelBillingForModel(), handleImageBilledRequest(), insertImageSettlementFailureLog(), insertImageSuccessLog(), insertSettlementFailureLog(), insertUpstreamFailureLog(), requestContainsImage() (+3 more)
+Cohesion: 0.23
+Nodes (12): backupPlan(), createVerifiedBackup(), crypto, fs, main(), parseArguments(), path, sha256File() (+4 more)
 
 ### Community 77 - "billing.test.js"
 Cohesion: 0.60
@@ -569,6 +569,10 @@ Nodes (3): Readiness, 基础设施健康契约, 运行边界
 ### Community 105 - "dayjs"
 Cohesion: 0.15
 Nodes (12): assertPostgresSchemaCurrent(), checkPostgresSchema(), crypto, fs, inspectCurrentRequestLogPartition(), inspectPostgresSchema(), path, readPostgresMigrationManifest() (+4 more)
+
+### Community 106 - "echarts"
+Cohesion: 0.27
+Nodes (11): availableWalletBalance(), channelBillingForModel(), handleImageBilledRequest(), insertImageSettlementFailureLog(), insertImageSuccessLog(), insertSettlementFailureLog(), insertUpstreamFailureLog(), requestContainsImage() (+3 more)
 
 ### Community 107 - "gsap"
 Cohesion: 0.17
@@ -695,8 +699,8 @@ Cohesion: 0.16
 Nodes (13): jsonEventsFromSnapshot(), jsonFromSnapshot(), writeSnapshot(), { countGeneratedImages }, createPostgresProxyRouter(), { extractUsage }, finishSnapshotResponse(), identityFromRequest() (+5 more)
 
 ### Community 147 - "postgres-payment-routes.test.js"
-Cohesion: 0.23
-Nodes (12): backupPlan(), createVerifiedBackup(), crypto, fs, main(), parseArguments(), path, sha256File() (+4 more)
+Cohesion: 0.31
+Nodes (5): isoDate(), LegacyDashboardRepository, legacyWhere(), { listModelsForApiKey, mergeAvailableModel }, mergeAvailableModel()
 
 ### Community 148 - "withTransaction"
 Cohesion: 0.14
@@ -723,20 +727,16 @@ Cohesion: 0.29
 Nodes (5): { generateToken }, { initDatabase, getDatabase }, insertLog(), require, userRoutes
 
 ### Community 154 - "postgres-admin.test.js"
-Cohesion: 0.40
-Nodes (5): hasSqlJsTable(), legacyControlPlaneSnapshot(), loadSqlJsControlPlaneSnapshot(), rowsFromSqlJs(), tableRows()
+Cohesion: 0.48
+Nodes (6): ALLOWED_CHANNEL_CAPABILITIES, CHANNEL_CAPABILITIES_BY_PROTOCOL, DEFAULT_CHANNEL_CAPABILITIES, defaultChannelCapabilities(), parseChannelCapabilities(), serializeChannelCapabilities()
 
 ### Community 155 - "user-logs.test.js"
-Cohesion: 0.50
-Nodes (3): {
-  buildControlPlaneImportPlan,
-  createPostgresControlPlaneSink,
-  executeControlPlaneImport,
-}, { createSecretBox }, require
+Cohesion: 0.47
+Nodes (5): CHANNEL_PROTOCOL_MAP, generateDocs(), getConfiguredProtocol(), getProtocol(), PROTOCOLS
 
 ### Community 156 - "ImageRequestExecutor"
-Cohesion: 0.31
-Nodes (5): isoDate(), LegacyDashboardRepository, legacyWhere(), { listModelsForApiKey, mergeAvailableModel }, mergeAvailableModel()
+Cohesion: 0.40
+Nodes (5): hasSqlJsTable(), legacyControlPlaneSnapshot(), loadSqlJsControlPlaneSnapshot(), rowsFromSqlJs(), tableRows()
 
 ### Community 157 - "billing-detail.js"
 Cohesion: 0.50
@@ -755,12 +755,12 @@ Cohesion: 0.33
 Nodes (4): { generateToken }, { initDatabase, getDatabase }, require, userRoutes
 
 ### Community 161 - "channel-capabilities.js"
-Cohesion: 0.48
-Nodes (6): ALLOWED_CHANNEL_CAPABILITIES, CHANNEL_CAPABILITIES_BY_PROTOCOL, DEFAULT_CHANNEL_CAPABILITIES, defaultChannelCapabilities(), parseChannelCapabilities(), serializeChannelCapabilities()
-
-### Community 162 - "channel-docs.js"
-Cohesion: 0.47
-Nodes (5): CHANNEL_PROTOCOL_MAP, generateDocs(), getConfiguredProtocol(), getProtocol(), PROTOCOLS
+Cohesion: 0.50
+Nodes (3): {
+  buildControlPlaneImportPlan,
+  createPostgresControlPlaneSink,
+  executeControlPlaneImport,
+}, { createSecretBox }, require
 
 ## Knowledge Gaps
 - **918 isolated node(s):** `backup.sh script`, `{ requestHeaders }`, `SCENARIOS`, `target`, `isLocalTarget` (+913 more)
@@ -774,7 +774,7 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.029) - this node is a cross-community bridge._
 - **Why does `PostgresAdminCompatRepository` connect `channel-selector.js` to `dashboard-read-model/legacy-repository.js`?**
   _High betweenness centrality (0.022) - this node is a cross-community bridge._
-- **Why does `getDatabase()` connect `getDatabase` to `proxy.js`, `admin.js`, `pricing-sync.js`, `src/index.js`, `Proposed Changes`, `model-capabilities.test.js`, `runtime-router.test.js`, `billing-detail.js`, `createTransformationBody`, `cors`, `admin-finance.test.js`, `image-generations.test.js`, `registration.test.js`, `image-billing.js`, `handleImageBilledRequest`, `billing.test.js`, `anthropic-protocol.test.js`, `user-model-multipliers.test.js`, `easypay-payment.test.js`, `payment.js`, `withTransaction`?**
+- **Why does `getDatabase()` connect `getDatabase` to `proxy.js`, `admin.js`, `pricing-sync.js`, `src/index.js`, `Proposed Changes`, `model-capabilities.test.js`, `runtime-router.test.js`, `billing-detail.js`, `createTransformationBody`, `cors`, `admin-finance.test.js`, `image-generations.test.js`, `registration.test.js`, `image-billing.js`, `billing.test.js`, `anthropic-protocol.test.js`, `user-model-multipliers.test.js`, `easypay-payment.test.js`, `payment.js`, `echarts`, `withTransaction`?**
   _High betweenness centrality (0.022) - this node is a cross-community bridge._
 - **What connects `backup.sh script`, `{ requestHeaders }`, `SCENARIOS` to the rest of the system?**
   _918 weakly-connected nodes found - possible documentation gaps or missing edges._
