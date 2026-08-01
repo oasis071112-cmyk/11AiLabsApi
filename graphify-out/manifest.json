@@ -950,8 +950,8 @@
     "semantic_hash": ""
   },
   "backend/src/modules/postgres-proxy/postgres-adapters.js": {
-    "mtime": 1785566893.6321976,
-    "ast_hash": "ecbe26a01c869224b5c6f0c374a2a88c",
+    "mtime": 1785568915.3668368,
+    "ast_hash": "ed0be7419ae169ed3b4273cbced13120",
     "semantic_hash": ""
   },
   "backend/src/modules/postgres-proxy/upstream.js": {
@@ -1025,8 +1025,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-proxy-adapters.test.js": {
-    "mtime": 1785566683.5388818,
-    "ast_hash": "7b590ea734efb5f55cbb91a2493294e1",
+    "mtime": 1785568915.3698368,
+    "ast_hash": "2495840681f72fc90b60802eeecce9b7",
     "semantic_hash": ""
   },
   "backend/tests/sqljs-control-plane-backup.test.js": {
@@ -1075,8 +1075,8 @@
     "semantic_hash": ""
   },
   "docs/release-preparation-2026-08-01.md": {
-    "mtime": 1785568557.084982,
-    "ast_hash": "d53f7496071ce724bc615ba99cdb9d02",
+    "mtime": 1785568915.3738368,
+    "ast_hash": "7758feac228bd680a2a8e0a7faa40013",
     "semantic_hash": ""
   },
   "backend/tests/postgres-dashboard-repository.test.js": {
