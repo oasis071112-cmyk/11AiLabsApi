@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBillingDetail } from '../src/utils/billing-detail.js';
+import { buildBillingDetail, buildBillingDetailFromSnapshot } from '../src/utils/billing-detail.js';
 
 describe('用户计费明细', () => {
   it('历史实际扣费为 0 时展示 Token 计算但不按当前价格追溯补扣', () => {
@@ -190,5 +190,28 @@ describe('用户计费明细', () => {
       expect.objectContaining({ label: '缓存写入 Token', usage: 100_000, amount: 0.25 }),
     ]);
     expect(detail.reconciled).toBe(true);
+  });
+
+  it('PostgreSQL 结算快照可还原成用户可点击的逐项扣费过程', () => {
+    const detail = buildBillingDetailFromSnapshot({
+      model_code: 'claude-opus-4-8',
+      input_tokens: '0',
+      output_tokens: '83',
+      total_cost: '0.002101',
+      billing_mode: 'token',
+      billing_detail: {
+        charge: {
+          mode: 'token', currency: 'USD', unit_tokens: 1,
+          input_price: 0.000005, output_price: 0.000025,
+          input_multiplier: 0.15, output_multiplier: 0.15,
+        },
+      },
+    });
+
+    expect(detail).toMatchObject({
+      mode: 'snapshot', currency: 'USD', actualTotal: 0.002101, reconciled: true,
+      dimensions: [expect.objectContaining({ label: '输出 Token', usage: 83, multiplier: 0.15 })],
+    });
+    expect(detail.dimensions[0].fxRate).toBeCloseTo(6.7502008, 6);
   });
 });

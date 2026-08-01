@@ -128,7 +128,10 @@ class MemoryUserPool {
       return { rows: [{ id: 7, channel_name: '测试分组', protocol_type: 'openai_compatible', model_count: '1' }] };
     }
     if (compact.startsWith('SELECT request_id,api_key_id,model_code')) {
-      return { rows: [{ request_id: 'req-1', model_code: 'model-a', input_tokens: '10', output_tokens: '20', total_cost: '0.5', status: 'success', created_at: '2026-08-01T00:00:00.000Z' }] };
+      return { rows: [{
+        request_id: 'req-1', model_code: 'model-a', input_tokens: '10', output_tokens: '20', total_cost: '0.5', status: 'success', created_at: '2026-08-01T00:00:00.000Z',
+        billing_mode: 'token', billing_detail: { charge: { mode: 'token', currency: 'USD', unit_tokens: 1, input_price: 0.01, output_price: 0.02, input_multiplier: 1, output_multiplier: 1 } },
+      }] };
     }
     if (compact.startsWith('SELECT request_id,model_code,billing_mode')) {
       return { rows: [{
@@ -400,7 +403,9 @@ describe('PostgreSQL 用户面兼容路由', () => {
     expect(modelPayload.data).toMatchObject([{ model_code: 'model-a', is_multimodal: true }]);
     expect(modelPayload.groups).toMatchObject([{ id: 7, group_name: '测试分组', models: [{ model_code: 'model-a' }] }]);
     expect((await channels.json()).data).toMatchObject([{ channel_name: '测试分组', model_count: 1 }]);
-    expect((await logs.json()).pagination).toEqual({ page: 1, limit: 20, total: 1 });
+    const logPayload = await logs.json();
+    expect(logPayload.pagination).toEqual({ page: 1, limit: 20, total: 1 });
+    expect(logPayload.data[0]).toMatchObject({ input_tokens: 10, output_tokens: 20, total_cost: 0.5, billing_detail: { dimensions: expect.any(Array), reconciled: true } });
     expect((await daily.json()).data).toEqual([{ date: '2026-08-01', calls: 1, cost: 0.5, input_tokens: 10, output_tokens: 20 }]);
     expect(await stats.json()).toMatchObject({ total_calls: 1, today_calls: 1, total_consumption: 0.5 });
 

@@ -2,9 +2,9 @@
 <div class="dashboard">
   <!-- KPI 卡片行 -->
   <el-row :gutter="20" class="kpi-row">
-    <el-col :span="6"><div class="kpi-card"><div class="kpi-icon" style="background:#409eff"><DollarSign :size="20" color="#fff"/></div><div class="kpi-body"><div class="kpi-label">今日消费</div><div class="kpi-value">{{ stats.today_consumption?.toFixed(4)||'0.00' }} 点</div></div></div></el-col>
+    <el-col :span="6"><div class="kpi-card"><div class="kpi-icon" style="background:#409eff"><DollarSign :size="20" color="#fff"/></div><div class="kpi-body"><div class="kpi-label">今日消费</div><div class="kpi-value">{{ decimal(stats.today_consumption,4) }} 点</div></div></div></el-col>
     <el-col :span="6"><div class="kpi-card"><div class="kpi-icon" style="background:#22c55e"><Activity :size="20" color="#fff"/></div><div class="kpi-body"><div class="kpi-label">今日调用</div><div class="kpi-value">{{ (stats.today_calls||0).toLocaleString() }}</div></div></div></el-col>
-    <el-col :span="6"><div class="kpi-card"><div class="kpi-icon" style="background:#f59e0b"><Coins :size="20" color="#fff"/></div><div class="kpi-body"><div class="kpi-label">累计消费</div><div class="kpi-value">{{ stats.total_consumption?.toFixed(2)||0 }} 点</div></div></div></el-col>
+    <el-col :span="6"><div class="kpi-card"><div class="kpi-icon" style="background:#f59e0b"><Coins :size="20" color="#fff"/></div><div class="kpi-body"><div class="kpi-label">累计消费</div><div class="kpi-value">{{ decimal(stats.total_consumption,2) }} 点</div></div></div></el-col>
     <el-col :span="6"><div class="kpi-card"><div class="kpi-icon" style="background:#ef4444"><Target :size="20" color="#fff"/></div><div class="kpi-body"><div class="kpi-label">成功率</div><div class="kpi-value">{{ successRate }}%</div></div></div></el-col>
   </el-row>
 
@@ -42,7 +42,7 @@
         <el-table-column label="计费方式" width="110"><template #default="{row}"><el-tag :type="billingModeType(row.billing_mode)" size="small">{{ billingModeLabel(row) }}</el-tag></template></el-table-column>
         <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
         <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
-        <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ row.total_cost?.toFixed(6)||'0' }} 点</template></el-table-column>
+        <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ point(row.total_cost) }} 点</template></el-table-column>
         <el-table-column label="计费明细" width="130"><template #default="{row}"><el-button v-if="hasBillingDetail(row)" class="billing-detail-button" type="primary" size="small" @click="openBilling(row)">查看计算过程</el-button><span v-else class="no-detail">历史记录无快照</span></template></el-table-column>
         <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
         <el-table-column prop="error_message" label="备注" min-width="140" show-overflow-tooltip/>
@@ -76,7 +76,7 @@
       <el-table-column label="计费方式" width="110"><template #default="{row}"><el-tag :type="billingModeType(row.billing_mode)" size="small">{{ billingModeLabel(row) }}</el-tag></template></el-table-column>
       <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
       <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
-      <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ row.total_cost?.toFixed(6)||'0' }} 点</template></el-table-column>
+      <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ point(row.total_cost) }} 点</template></el-table-column>
       <el-table-column label="计费明细" width="130"><template #default="{row}"><el-button v-if="hasBillingDetail(row)" class="billing-detail-button" type="primary" size="small" @click="openBilling(row)">查看计算过程</el-button><span v-else class="no-detail">历史记录无快照</span></template></el-table-column>
       <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
       <el-table-column prop="error_message" label="错误信息" min-width="160" show-overflow-tooltip/>
@@ -111,11 +111,9 @@
         <div class="snapshot-grid">
           <div><span>计费版本</span><strong>{{ billingVersion }}</strong></div>
           <div><span>计费币种</span><strong>{{ selectedBilling.billing_detail.currency||'点数' }}</strong></div>
-          <div><span>计费单位</span><strong>{{ selectedBilling.billing_mode==='image'?'1 张':selectedBilling.billing_mode==='per_request'?'1 次':`${formatTokenUnit(selectedBilling.billing_detail.dimensions.find(item=>!item.isAdjustment)?.unitTokens||1000000)} Token` }}</strong></div>
-          <div v-if="selectedBilling.billing_mode==='image'"><span>图片倍率</span><strong>×{{ selectedBilling.billing_multiplier_image }}</strong></div>
-          <div v-if="selectedBilling.billing_mode!=='image'"><span>输入倍率</span><strong>×{{ selectedBilling.billing_multiplier_input }}</strong></div>
-          <div v-if="selectedBilling.billing_mode==='token'"><span>输出倍率</span><strong>×{{ selectedBilling.billing_multiplier_output }}</strong></div>
-          <div v-if="selectedBilling.official_currency==='USD'"><span>美元兑人民币</span><strong>×{{ selectedBilling.usd_cny_rate }}</strong></div>
+          <div><span>计费单位</span><strong>{{ billingUnitLabel }}</strong></div>
+          <div><span>{{ selectedBilling.billing_mode==='image'?'图片倍率':'计费倍率' }}</span><strong>×{{ billingMultiplier }}</strong></div>
+          <div v-if="billingFxRate!==1"><span>美元兑人民币</span><strong>×{{ billingFxRate }}</strong></div>
         </div>
         <div class="breakdown-title">逐项计算</div>
         <div class="breakdown-list">
@@ -125,7 +123,7 @@
           </div>
         </div>
         <div class="billing-result"><span>各项费用相加</span><strong>{{ billingSum }} 点</strong><span class="equals">调用记录实际扣除 {{ point(selectedBilling.total_cost) }} 点</span></div>
-        <div class="billing-note">{{ selectedBilling.billing_detail.notice }} 1 点 = ¥1。</div>
+        <div class="billing-note">{{ selectedBilling.billing_detail.notice || '本次计算使用调用时保存的计费快照。' }} 1 点 = ¥1。</div>
       </template>
     </div>
     <template #footer><el-button type="primary" @click="billingDialog=false">知道了</el-button></template>
@@ -180,6 +178,10 @@ const successRate = computed(() => {
 const logRangeValid = computed(() => validateRange(logFilter.value.dateRange, false))
 
 const totalTokens = computed(() => (stats.value.input_tokens || 0) + (stats.value.output_tokens || 0))
+const billingPrimaryDimension = computed(()=>selectedBilling.value?.billing_detail?.dimensions?.find(item=>!item.isAdjustment)||{})
+const billingUnitLabel = computed(()=>selectedBilling.value?.billing_mode==='image'?'1 张':selectedBilling.value?.billing_mode==='per_request'?'1 次':`${formatTokenUnit(billingPrimaryDimension.value.unitTokens||1000000)} Token`)
+const billingMultiplier = computed(()=>billingPrimaryDimension.value.multiplier??1)
+const billingFxRate = computed(()=>Number(billingPrimaryDimension.value.fxRate||1))
 
 const billingBreakdown = computed(() => {
   const row = selectedBilling.value
@@ -189,8 +191,9 @@ const billingBreakdown = computed(() => {
   return row.billing_detail.dimensions.map(item=>{
     if(item.isAdjustment)return {...item,formula:'用于对齐钱包最终保存的实际扣费金额'}
     if(row.billing_detail.mode==='image_snapshot'){
-      const defaultSymbol=row.default_image_currency==='USD'?'$':'¥'
-      return {...item,formula:`${number(item.usage)} 张；当前默认单价 ${defaultSymbol}${Number(row.default_image_unit_price||0).toFixed(4)}/张（${item.size}，${item.quality}）`}
+      const itemSymbol=item.currency==='USD'?'$':item.currency==='CNY'?'¥':''
+      const fx=item.currency==='USD'?` × 汇率 ${item.fxRate}`:''
+      return {...item,formula:`${number(item.usage)} 张 × ${itemSymbol}${decimal(item.unitPrice,4)}/张 × 倍率 ${item.multiplier}${fx}（${item.size||'默认尺寸'}）`}
     }
     if(row.billing_detail.mode==='fixed_snapshot'){
       const fx=currency==='USD'?` × 汇率 ${item.fxRate}`:''
@@ -201,7 +204,7 @@ const billingBreakdown = computed(() => {
     return {...item,formula:`${number(item.usage)} ÷ ${formatTokenUnit(item.unitTokens)} × ${symbol}${item.unitPrice} × ${multiplierLabel} ${item.multiplier}${fx}`}
   })
 })
-const billingSum = computed(() => point(selectedBilling.value?.billing_detail?.calculatedTotal||0))
+const billingSum = computed(() => point(selectedBilling.value?.billing_detail?.calculatedTotal??selectedBilling.value?.total_cost??0))
 const billingTitle = computed(()=>({snapshot:'本次调用采用的价格快照',image_snapshot:'本次图片生成价格快照',fixed_snapshot:'本次固定请求价格快照',legacy_zero:'历史 0 扣费计算过程',legacy:'旧版计费计算过程'}[selectedBilling.value?.billing_detail?.mode]||'计费计算过程'))
 const billingVersion = computed(()=>({snapshot:'调用时官方价格',image_snapshot:'按实际图片结果计费',fixed_snapshot:'按每请求固定价计费',legacy_zero:'历史实际 0 扣费',legacy:'旧版价格'}[selectedBilling.value?.billing_detail?.mode]||'未知'))
 
@@ -211,10 +214,11 @@ function billingModeLabel(row){return row.billing_mode==='image'?`图片 ${row.i
 function imageOperationLabel(operation){return ({generation:'生成',edit:'编辑',variation:'变体',transformation:'变换'})[operation]||operation}
 function openBilling(row){selectedBilling.value=row;billingDialog.value=true}
 function openAllLogs(){logFilter.value={model:filterModel.value,dateRange:[...dateRange.value]};logPage.value=1;showAllLogs.value=true;fetchLogs()}
-function hasBillingDetail(row){return Boolean(row?.billing_detail)}
+function hasBillingDetail(row){return Array.isArray(row?.billing_detail?.dimensions)}
 function number(value){return Number(value||0).toLocaleString()}
 function formatTokenUnit(value){return Number(value)===1000000?'1M':number(value)}
 function point(value){return Number(value||0).toFixed(6)}
+function decimal(value,digits=2){const parsed=Number(value);return Number.isFinite(parsed)?parsed.toFixed(digits):(0).toFixed(digits)}
 function getPresetRange(preset) { const end = formatBeijingDate(); const start = dayjs(end).subtract(preset === '1d' ? 0 : preset === '30d' ? 29 : 6, 'day').format('YYYY-MM-DD'); return [start, end] }
 function normalizeRange(range){return Array.isArray(range)?range.map(value=>value?dayjs(value).format('YYYY-MM-DD'):''):[]}
 function validateRange(range, notify=true){const normalized=normalizeRange(range);let message='';if(normalized.length!==2||!normalized[0]||!normalized[1])message='请选择完整的开始和结束日期';else if(!dayjs(normalized[0],'YYYY-MM-DD',true).isValid()||!dayjs(normalized[1],'YYYY-MM-DD',true).isValid())message='日期格式无效';else if(dayjs(normalized[0]).isAfter(dayjs(normalized[1])))message='开始日期不能晚于结束日期';else if(dayjs(normalized[1]).diff(dayjs(normalized[0]),'day')+1>90)message='日期范围不能超过 90 个自然日';if(message&&notify)ElMessage.warning(message);return !message}

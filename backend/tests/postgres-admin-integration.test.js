@@ -58,6 +58,10 @@ integration('PostgreSQL admin compatibility integration', () => {
         VALUES($1,$1,$2,3,'manual','pending') RETURNING id`, [`order-${suffix}`, userId])).rows[0].id);
       const actor = { id: staffId, staffId, role: 'admin' };
 
+      expect((await repository.listUsers({ page: 1, limit: 20, search: `user-${suffix}` })).data[0]).toMatchObject({
+        quota_balance: 10, gift_quota: 0, frozen_balance: 0, total_spent: 0,
+      });
+      expect(typeof (await repository.getUser(userId)).user.quota_balance).toBe('number');
       expect((await repository.listModels()).find(model => model.model_code === code)).toMatchObject({ context_length: null, channel_mappings: [{ channel_id: String(accountId) }] });
       expect(await repository.listKeys({ page: 1, limit: 20, groupBy: 'user' })).toMatchObject({ data: [{ user_id: String(userId), keys: [{ id: String(keyId) }] }] });
       expect(await repository.getUser(userId)).toMatchObject({ pending_orders: [{ id: String(orderId) }] });

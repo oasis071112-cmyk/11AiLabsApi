@@ -313,7 +313,7 @@ class PostgresProxyBillingPolicy {
         size_source: sizeResolution.source, output_size_breakdown: actualBreakdown || {}, size_breakdown: tierCounts,
         image_count: requestedCount, unit_price: singleTier?.unit_price ?? null,
         currency: singleTier?.currency ?? 'mixed', tier_charges: tierCharges,
-        multiplier: policy.multipliers.image,
+        multiplier: policy.multipliers.image, usd_cny_rate: policy.usdCnyRate,
       },
     };
   }
@@ -338,7 +338,7 @@ class PostgresProxyBillingPolicy {
       quotes.push({
         amount: result.userCostPoints,
         billingMode: 'image',
-        snapshot: { mode: 'image', size, image_count: imageCount, unit_price: unitPrice, currency: 'USD', multiplier: policy.multipliers.image },
+        snapshot: { mode: 'image', size, image_count: imageCount, unit_price: unitPrice, currency: 'USD', multiplier: policy.multipliers.image, usd_cny_rate: policy.usdCnyRate },
       });
     }
     return quotes.reduce((maximum, quote) => quote.amount > maximum.amount ? quote : maximum);
@@ -390,6 +390,7 @@ class PostgresProxyBillingPolicy {
         mode: 'token', currency: policy.currency, unit_tokens: policy.unitTokens,
         input_price: policy.prices.input, output_price: policy.prices.output,
         input_multiplier: policy.multipliers.input, output_multiplier: policy.multipliers.output,
+        usd_cny_rate: policy.usdCnyRate,
       },
     };
   }
@@ -439,7 +440,7 @@ class PostgresProxyBillingPolicy {
       : {
         amount: perRequestAmount,
         billingMode: 'per_request',
-        snapshot: { mode: 'per_request', unit_price: perRequestUnit, currency: 'USD' },
+        snapshot: { mode: 'per_request', unit_price: perRequestUnit, currency: 'USD', multiplier: policy.multipliers.input, usd_cny_rate: policy.usdCnyRate },
       };
     return {
       ...quote,
@@ -467,7 +468,7 @@ class PostgresProxyBillingPolicy {
       return {
         amount: unitPrice * policy.usdCnyRate * policy.multipliers.input,
         billingMode: 'per_request',
-        snapshot: { mode: 'per_request', unit_price: unitPrice, currency: 'USD' },
+        snapshot: { mode: 'per_request', unit_price: unitPrice, currency: 'USD', multiplier: policy.multipliers.input, usd_cny_rate: policy.usdCnyRate },
       };
     }
     const officialPerTokenUsd = value => {

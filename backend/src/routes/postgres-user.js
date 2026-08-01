@@ -5,12 +5,22 @@ const { createPostgresIdentity } = require('../modules/identity');
 const { createPostgresPaymentService } = require('../modules/postgres-payment');
 const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
 const { generateDocs, generateImageDocs } = require('../utils/channel-docs');
+const { buildBillingDetailFromSnapshot } = require('../utils/billing-detail');
 
 function numberValues(row = {}) {
   const result = { ...row };
   for (const [key, value] of Object.entries(result)) {
     if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value)) result[key] = Number(value);
   }
+  return result;
+}
+
+function publicLog(row = {}) {
+  const result = { ...row };
+  for (const field of ['input_tokens', 'output_tokens', 'total_cost', 'latency_ms', 'image_count']) {
+    if (row[field] !== null && row[field] !== undefined) result[field] = Number(row[field] || 0);
+  }
+  result.billing_detail = buildBillingDetailFromSnapshot(result);
   return result;
 }
 
@@ -519,7 +529,7 @@ function createPostgresUserRouter(options = {}) {
           LIMIT $${filters.values.length + 1} OFFSET $${filters.values.length + 2}`, pageValues),
         pool.query(`SELECT COUNT(*) AS count FROM api_request_logs WHERE ${filters.conditions}`, filters.values),
       ]);
-      return res.json({ data: rows.rows.map(numberValues), pagination: { page, limit, total: Number(total.rows[0]?.count || 0) } });
+      return res.json({ data: rows.rows.map(publicLog), pagination: { page, limit, total: Number(total.rows[0]?.count || 0) } });
     } catch (error) { return next(error); }
   });
 

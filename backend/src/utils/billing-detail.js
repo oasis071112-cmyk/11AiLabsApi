@@ -9,6 +9,10 @@ function rounded(value) {
   return Number(number(value).toFixed(12));
 }
 
+function object(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
 const DISPLAY_UNIT_TOKENS = 1_000_000;
 
 function perMillionPrice(price, sourceUnitTokens) {
@@ -190,4 +194,97 @@ function buildBillingDetail({
   };
 }
 
-module.exports = { buildBillingDetail };
+function derivedFxRate({ currency, actualTotal, baseTotal, snapshotRate }) {
+  if (String(currency || '').toUpperCase() !== 'USD') return 1;
+  const explicit = number(snapshotRate, 0);
+  if (explicit > 0) return explicit;
+  const base = number(baseTotal, 0);
+  return base > 0 ? number(actualTotal, 0) / base : 1;
+}
+
+function buildBillingDetailFromSnapshot(row = {}) {
+  const stored = object(row.billing_detail || row.billing_snapshot);
+  if (Array.isArray(stored.dimensions)) return stored;
+  const charge = object(stored.charge);
+  if (!Object.keys(charge).length) return null;
+  const billingMode = String(row.billing_mode || charge.mode || 'token');
+  const totalCost = number(row.total_cost);
+  const currency = String(charge.currency || 'USD').toUpperCase();
+
+  if (billingMode === 'image' || charge.mode === 'image') {
+    const tiers = object(charge.tier_charges);
+    const dimensions = Object.entries(tiers).map(([size, tier]) => {
+      const item = object(tier);
+      const usage = Math.max(0, Math.floor(number(item.image_count)));
+      const unitPrice = Math.max(0, number(item.unit_price));
+      const multiplier = number(charge.multiplier, 1);
+      const amount = rounded(item.total_cost);
+      const fxRate = derivedFxRate({
+        currency: item.currency || currency,
+        actualTotal: amount,
+        baseTotal: usage * unitPrice * multiplier,
+        snapshotRate: charge.usd_cny_rate,
+      });
+      return {
+        label: `生成图片 ${size}`, usage, unit: '张', unitPrice, multiplier, fxRate,
+        currency: String(item.currency || currency).toUpperCase(), amount, size,
+      };
+    });
+    if (!dimensions.length) {
+      const usage = Math.max(0, Math.floor(number(charge.image_count || stored.image_count)));
+      const unitPrice = Math.max(0, number(charge.unit_price));
+      const multiplier = number(charge.multiplier, 1);
+      const fxRate = derivedFxRate({
+        currency, actualTotal: totalCost, baseTotal: usage * unitPrice * multiplier,
+        snapshotRate: charge.usd_cny_rate,
+      });
+      return buildBillingDetail({
+        billingMode: 'image', totalCost,
+        image: { count: usage, size: charge.size, quality: charge.quality, unitPrice },
+        official: { currency }, multipliers: { image: multiplier }, usdCnyRate: fxRate,
+      });
+    }
+    const priceCalculationTotal = rounded(dimensions.reduce((sum, item) => sum + item.amount, 0));
+    const difference = rounded(totalCost - priceCalculationTotal);
+    if (difference !== 0) dimensions.push({ label: '实际结算差额', amount: difference, isAdjustment: true });
+    const calculatedTotal = rounded(dimensions.reduce((sum, item) => sum + item.amount, 0));
+    return {
+      mode: 'image_snapshot', currency, dimensions, priceCalculationTotal, calculatedTotal,
+      actualTotal: totalCost, reconciled: calculatedTotal === totalCost,
+      notice: '图片数量、尺寸、单价、倍率和汇率均来自本次调用保存的 PostgreSQL 结算快照。',
+    };
+  }
+
+  if (billingMode === 'per_request' || charge.mode === 'per_request') {
+    const unitPrice = Math.max(0, number(charge.unit_price));
+    const multiplier = number(charge.multiplier, 1);
+    const fxRate = derivedFxRate({
+      currency, actualTotal: totalCost, baseTotal: unitPrice * multiplier,
+      snapshotRate: charge.usd_cny_rate,
+    });
+    return buildBillingDetail({
+      billingMode: 'per_request', totalCost, image: { unitPrice }, official: { currency },
+      multipliers: { input: multiplier }, usdCnyRate: fxRate,
+    });
+  }
+
+  const inputTokens = number(row.input_tokens);
+  const outputTokens = number(row.output_tokens);
+  const unitTokens = Math.max(number(charge.unit_tokens, 1), 1);
+  const inputPrice = Math.max(number(charge.input_price), 0);
+  const outputPrice = Math.max(number(charge.output_price), 0);
+  const inputMultiplier = number(charge.input_multiplier, 1);
+  const outputMultiplier = number(charge.output_multiplier, 1);
+  const baseTotal = inputTokens / unitTokens * inputPrice * inputMultiplier
+    + outputTokens / unitTokens * outputPrice * outputMultiplier;
+  const fxRate = derivedFxRate({
+    currency, actualTotal: totalCost, baseTotal, snapshotRate: charge.usd_cny_rate,
+  });
+  return buildBillingDetail({
+    modelCode: row.model_code, inputTokens, outputTokens, totalCost,
+    official: { currency, input: inputPrice, output: outputPrice, unitTokens },
+    multipliers: { input: inputMultiplier, output: outputMultiplier }, usdCnyRate: fxRate,
+  });
+}
+
+module.exports = { buildBillingDetail, buildBillingDetailFromSnapshot };

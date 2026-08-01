@@ -33,6 +33,23 @@ function optionalNumber(value, fallback) {
   return number;
 }
 
+function publicUser(row) {
+  if (!row) return row;
+  const result = { ...row };
+  for (const field of ['quota_balance', 'gift_quota', 'frozen_balance', 'total_spent']) {
+    result[field] = Number(row[field] || 0);
+  }
+  result.recharge_balance = result.quota_balance;
+  result.gift_balance = result.gift_quota;
+  return result;
+}
+
+function numericFields(row, fields) {
+  const result = { ...row };
+  for (const field of fields) result[field] = Number(row[field] || 0);
+  return result;
+}
+
 function positiveInteger(value, fallback, field) {
   const number = optionalNumber(value, fallback);
   if (!Number.isInteger(number) || number < 0) throw new AdminCompatError(400, 'invalid_limit', `${field} 必须是非负整数`);
@@ -275,7 +292,7 @@ class PostgresAdminCompatRepository {
       this.pool.query(`SELECT COUNT(*) AS count FROM users u ${where}`, values),
     ]);
     return {
-      data: users.rows.map(row => ({ ...row, recharge_balance: row.quota_balance, gift_balance: row.gift_quota })),
+      data: users.rows.map(publicUser),
       pagination: { page, limit, total: Number(total.rows[0]?.count || 0) },
     };
   }
@@ -294,11 +311,11 @@ class PostgresAdminCompatRepository {
         WHERE user_id=$1 AND status IN ('pending','paid') ORDER BY created_at DESC`, [userId]),
     ]);
     return {
-      user: { ...user, recharge_balance: user.quota_balance, gift_balance: user.gift_quota },
+      user: publicUser(user),
       keys: keys.rows,
-      recent_logs: logs.rows,
-      recent_transactions: transactions.rows,
-      pending_orders: pendingOrders.rows,
+      recent_logs: logs.rows.map(row => numericFields(row, ['latency_ms', 'total_cost'])),
+      recent_transactions: transactions.rows.map(row => numericFields(row, ['amount', 'balance_after'])),
+      pending_orders: pendingOrders.rows.map(row => numericFields(row, ['amount'])),
     };
   }
 

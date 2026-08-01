@@ -1,24 +1,34 @@
 <template>
-<div class="admin-page users-page"><div class="flex-between mb-16"><h3>用户管理</h3><el-input v-model="search" class="admin-search" placeholder="搜索用户名/邮箱" style="width:260px" clearable @change="fetch"/></div>
-<el-table :data="users" stripe v-loading="loading">
-<el-table-column prop="id" label="ID" width="60"/><el-table-column prop="username" label="用户名"/><el-table-column prop="email" label="邮箱"/>
+<div class="admin-page users-page"><div class="flex-between mb-16 users-toolbar"><h3>用户管理</h3><el-input v-model="search" class="admin-search" placeholder="搜索用户名/邮箱" clearable @change="fetch"/></div>
+<el-table class="desktop-users-table" :data="users" stripe v-loading="loading" table-layout="fixed">
+<el-table-column prop="id" label="ID" width="60"/><el-table-column prop="username" label="用户名" min-width="130"/><el-table-column prop="email" label="邮箱" min-width="190" show-overflow-tooltip/>
 <el-table-column label="角色" width="100"><template #default="{row}"><el-tag :type="row.role==='admin'?'danger':'info'" size="small">{{ rl(row.role) }}</el-tag></template></el-table-column>
 <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'danger'" size="small">{{ row.status==='active'?'正常':'禁用' }}</el-tag></template></el-table-column>
-<el-table-column label="额度点数" width="100"><template #default="{row}">{{ row.quota_balance?.toFixed(0)||0 }} 点</template></el-table-column>
-<el-table-column label="赠送点数" width="100"><template #default="{row}">{{ row.gift_quota?.toFixed(0)||0 }} 点</template></el-table-column>
-<el-table-column label="累计消费" width="100"><template #default="{row}">{{ row.total_spent?.toFixed(0)||0 }} 点</template></el-table-column>
-<el-table-column prop="register_time" label="注册时间" width="160"/>
+<el-table-column label="额度点数" width="110"><template #default="{row}">{{ points(row.quota_balance) }} 点</template></el-table-column>
+<el-table-column label="赠送点数" width="110"><template #default="{row}">{{ points(row.gift_quota) }} 点</template></el-table-column>
+<el-table-column label="累计消费" width="110"><template #default="{row}">{{ points(row.total_spent) }} 点</template></el-table-column>
+<el-table-column label="注册时间" width="170"><template #default="{row}">{{ formatBeijingTime(row.register_time) }}</template></el-table-column>
 <el-table-column label="操作" width="200"><template #default="{row}">
 <el-button size="small" @click="showDetail(row)">详情</el-button>
 <el-button size="small" :type="row.status==='active'?'warning':'success'" @click="toggleStatus(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button>
 </template></el-table-column>
 </el-table>
+<div class="mobile-user-list" v-loading="loading">
+  <article v-for="row in users" :key="row.id" class="mobile-user-card">
+    <div class="mobile-user-head"><div><strong>{{ row.username }}</strong><span>#{{ row.id }}</span></div><el-tag :type="row.status==='active'?'success':'danger'" size="small">{{ row.status==='active'?'正常':'禁用' }}</el-tag></div>
+    <div class="mobile-user-email">{{ row.email || '-' }}</div>
+    <div class="mobile-user-meta"><span>额度<strong>{{ points(row.quota_balance) }} 点</strong></span><span>赠送<strong>{{ points(row.gift_quota) }} 点</strong></span><span>消费<strong>{{ points(row.total_spent) }} 点</strong></span></div>
+    <div class="mobile-user-time">注册于 {{ formatBeijingTime(row.register_time) }}</div>
+    <div class="mobile-user-actions"><el-button @click="showDetail(row)">详情</el-button><el-button :type="row.status==='active'?'warning':'success'" @click="toggleStatus(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button></div>
+  </article>
+  <el-empty v-if="!loading&&!users.length" description="暂无用户" :image-size="56"/>
+</div>
 <el-pagination v-model:current-page="page" :page-size="limit" :total="total" layout="prev,pager,next" @current-change="fetch" style="margin-top:16px;justify-content:center"/>
 
 <!-- 用户详情弹窗 -->
 <el-dialog v-model="detailDialog" title="用户详情" width="700px">
 <template v-if="detailUser">
-<el-descriptions :column="2" border><el-descriptions-item label="ID">{{ detailUser.id }}</el-descriptions-item><el-descriptions-item label="用户名">{{ detailUser.username }}</el-descriptions-item><el-descriptions-item label="邮箱">{{ detailUser.email||'-' }}</el-descriptions-item><el-descriptions-item label="角色">{{ rl(detailUser.role) }}</el-descriptions-item><el-descriptions-item label="状态">{{ detailUser.status }}</el-descriptions-item><el-descriptions-item label="注册时间">{{ detailUser.register_time }}</el-descriptions-item><el-descriptions-item label="额度点数">{{ detailUser.quota_balance?.toFixed(0)||0 }} 点</el-descriptions-item><el-descriptions-item label="赠送点数">{{ detailUser.gift_quota?.toFixed(0)||0 }} 点</el-descriptions-item><el-descriptions-item label="累计消费">{{ detailUser.total_spent?.toFixed(0)||0 }} 点</el-descriptions-item></el-descriptions>
+<el-descriptions :column="2" border><el-descriptions-item label="ID">{{ detailUser.id }}</el-descriptions-item><el-descriptions-item label="用户名">{{ detailUser.username }}</el-descriptions-item><el-descriptions-item label="邮箱">{{ detailUser.email||'-' }}</el-descriptions-item><el-descriptions-item label="角色">{{ rl(detailUser.role) }}</el-descriptions-item><el-descriptions-item label="状态">{{ detailUser.status }}</el-descriptions-item><el-descriptions-item label="注册时间">{{ formatBeijingTime(detailUser.register_time) }}</el-descriptions-item><el-descriptions-item label="额度点数">{{ points(detailUser.quota_balance) }} 点</el-descriptions-item><el-descriptions-item label="赠送点数">{{ points(detailUser.gift_quota) }} 点</el-descriptions-item><el-descriptions-item label="累计消费">{{ points(detailUser.total_spent) }} 点</el-descriptions-item></el-descriptions>
 <el-alert v-if="pendingOrders.length" :title="`该用户有 ${pendingOrders.length} 笔待处理订单；同额手工加款将被拦截，请优先前往额度订单确认发放`" type="warning" show-icon :closable="false" style="margin-top:14px"/>
 <div style="margin-top:16px"><el-button type="success" @click="adjustDialog=true"><DollarSign :size="14" style="margin-right:2px"/> 手工调账</el-button></div>
 </template>
@@ -30,7 +40,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';import api from '@/api';import { ElMessage, ElMessageBox } from 'element-plus';import { DollarSign } from '@lucide/vue'
+import { ref, onMounted } from 'vue';import api from '@/api';import { ElMessage, ElMessageBox } from 'element-plus';import { DollarSign } from '@lucide/vue';import { formatBeijingTime } from '@/utils/time'
 const users=ref([]),loading=ref(false),search=ref(''),page=ref(1),limit=ref(20),total=ref(0)
 const detailDialog=ref(false),detailUser=ref(null),pendingOrders=ref([]),adjustDialog=ref(false),adjusting=ref(false)
 const adj=ref({type:'manual_add',balance_type:'recharge',amount:0,remark:''})
@@ -56,4 +66,12 @@ async function doAdjust(){
   adjusting.value=false
 }
 function rl(r){const m={admin:'管理员',operator:'运营',finance:'财务',user:'用户'};return m[r]||r}
+function points(value){const parsed=Number(value);return Number.isFinite(parsed)?parsed.toFixed(0):'0'}
 </script>
+
+<style scoped>
+.users-page{width:100%;min-width:0}.users-toolbar{gap:16px}.admin-search{width:260px}.desktop-users-table{width:100%}.mobile-user-list{display:none}
+@media(max-width:768px){
+  .users-toolbar{align-items:stretch;flex-direction:column}.users-toolbar h3{margin:0}.admin-search{width:100%}.desktop-users-table{display:none}.mobile-user-list{display:grid;gap:10px}.mobile-user-card{min-width:0;padding:13px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}.mobile-user-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.mobile-user-head>div{display:flex;align-items:baseline;min-width:0;gap:7px}.mobile-user-head strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobile-user-head span,.mobile-user-time{color:#94a3b8;font-size:11px}.mobile-user-email{margin:6px 0 10px;color:#64748b;font-size:12px;overflow-wrap:anywhere}.mobile-user-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.mobile-user-meta span{min-width:0;padding:7px;background:#f8fafc;border-radius:8px;color:#64748b;font-size:11px}.mobile-user-meta strong{display:block;margin-top:2px;color:#0f172a;font-size:12px;overflow-wrap:anywhere}.mobile-user-time{margin-top:8px}.mobile-user-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.mobile-user-actions .el-button{min-height:44px;margin:0}.users-page :deep(.el-pagination){max-width:100%;overflow-x:auto;justify-content:flex-start!important}.users-page :deep(.el-dialog){width:calc(100% - 16px)!important}.users-page :deep(.el-dialog__body){padding:14px}.users-page :deep(.el-descriptions__body){overflow-x:auto}
+}
+</style>

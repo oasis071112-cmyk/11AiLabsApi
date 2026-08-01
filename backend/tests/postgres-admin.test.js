@@ -269,6 +269,27 @@ describe('PostgreSQL management compatibility router', () => {
     expect(queries.every(sql => !sql.includes('api_request_logs'))).toBe(true);
   });
 
+  it('normalizes PostgreSQL wallet numerics before returning users to the management UI', async () => {
+    const pool = {
+      connect: vi.fn(),
+      query: vi.fn(async sql => sql.includes('COUNT(*)')
+        ? { rows: [{ count: '1' }] }
+        : { rows: [{
+          id: '2', username: 'lz11', email: 'lz11@local.invalid', role: 'user', status: 'active',
+          quota_balance: '0.000000', gift_quota: '0.997899', frozen_balance: '0.000000', total_spent: '0.002101',
+        }] }),
+    };
+    const data = new PostgresAdminCompatRepository({
+      pool, secretBox: { activeVersion: 'v1', seal: () => 'unused' },
+    });
+
+    const result = await data.listUsers({ page: 1, limit: 20, status: '', search: '' });
+
+    expect(result.data[0]).toMatchObject({
+      quota_balance: 0, gift_quota: 0.997899, frozen_balance: 0, total_spent: 0.002101,
+    });
+  });
+
   it('serves account availability and sanitized probe history from the monitoring read model', async () => {
     const queries = [];
     const pool = {

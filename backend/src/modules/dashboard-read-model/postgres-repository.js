@@ -1,8 +1,19 @@
+const { buildBillingDetailFromSnapshot } = require('../../utils/billing-detail');
+
 function numberValues(row = {}) {
   const result = { ...row };
   for (const [key, value] of Object.entries(result)) {
     if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value)) result[key] = Number(value);
   }
+  return result;
+}
+
+function publicLog(row = {}) {
+  const result = { ...row };
+  for (const field of ['input_tokens', 'output_tokens', 'total_cost', 'latency_ms', 'image_count']) {
+    if (row[field] !== null && row[field] !== undefined) result[field] = Number(row[field] || 0);
+  }
+  result.billing_detail = buildBillingDetailFromSnapshot(result);
   return result;
 }
 
@@ -122,7 +133,7 @@ class PostgresDashboardRepository {
     ]);
     const summary = numberValues(aggregate.rows[0] || {});
     return {
-      data: page.rows,
+      data: page.rows.map(publicLog),
       summary: { ...summary, calls: summary.total || 0 },
       stats: numberValues(globalStats.rows[0] || {}),
       daily: daily.rows.map(numberValues),
