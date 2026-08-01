@@ -295,15 +295,17 @@ describe('PostgreSQL public proxy adapters', () => {
       response: { data: [{ width: 1024, height: 1024 }, { width: 3840, height: 2160 }] },
     });
 
-    expect(charge.amount).toBeCloseTo(11.2, 10);
+    expect(charge.amount).toBeCloseTo(7, 10);
     expect(charge.snapshot).toMatchObject({
       size: '4K', image_count: 2, output_size_breakdown: { '1K': 1, '4K': 1 },
-      size_breakdown: { '4K': 2 },
+      size_breakdown: { '1K': 1, '4K': 1 },
       tier_charges: {
-        '4K': { image_count: 2, unit_price: 0.4 },
+        '1K': { image_count: 1, unit_price: 0.1 },
+        '4K': { image_count: 1, unit_price: 0.4 },
       },
     });
-    expect(charge.snapshot.tier_charges['4K'].total_cost).toBeCloseTo(11.2, 10);
+    expect(charge.snapshot.tier_charges['1K'].total_cost).toBeCloseTo(1.4, 10);
+    expect(charge.snapshot.tier_charges['4K'].total_cost).toBeCloseTo(5.6, 10);
   });
 
   it('prefreezes image output from the highest eligible mapping price when catalog pricing is absent', async () => {
