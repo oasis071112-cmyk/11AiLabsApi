@@ -18,6 +18,13 @@ function sliceBetween(source, startMarker, endMarker) {
 const api = read('src/api/index.js')
 const channels = read('src/views/admin/Channels.vue')
 
+assert.match(channels, /label="最大并发"/, '渠道表单必须向管理员显示最大并发')
+assert.match(
+  channels,
+  /const emptyChannel=\(\)=>\(\{[^\n]*max_concurrency:5/,
+  '新建渠道表单必须默认最大并发为 5',
+)
+
 const interceptorStart = api.indexOf('api.interceptors.response.use')
 const canceledGuard = api.indexOf("axios.isCancel(e)||e?.code==='ERR_CANCELED'", interceptorStart)
 const errorToast = api.indexOf('ElMessage.error(', interceptorStart)

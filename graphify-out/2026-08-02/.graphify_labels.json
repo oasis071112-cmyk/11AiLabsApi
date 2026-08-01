@@ -161,12 +161,10 @@
   "159": "性能与压测验证",
   "160": "cors",
   "161": "worker-runtime.test.js",
-  "162": "echarts",
   "163": "request-limits.js",
   "164": "bcryptjs",
   "165": "express-rate-limit",
   "166": "multer",
   "167": "winston",
-  "168": "postgres-concurrency-migration-integration.test.js",
   "169": "live-admin-dashboard.spec.mjs"
 }

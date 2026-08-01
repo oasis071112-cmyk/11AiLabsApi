@@ -56,8 +56,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';import { useRoute, useRouter } from 'vue-router';import api from '@/api';import { ElMessage } from 'element-plus'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import api from '@/api'
+import { ElMessage } from 'element-plus'
 import { Wallet, ShoppingCart, Coins, Gift, Lock } from '@lucide/vue'
+
+const PAYMENT_RETURN_MESSAGE = 'ionailabs:payment-return'
 const wallet=ref({quota_balance:0,gift_quota:0,frozen_balance:0})
 const availableBalance=computed(()=>((wallet.value.quota_balance||0)+(wallet.value.gift_quota||0)-(wallet.value.frozen_balance||0)).toFixed(2))
 const activeTab=ref('tx'),transactions=ref([]),orders=ref([]),ltx=ref(false),lo=ref(false)
@@ -65,15 +70,138 @@ const txPage=ref(1),txTotal=ref(0),oPage=ref(1),oTotal=ref(0)
 const rechargeDialog=ref(false),recharging=ref(false),rf=ref({amount:10,payment_method:'alipay'}),paymentOptions=ref({enabled:false,methods:[],minimum:1,maximum:10000})
 const route=useRoute()
 const router=useRouter()
+let paymentWindow=null
+let paymentWindowName=''
+let pendingPaymentOrderNo=''
+let paymentPollGeneration=0
+const notifiedOrders=new Set()
+
 watch(()=>route.path,path=>{if(path==='/subscribe')rechargeDialog.value=true},{immediate:true})
 function onRechargeClosed(){if(route.path==='/subscribe')router.replace('/wallet')}
+function delay(ms){return new Promise(resolve=>window.setTimeout(resolve,ms))}
 async function fetchWallet(){try{const r=await api.get('/api/user/wallet');wallet.value={quota_balance:r.data.quota_balance||r.data.recharge_balance||0,gift_quota:r.data.gift_quota||r.data.gift_balance||0,frozen_balance:r.data.frozen_balance||0}}catch(e){}}
-async function refreshReturnedPayment(){const orderNo=String(route.query.payment_order||'');if(!orderNo)return;activeTab.value='orders';for(let attempt=0;attempt<6;attempt+=1){try{const response=await api.get(`/api/user/payment-orders/${encodeURIComponent(orderNo)}`);const status=response.data.data?.status;if(status==='granted'){await Promise.all([fetchWallet(),fetchOrders(),fetchTx()]);ElMessage.success('支付已确认，额度已自动到账');return}if(status==='cancelled'){ElMessage.warning('该支付订单已超时或取消');return}if(attempt===0)ElMessage.info('支付完成后正在确认到账，请稍候…')}catch(e){return}await new Promise(resolve=>window.setTimeout(resolve,2000))}ElMessage.info('支付结果仍在确认中，请稍后在购买记录刷新查看')}
-onMounted(async()=>{try{const paymentResponse=await api.get('/api/user/payment-options');paymentOptions.value=paymentResponse.data;if(!paymentOptions.value.methods.includes(rf.value.payment_method))rf.value.payment_method=paymentOptions.value.methods[0]||'manual_transfer'}catch(e){};await Promise.all([fetchWallet(),fetchTx(),fetchOrders()]);await refreshReturnedPayment()})
 async function fetchTx(){ltx.value=true;try{const r=await api.get('/api/user/transactions',{params:{page:txPage.value}});transactions.value=r.data.data;txTotal.value=r.data.pagination.total}catch(e){}ltx.value=false}
 async function fetchOrders(){lo.value=true;try{const r=await api.get('/api/user/recharge-orders',{params:{page:oPage.value}});orders.value=r.data.data;oTotal.value=r.data.pagination.total}catch(e){}lo.value=false}
-function submitPaymentForm(request){const form=document.createElement('form');form.method=request.method||'POST';form.action=request.action;for(const [name,value] of Object.entries(request.fields||{})){const input=document.createElement('input');input.type='hidden';input.name=name;input.value=String(value);form.appendChild(input)}document.body.appendChild(form);form.submit()}
-async function submitRecharge(){const amount=Number(rf.value.amount);if(!Number.isFinite(amount)||amount<paymentOptions.value.minimum||amount>paymentOptions.value.maximum){ElMessage.error(`购买金额需为 ${paymentOptions.value.minimum} 至 ${paymentOptions.value.maximum} 元之间`);return}recharging.value=true;try{if(paymentOptions.value.enabled){const response=await api.post('/api/user/payment-orders',rf.value);ElMessage.success('正在跳转至支付页面');submitPaymentForm(response.data.payment_request)}else{await api.post('/api/user/recharge',rf.value);ElMessage.success('购买订单已创建');rechargeDialog.value=false;fetchOrders()}}catch(e){ElMessage.error(e?.response?.data?.error||'创建支付订单失败，请稍后重试')}finally{recharging.value=false}}
+async function refreshPaymentData(){await Promise.all([fetchWallet(),fetchOrders(),fetchTx()])}
+
+function notifyOriginalWallet(orderNo,status){
+  if(!window.opener||window.opener.closed)return false
+  window.opener.postMessage({type:PAYMENT_RETURN_MESSAGE,order_no:orderNo,status},window.location.origin)
+  window.setTimeout(()=>window.close(),50)
+  return true
+}
+
+async function pollPaymentOrder(orderNo,{attempts=360,delayMs=5000,returnTab=false,quiet=false}={}){
+  const generation=++paymentPollGeneration
+  activeTab.value='orders'
+  for(let attempt=0;attempt<attempts&&generation===paymentPollGeneration;attempt+=1){
+    try{
+      const response=await api.get(`/api/user/payment-orders/${encodeURIComponent(orderNo)}`)
+      const status=response.data.data?.status
+      if(status==='granted'||status==='credited'){
+        if(returnTab&&notifyOriginalWallet(orderNo,status))return status
+        await refreshPaymentData()
+        pendingPaymentOrderNo=''
+        if(!notifiedOrders.has(orderNo)){notifiedOrders.add(orderNo);ElMessage.success('支付已确认，额度已自动到账')}
+        return status
+      }
+      if(['cancelled','expired','abnormal'].includes(status)){
+        if(returnTab&&notifyOriginalWallet(orderNo,status))return status
+        pendingPaymentOrderNo=''
+        ElMessage.warning('该支付订单已超时、取消或异常')
+        return status
+      }
+      if(attempt===0&&!quiet)ElMessage.info('支付完成后正在确认到账，请稍候…')
+    }catch(e){if(attempt===attempts-1)return null}
+    await delay(delayMs)
+  }
+  if(!quiet&&generation===paymentPollGeneration)ElMessage.info('支付结果仍在确认中，请稍后在购买记录刷新查看')
+  return null
+}
+
+function handlePaymentReturn(event){
+  if(event.origin!==window.location.origin||event.data?.type!==PAYMENT_RETURN_MESSAGE)return
+  const orderNo=String(event.data.order_no||'')
+  if(!orderNo||orderNo!==pendingPaymentOrderNo)return
+  if(paymentWindow&&event.source!==paymentWindow)return
+  void pollPaymentOrder(orderNo,{quiet:true})
+}
+
+function openPaymentWindow(){
+  paymentWindowName=`ionailabs-payment-${Date.now()}`
+  paymentWindow=window.open('about:blank',paymentWindowName)
+  if(!paymentWindow||paymentWindow.closed){paymentWindow=null;paymentWindowName='';return false}
+  return true
+}
+
+function closePaymentWindow(){
+  try{if(paymentWindow&&!paymentWindow.closed)paymentWindow.close()}catch(e){}
+  paymentWindow=null
+  paymentWindowName=''
+}
+
+function submitPaymentForm(request,targetName){
+  if(!request?.action)throw new Error('支付跳转参数无效')
+  const form=document.createElement('form')
+  form.method=request.method||'POST'
+  form.action=request.action
+  form.target=targetName
+  for(const [name,value] of Object.entries(request.fields||{})){
+    const input=document.createElement('input')
+    input.type='hidden';input.name=name;input.value=String(value);form.appendChild(input)
+  }
+  document.body.appendChild(form)
+  try{form.submit()}finally{form.remove()}
+}
+
+async function submitRecharge(){
+  const amount=Number(rf.value.amount)
+  if(!Number.isFinite(amount)||amount<paymentOptions.value.minimum||amount>paymentOptions.value.maximum){ElMessage.error(`购买金额需为 ${paymentOptions.value.minimum} 至 ${paymentOptions.value.maximum} 元之间`);return}
+  if(paymentOptions.value.enabled&&!openPaymentWindow()){ElMessage.error('支付页面被浏览器拦截，请允许弹出窗口后重试');return}
+  recharging.value=true
+  try{
+    if(paymentOptions.value.enabled){
+      const response=await api.post('/api/user/payment-orders',rf.value)
+      pendingPaymentOrderNo=String(response.data.order_no||'')
+      if(!pendingPaymentOrderNo)throw new Error('支付订单号无效')
+      submitPaymentForm(response.data.payment_request,paymentWindowName)
+      rechargeDialog.value=false
+      activeTab.value='orders'
+      await fetchOrders()
+      ElMessage.success('支付页面已在新标签打开')
+      void pollPaymentOrder(pendingPaymentOrderNo,{quiet:true})
+    }else{
+      await api.post('/api/user/recharge',rf.value)
+      ElMessage.success('购买订单已创建')
+      rechargeDialog.value=false
+      fetchOrders()
+    }
+  }catch(e){
+    closePaymentWindow()
+    ElMessage.error(e?.response?.data?.error||e?.message||'创建支付订单失败，请稍后重试')
+  }finally{recharging.value=false}
+}
+
+onMounted(async()=>{
+  window.addEventListener('message',handlePaymentReturn)
+  try{
+    const paymentResponse=await api.get('/api/user/payment-options')
+    paymentOptions.value=paymentResponse.data
+    if(!paymentOptions.value.methods.includes(rf.value.payment_method))rf.value.payment_method=paymentOptions.value.methods[0]||'manual_transfer'
+  }catch(e){}
+  await Promise.all([fetchWallet(),fetchTx(),fetchOrders()])
+  const returnedOrderNo=String(route.query.payment_order||'')
+  if(returnedOrderNo){
+    if(notifyOriginalWallet(returnedOrderNo,'returned'))return
+    await pollPaymentOrder(returnedOrderNo,{attempts:12,delayMs:1000,returnTab:true})
+  }
+})
+
+onBeforeUnmount(()=>{
+  paymentPollGeneration+=1
+  window.removeEventListener('message',handlePaymentReturn)
+})
+
 function typeColor(t){const m={recharge:'',purchase:'',gift:'warning',consume:'danger',manual_add:'',manual_deduct:'danger',refund:'info'};return m[t]||'info'}
 function typeLabel(t){const m={recharge:'购买',purchase:'购买',gift:'赠送',consume:'消耗',manual_add:'增加',manual_deduct:'扣减',refund:'退回',freeze:'冻结',unfreeze:'解冻'};return m[t]||t}
 function osType(s){const m={pending:'warning',paid:'primary',granted:'success',credited:'success',cancelled:'info',abnormal:'danger'};return m[s]||'info'}

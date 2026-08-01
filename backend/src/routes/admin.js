@@ -973,20 +973,23 @@ router.get('/channels', authenticate, requireAdmin('admin'), (req, res) => {
 });
 
 router.post('/channels', authenticate, requireAdmin('admin'), (req, res) => {
-  const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible', capabilities } = req.body;
+  const { channel_name, base_url, api_key, priority, weight, max_concurrency=5, protocol_type='openai_compatible', capabilities } = req.body;
   if (!String(channel_name||'').trim() || !String(base_url||'').trim() || !String(api_key||'').trim()) return res.status(400).json({ error: '渠道名称、上游地址和 API Key 不能为空' });
   if (!isSupportedChannelProtocol(protocol_type)) return res.status(400).json({ error: '仅支持 OpenAI 兼容协议或 Anthropic Messages 协议' });
+  const maxConcurrency = Number(max_concurrency);
+  if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) return res.status(400).json({ error: '最大并发必须是正整数' });
   let serializedCapabilities;
   try { serializedCapabilities = serializeChannelCapabilities(capabilities, protocol_type); }
   catch (error) { return res.status(400).json({ error: error.message }); }
   getDatabase().prepare(`INSERT INTO upstream_channels (
-    channel_name,base_url,api_key,priority,weight,protocol_type,capabilities
-  ) VALUES (?,?,?,?,?,?,?)`).run(
+    channel_name,base_url,api_key,priority,weight,max_concurrency,protocol_type,capabilities
+  ) VALUES (?,?,?,?,?,?,?,?)`).run(
     String(channel_name).trim(),
     String(base_url).replace(/\/+$/, ''),
     api_key,
     priority||0,
     weight||100,
+    maxConcurrency,
     protocol_type,
     serializedCapabilities,
   );
@@ -1047,13 +1050,15 @@ router.delete('/channels/:id', authenticate, requireAdmin('admin'), (req, res) =
 
 // 更新渠道信息（名称/地址/Key/权重）
 router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
-  const { channel_name, base_url, api_key, priority, weight, protocol_type='openai_compatible', capabilities } = req.body;
+  const { channel_name, base_url, api_key, priority, weight, max_concurrency, protocol_type='openai_compatible', capabilities } = req.body;
   const db = getDatabase();
   if (!String(channel_name||'').trim() || !String(base_url||'').trim()) return res.status(400).json({ error: '渠道名称和上游地址不能为空' });
   if (!isSupportedChannelProtocol(protocol_type)) return res.status(400).json({ error: '仅支持 OpenAI 兼容协议或 Anthropic Messages 协议' });
-  const existingChannel = db.prepare(`SELECT protocol_type,capabilities
+  const existingChannel = db.prepare(`SELECT protocol_type,capabilities,max_concurrency
     FROM upstream_channels WHERE id=?`).get(req.params.id);
   if (!existingChannel) return res.status(404).json({ error: '渠道不存在' });
+  const maxConcurrency = max_concurrency===undefined ? Number(existingChannel.max_concurrency||5) : Number(max_concurrency);
+  if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) return res.status(400).json({ error: '最大并发必须是正整数' });
   let serializedCapabilities;
   try {
     serializedCapabilities = capabilities === undefined
@@ -1067,7 +1072,7 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
     db.transaction(() => {
       if (api_key && api_key.trim()) {
         db.prepare(`UPDATE upstream_channels SET
-          channel_name=?,base_url=?,api_key=?,priority=?,weight=?,protocol_type=?,capabilities=?,
+          channel_name=?,base_url=?,api_key=?,priority=?,weight=?,max_concurrency=?,protocol_type=?,capabilities=?,
           health_score=50,consecutive_failures=0,circuit_breaker_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
           .run(
             String(channel_name).trim(),
@@ -1075,19 +1080,21 @@ router.put('/channels/:id', authenticate, requireAdmin('admin'), (req, res) => {
             api_key,
             priority||0,
             weight||100,
+            maxConcurrency,
             protocol_type,
             serializedCapabilities,
             req.params.id,
           );
       } else {
         db.prepare(`UPDATE upstream_channels SET
-          channel_name=?,base_url=?,priority=?,weight=?,protocol_type=?,capabilities=?,
+          channel_name=?,base_url=?,priority=?,weight=?,max_concurrency=?,protocol_type=?,capabilities=?,
           health_score=50,consecutive_failures=0,circuit_breaker_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
           .run(
             String(channel_name).trim(),
             String(base_url).replace(/\/+$/, ''),
             priority||0,
             weight||100,
+            maxConcurrency,
             protocol_type,
             serializedCapabilities,
             req.params.id,

@@ -124,11 +124,24 @@ function createPostgresProxyRouter({
   router.use(authenticateApiKey);
   router.use(express.json({ limit: '20mb' }));
 
-  function apiError(res, protocol, status, message, type, code) {
+  function apiError(res, protocol, status, message, type, code, details) {
     if (protocol === 'anthropic') {
-      return res.status(status).json({ type: 'error', error: { type, message, ...(code ? { code } : {}) } });
+      return res.status(status).json({ type: 'error', error: { type, message, ...(code ? { code } : {}), ...(details ? { details } : {}) } });
     }
-    return res.status(status).json({ error: { message, type, ...(code ? { code } : {}) } });
+    return res.status(status).json({ error: { message, type, ...(code ? { code } : {}), ...(details ? { details } : {}) } });
+  }
+
+  function sanitizedCapacity(error) {
+    const allowedReasons = new Set(['concurrency', 'rpm', 'tpm', 'cooldown']);
+    const rejections = Array.isArray(error?.details?.rejections) ? error.details.rejections : [];
+    const reasons = [...new Set(rejections.map(item => item?.reason).filter(reason => allowedReasons.has(reason)))];
+    const retryAfterMs = rejections
+      .map(item => Number(item?.retryAfterMs))
+      .filter(value => Number.isFinite(value) && value > 0);
+    const retryAfterSeconds = reasons.includes('concurrency')
+      ? 1
+      : Math.max(1, Math.ceil((retryAfterMs.length ? Math.min(...retryAfterMs) : 1_000) / 1_000));
+    return { reasons, retryAfterSeconds };
   }
 
   function causeMatching(error, predicate) {
@@ -365,15 +378,16 @@ function createPostgresProxyRouter({
             'settlement_pending',
           );
         }
-        if (reservedAmount > 0 && ['redis_unavailable', 'no_account_available', 'account_capacity_exhausted']
-          .includes(error.code)) {
-          await runtime.usageSettlement.release({
-            userId: identityContext.userId,
-            reservedAmount,
-            requestId,
-            remark: 'Gateway scheduling did not start an upstream request',
-          });
-          reservedAmount = 0;
+        if (['redis_unavailable', 'no_account_available', 'account_capacity_exhausted'].includes(error.code)) {
+          if (reservedAmount > 0) {
+            await runtime.usageSettlement.release({
+              userId: identityContext.userId,
+              reservedAmount,
+              requestId,
+              remark: 'Gateway scheduling did not start an upstream request',
+            });
+            reservedAmount = 0;
+          }
           if (error.code === 'redis_unavailable') {
             return apiError(
               res,
@@ -382,6 +396,19 @@ function createPostgresProxyRouter({
               'Gateway scheduler is temporarily unavailable',
               'service_unavailable',
               'redis_unavailable',
+            );
+          }
+          if (error.code === 'account_capacity_exhausted') {
+            const capacity = sanitizedCapacity(error);
+            res.setHeader('Retry-After', String(capacity.retryAfterSeconds));
+            return apiError(
+              res,
+              protocol,
+              503,
+              'No upstream account is currently available',
+              'no_channel',
+              error.code,
+              { reasons: capacity.reasons },
             );
           }
           return apiError(res, protocol, 503, 'No upstream account is currently available', 'no_channel', error.code);

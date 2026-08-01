@@ -80,6 +80,24 @@ describe('bootstrap aggregate routes', () => {
     expect(await controlResponse.json()).toEqual({ accounts: [{ id: 1, name: 'main' }] });
   });
 
+  it('records a sanitized warning when the admin dashboard read is slow', async () => {
+    const deps = dependencies('admin');
+    const logger = { warn: vi.fn() };
+    const timestamps = [1_000, 3_105];
+    const baseUrl = await serve(createBootstrapRouter({
+      ...deps,
+      logger,
+      clock: () => timestamps.shift(),
+      slowRequestMs: 1_000,
+    }));
+
+    expect((await fetch(`${baseUrl}/api/admin/dashboard/bootstrap`)).status).toBe(200);
+    expect(logger.warn).toHaveBeenCalledWith('管理概览查询耗时较长', {
+      duration_ms: 2_105,
+      route: '/api/admin/dashboard/bootstrap',
+    });
+  });
+
   it('allows only administrators to create an upstream account', async () => {
     const forbidden = dependencies('operator');
     const forbiddenUrl = await serve(createBootstrapRouter(forbidden));

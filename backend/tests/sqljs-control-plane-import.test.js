@@ -75,7 +75,7 @@ describe('SQL.js control-plane import seam', () => {
       },
     });
     expect(plan.records.find(record => record.entity === 'upstream_account')).toMatchObject({
-      value: { priority: 9, weight: 70, maxConcurrency: 1, rpmLimit: 60, tpmLimit: 100000 },
+      value: { priority: 9, weight: 70, maxConcurrency: 5, rpmLimit: 60, tpmLimit: 100000 },
     });
     expect(plan.records.find(record => record.entity === 'model')).toMatchObject({
       value: {

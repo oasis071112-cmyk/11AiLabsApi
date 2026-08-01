@@ -91,6 +91,7 @@ app.use('/api', createBootstrapRouter({
   requireAdmin,
   dashboardReadModel: runtimeService('dashboardReadModel'),
   controlPlane: runtimeService('controlPlane'),
+  logger,
 }));
 
 app.use('/api/auth', createRuntimeRouter({ legacyRouter: authRoutes, getPostgresRouter: () => postgresRouters.auth }));

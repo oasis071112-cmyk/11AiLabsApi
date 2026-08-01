@@ -39,10 +39,10 @@ async function loadDashboard(){
   dashboardError.value=''
   try{
     try{
-      data.value=(await api.get('/api/admin/dashboard/bootstrap',{timeout:1800})).data
+      data.value=(await api.get('/api/admin/dashboard/bootstrap',{timeout:10000})).data
     }catch(error){
       if(error.response?.status!==404)throw error
-      data.value=(await api.get('/api/admin/dashboard',{timeout:1800})).data
+      data.value=(await api.get('/api/admin/dashboard',{timeout:10000})).data
     }
   }catch(error){
     dashboardError.value=error.response?.data?.error||error.message||'请稍后重试'

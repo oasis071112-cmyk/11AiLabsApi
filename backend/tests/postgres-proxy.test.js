@@ -313,6 +313,63 @@ describe('PostgreSQL public proxy bridge', () => {
     })]);
   });
 
+  it('returns sanitized capacity reasons and Retry-After for zero-cost requests without leaking upstream account identity', async () => {
+    const releases = [];
+    const runtime = {
+      mode: 'postgres_redis',
+      gatewayScheduler: {
+        async executeWithFailover() {
+          throw Object.assign(new Error('capacity'), {
+            code: 'account_capacity_exhausted',
+            status: 503,
+            details: { rejections: [
+              { accountId: 'secret-concurrency-account', routingGroupId: 'private-group', reason: 'concurrency', retryAfterMs: 0 },
+              { accountId: 'secret-rpm-account', reason: 'rpm', retryAfterMs: 2_200 },
+              { accountId: 'secret-tpm-account', reason: 'tpm', retryAfterMs: 3_200 },
+              { accountId: 'secret-cooldown-account', reason: 'cooldown', retryAfterMs: 4_200 },
+            ] },
+          });
+        },
+      },
+      usageSettlement: {
+        async reserve(value) { return { reserved: value.amount }; },
+        async release(value) { releases.push(value); },
+        async settle() { throw new Error('unexpected settle'); },
+        async markPending() { throw new Error('unexpected pending'); },
+      },
+      secretBox: { open() { throw new Error('unexpected secret open'); } },
+    };
+    const baseUrl = await listen(createPostgresProxyRouter(baseOptions({
+      runtime,
+      requestIdFactory: () => 'request-capacity',
+      billingPolicy: {
+        async quoteReservation() { return { amount: 0, estimatedTokens: 1 }; },
+        async quoteCharge() { throw new Error('unexpected charge'); },
+      },
+    })));
+
+    const response = await fetch(`${baseUrl}/responses`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer sk-test', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'public-chat', input: 'hello' }),
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get('retry-after')).toBe('1');
+    expect(payload).toEqual({
+      error: {
+        message: 'No upstream account is currently available',
+        type: 'no_channel',
+        code: 'account_capacity_exhausted',
+        details: { reasons: ['concurrency', 'rpm', 'tpm', 'cooldown'] },
+      },
+    });
+    expect(JSON.stringify(payload)).not.toContain('secret-');
+    expect(JSON.stringify(payload)).not.toContain('private-group');
+    expect(releases).toHaveLength(0);
+  });
+
   it('routes every JSON protocol surface with the matching scheduler capability and upstream path', async () => {
     const schedulerCalls = [];
     const upstreamCalls = [];

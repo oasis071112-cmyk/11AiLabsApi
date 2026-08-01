@@ -215,9 +215,41 @@ describe('PostgreSQL management compatibility router', () => {
     expect(JSON.stringify({ channel, provider, calls })).not.toContain('upstream-secret');
     expect(JSON.stringify({ channel, provider, calls })).not.toContain('merchant-secret');
     expect(channel).toMatchObject({ secret_configured: true });
+    const channelInsert = calls.find(call => call.sql.includes('INSERT INTO upstream_accounts'));
+    expect(channelInsert.values[8]).toBe(5);
     expect(provider).toMatchObject({ secret_configured: true });
     expect(calls.filter(call => call.sql.includes('INSERT INTO audit_logs'))).toHaveLength(2);
     expect(calls.filter(call => call.sql.includes('INSERT INTO audit_logs')).every(call => call.values[2] === 77)).toBe(true);
+  });
+
+  it('preserves channel concurrency on unrelated edits and accepts an administrator override', async () => {
+    const writes = [];
+    const existing = {
+      id: 7, account_key: 'primary', display_name: 'Primary', base_url: 'https://upstream.example/v1',
+      protocol_type: 'openai_compatible', capabilities: ['responses'], status: 'active',
+      max_concurrency: 8, rpm_limit: 60, tpm_limit: 100000, cooldown_seconds: 60,
+      priority: 0, weight: 100, api_key_envelope: 'sealed', secret_version: 'v1',
+    };
+    const client = {
+      async query(sql, values = []) {
+        if (sql.includes('SELECT * FROM upstream_accounts')) return { rows: [{ ...existing }] };
+        if (sql.includes('UPDATE upstream_accounts SET')) {
+          writes.push(values);
+          return { rows: [{ ...existing, display_name: values[1], max_concurrency: values[8], secret_configured: true }] };
+        }
+        return { rows: [] };
+      },
+      release: vi.fn(),
+    };
+    const repository = new PostgresAdminCompatRepository({
+      pool: { query: client.query.bind(client), connect: async () => client },
+      secretBox: { activeVersion: 'v1', seal: () => 'unused' },
+    });
+
+    await repository.updateChannel(7, { channel_name: 'Renamed' }, { staffId: 77 });
+    await repository.updateChannel(7, { channel_name: 'Override', max_concurrency: 3 }, { staffId: 77 });
+
+    expect(writes.map(values => values[8])).toEqual([8, 3]);
   });
 
   it('keeps routing-group reads inside the write transaction when no member or model rule changes', async () => {

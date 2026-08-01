@@ -38,6 +38,7 @@ describe('PostgreSQL foundation schema seam', () => {
       '003_public_api_compatibility',
       '004_api_key_daily_usage',
       '005_wallet_nonnegative',
+      '006_upstream_concurrency_default',
     ]);
     expect(foundation).not.toContain('max_concurrency');
     for (const column of [
@@ -92,5 +93,13 @@ describe('PostgreSQL foundation schema seam', () => {
       expect(migration).toContain(`${column} >= 0`);
     }
     expect(migration).toContain("VALUES ('005_wallet_nonnegative'");
+  });
+
+  it('migrates every existing channel and the PostgreSQL default to five concurrent requests', () => {
+    const migration = fs.readFileSync(path.join(migrationsDirectory, '006_upstream_concurrency_default.sql'), 'utf8');
+
+    expect(migration).toContain('UPDATE upstream_accounts SET max_concurrency = 5');
+    expect(migration).toContain('ALTER COLUMN max_concurrency SET DEFAULT 5');
+    expect(migration).toContain("VALUES ('006_upstream_concurrency_default'");
   });
 });

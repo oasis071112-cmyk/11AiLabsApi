@@ -57,7 +57,7 @@ function normalizedAccount(input, secretCipher) {
   if (capabilities.some(capability => !ACCOUNT_CAPABILITIES.has(capability))) {
     throw controlPlaneError('包含不支持的接口能力', 'INVALID_ACCOUNT_CAPABILITY');
   }
-  const maxConcurrency = integerLimit(input.max_concurrency, '最大并发', { minimum: 1, fallback: 1 });
+  const maxConcurrency = integerLimit(input.max_concurrency, '最大并发', { minimum: 1, fallback: 5 });
   const rpmLimit = integerLimit(input.rpm_limit, 'RPM', { minimum: 0, fallback: 0 });
   const tpmLimit = integerLimit(input.tpm_limit, 'TPM', { minimum: 0, fallback: 0 });
   const cooldownSeconds = integerLimit(input.cooldown_seconds, '冷却时间', { minimum: 0, fallback: 60 });

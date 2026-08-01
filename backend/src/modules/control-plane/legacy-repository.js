@@ -12,12 +12,11 @@ class LegacyControlPlaneRepository {
 
   async getBootstrap() {
     const accounts = this.db.prepare(`SELECT id,channel_name AS name,base_url,protocol_type,capabilities,status,
-      priority,weight,health_score,circuit_breaker_until AS cooldown_until,last_check_time AS last_probe_at,
+      priority,weight,max_concurrency,health_score,circuit_breaker_until AS cooldown_until,last_check_time AS last_probe_at,
       (api_key IS NOT NULL AND api_key!='') AS secret_configured,created_at,updated_at
       FROM upstream_channels ORDER BY priority ASC,id ASC`).all().map(account => ({
       ...account,
       capabilities: parseCapabilities(account.capabilities),
-      max_concurrency: 0,
       rpm_limit: 0,
       tpm_limit: 0,
       cooldown_seconds: 60,
@@ -47,10 +46,10 @@ class LegacyControlPlaneRepository {
     return work({
       createAccount: async account => {
         const result = this.db.prepare(`INSERT INTO upstream_channels
-          (channel_name,base_url,api_key,priority,weight,protocol_type,capabilities,status)
-          VALUES (?,?,?,?,?,?,?,?)`).run(
+          (channel_name,base_url,api_key,priority,weight,max_concurrency,protocol_type,capabilities,status)
+          VALUES (?,?,?,?,?,?,?,?,?)`).run(
           account.name, account.base_url, account.credential_ciphertext,
-          account.priority, account.weight, account.protocol_type,
+          account.priority, account.weight, account.max_concurrency, account.protocol_type,
           JSON.stringify(account.capabilities), account.status,
         );
         return { id: result.lastInsertRowid, ...account };

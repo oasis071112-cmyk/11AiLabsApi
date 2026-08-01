@@ -725,7 +725,7 @@ class PostgresAdminCompatRepository {
       protocol,
       capabilities: [...new Set(capabilities)],
       status: body.status === undefined ? (existing.status || 'active') : status(body.status),
-      maxConcurrency: positiveInteger(body.max_concurrency, Number(existing.max_concurrency ?? 1), 'max_concurrency'),
+      maxConcurrency: positiveInteger(body.max_concurrency, Number(existing.max_concurrency ?? 5), 'max_concurrency'),
       rpmLimit: positiveInteger(body.rpm_limit, Number(existing.rpm_limit ?? 60), 'rpm_limit'),
       tpmLimit: positiveInteger(body.tpm_limit, Number(existing.tpm_limit ?? 100000), 'tpm_limit'),
       cooldownSeconds: positiveInteger(body.cooldown_seconds, Number(existing.cooldown_seconds ?? 60), 'cooldown_seconds'),

@@ -19,7 +19,16 @@ function createRuntimeBootstrapAuthenticate({ getRuntime, legacyAuthenticate } =
   };
 }
 
-function createBootstrapRouter({ authenticate, requireUser, requireAdmin, dashboardReadModel, controlPlane }) {
+function createBootstrapRouter({
+  authenticate,
+  requireUser,
+  requireAdmin,
+  dashboardReadModel,
+  controlPlane,
+  logger = console,
+  clock = Date.now,
+  slowRequestMs = 1_000,
+}) {
   if (!authenticate || !requireUser || !requireAdmin || !dashboardReadModel || !controlPlane) {
     throw new Error('bootstrap routes require authentication, read model, and control plane services');
   }
@@ -37,7 +46,20 @@ function createBootstrapRouter({ authenticate, requireUser, requireAdmin, dashbo
     '/admin/dashboard/bootstrap',
     authenticate,
     requireAdmin('admin', 'operator', 'finance'),
-    asyncRoute(async (_req, res) => res.json(await dashboardReadModel.adminBootstrap())),
+    asyncRoute(async (_req, res) => {
+      const startedAt = clock();
+      try {
+        return res.json(await dashboardReadModel.adminBootstrap());
+      } finally {
+        const durationMs = Math.max(0, clock() - startedAt);
+        if (durationMs >= slowRequestMs) {
+          logger.warn?.('管理概览查询耗时较长', {
+            duration_ms: durationMs,
+            route: '/api/admin/dashboard/bootstrap',
+          });
+        }
+      }
+    }),
   );
 
   router.get(

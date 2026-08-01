@@ -134,13 +134,13 @@ function includesGroup(account, groupId) {
   return account.groupIds.some(candidate => String(candidate) === String(groupId));
 }
 
-function isEligible(account, request, now) {
+function isEligible(account, request, now, { ignoreCooldown = false } = {}) {
   if (!account || account.status !== 'active') return false;
   if ((request.excludedAccountIds || []).some(id => String(id) === String(account.id))) return false;
   if (request.protocol && account.protocol !== request.protocol) return false;
   if (request.capability && !(account.capabilities || []).includes(request.capability)) return false;
   if (!includesGroup(account, request.groupId)) return false;
-  if (account.cooldownUntil && new Date(account.cooldownUntil).getTime() > now) return false;
+  if (!ignoreCooldown && account.cooldownUntil && new Date(account.cooldownUntil).getTime() > now) return false;
   const mapping = activeMapping(account, request.model);
   if (!mapping) return false;
   if (IMAGE_INPUT_CAPABILITIES.has(request.capability) && !mapping.supportsImageInput) return false;
@@ -325,8 +325,22 @@ class GatewayScheduler {
         protocol: request.protocol,
         capability: request.capability,
       });
+      const eligibleBeforeCooldown = (candidates || [])
+        .filter(account => isEligible(account, scopedRequest, now, { ignoreCooldown: true }));
+      for (const account of eligibleBeforeCooldown) {
+        const cooldownUntil = account.cooldownUntil ? new Date(account.cooldownUntil).getTime() : 0;
+        if (cooldownUntil > now) {
+          eligibleCount += 1;
+          rejections.push({
+            accountId: account.id,
+            routingGroupId,
+            reason: 'cooldown',
+            retryAfterMs: cooldownUntil - now,
+          });
+        }
+      }
       const eligible = orderedByPriorityAndWeight(
-        (candidates || []).filter(account => isEligible(account, scopedRequest, now)),
+        eligibleBeforeCooldown.filter(account => !account.cooldownUntil || new Date(account.cooldownUntil).getTime() <= now),
         this.random,
       );
       eligibleCount += eligible.length;

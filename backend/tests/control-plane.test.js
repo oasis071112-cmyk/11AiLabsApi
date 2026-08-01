@@ -63,6 +63,25 @@ describe('ControlPlane', () => {
     expect(result.config_version).toBe(4);
   });
 
+  it('defaults new upstream accounts to five concurrent requests while honoring an explicit override', async () => {
+    const created = [];
+    const repository = {
+      transaction: async work => work({
+        createAccount: async account => { created.push(account); return { id: created.length, ...account }; },
+      }),
+    };
+    const controlPlane = new ControlPlane({ repository, secretCipher: { encrypt: value => `sealed:${value}` } });
+    const baseAccount = {
+      name: 'Primary', base_url: 'https://upstream.example/v1', api_key: 'secret',
+      protocol_type: 'openai_compatible', capabilities: ['responses'],
+    };
+
+    await controlPlane.createAccount(baseAccount);
+    await controlPlane.createAccount({ ...baseAccount, name: 'Special', max_concurrency: 9 });
+
+    expect(created.map(account => account.max_concurrency)).toEqual([5, 9]);
+  });
+
   it('rejects invalid account limits before writing anything', async () => {
     const repository = { transaction: vi.fn() };
     const controlPlane = new ControlPlane({ repository, secretCipher: { encrypt: value => value } });

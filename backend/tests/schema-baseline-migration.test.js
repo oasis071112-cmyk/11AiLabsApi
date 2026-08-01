@@ -69,7 +69,7 @@ describe('第一轮数据库兼容迁移', () => {
         initDatabase().then(() => initDatabase()).then(db => {
           const channelColumns = db.prepare('PRAGMA table_info(upstream_channels)').all();
           const logColumns = db.prepare('PRAGMA table_info(api_request_logs)').all();
-          const channel = db.prepare("SELECT channel_name,base_url,api_key,model_mapping,priority,weight,status,health_score,last_check_time,created_at,updated_at,protocol_type,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image FROM upstream_channels WHERE channel_name='legacy-openai'").get();
+          const channel = db.prepare("SELECT channel_name,base_url,api_key,model_mapping,priority,weight,status,health_score,last_check_time,created_at,updated_at,protocol_type,max_concurrency,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image FROM upstream_channels WHERE channel_name='legacy-openai'").get();
           const log = db.prepare("SELECT request_id,user_id,api_key_id,model_code,upstream_channel_id,input_tokens,output_tokens,total_cost,status,error_message,error_type,request_ip,latency_ms,created_at,request_protocol,upstream_protocol FROM api_request_logs WHERE request_id='req_legacy'").get();
           console.log('MIGRATION_RESULT=' + JSON.stringify({ channelColumns, logColumns, channel, log }));
         }).catch(error => { console.error(error); process.exit(1); });
@@ -92,6 +92,7 @@ describe('第一轮数据库兼容迁移', () => {
         created_at: '2026-01-02 02:03:04',
         updated_at: '2026-01-03 03:04:05',
         protocol_type: 'openai_compatible',
+        max_concurrency: 5,
         billing_multiplier_input: null,
         billing_multiplier_output: null,
         billing_multiplier_image: null,
@@ -130,7 +131,7 @@ describe('第一轮数据库兼容迁移', () => {
           const logColumns = db.prepare('PRAGMA table_info(api_request_logs)').all();
           db.prepare("INSERT INTO upstream_channels (channel_name,base_url,api_key) VALUES ('fresh-openai','https://fresh.example/v1','secret')").run();
           db.prepare("INSERT INTO api_request_logs (request_id,model_code,status) VALUES ('req_fresh','gpt-fresh','success')").run();
-          const channel = db.prepare("SELECT protocol_type,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image FROM upstream_channels WHERE channel_name='fresh-openai'").get();
+          const channel = db.prepare("SELECT protocol_type,max_concurrency,billing_multiplier_input,billing_multiplier_output,billing_multiplier_image FROM upstream_channels WHERE channel_name='fresh-openai'").get();
           const log = db.prepare("SELECT request_protocol,upstream_protocol FROM api_request_logs WHERE request_id='req_fresh'").get();
           console.log('FRESH_RESULT=' + JSON.stringify({ channelColumns, logColumns, channel, log }));
         }).catch(error => { console.error(error); process.exit(1); });
@@ -140,6 +141,7 @@ describe('第一轮数据库兼容迁移', () => {
       expectNullableBaseline(columnMap(fresh.channelColumns), columnMap(fresh.logColumns));
       expect(fresh.channel).toEqual({
         protocol_type: 'openai_compatible',
+        max_concurrency: 5,
         billing_multiplier_input: null,
         billing_multiplier_output: null,
         billing_multiplier_image: null,

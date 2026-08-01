@@ -92,3 +92,18 @@ test('admin dashboard ends the skeleton and exposes retry when bootstrap fails',
   await expect(page.getByRole('button', { name: '重试' })).toBeVisible()
   expect(fallbackRequests).toBe(0)
 })
+
+test('admin dashboard accepts a two-second bootstrap without showing a timeout error', async ({ page }) => {
+  await installSessionMocks(page, 'admin')
+  await page.route(/\/api\/admin\/dashboard\/bootstrap(?:\?.*)?$/, route => delayedJson(route, {
+    today_calls: 73,
+    active_channels: 4,
+    daily_trend: [],
+    model_ranking: [{ model_code: 'SLOW_ADMIN_MODEL', calls: 73, cost: 8 }],
+  }, 2_000))
+
+  await page.goto('/admin', { waitUntil: 'domcontentloaded' })
+
+  await expect(page.getByText('SLOW_ADMIN_MODEL', { exact: true })).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByRole('alert', { name: '管理概览加载失败' })).toHaveCount(0)
+})

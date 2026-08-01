@@ -250,7 +250,7 @@ describe('GatewayScheduler', () => {
     let leaseSequence = 0;
     const accountRepository = {
       async listCandidates() {
-        return [schedulerAccount({ maxConcurrency: 1, rpmLimit: 0, tpmLimit: 0 })];
+        return [schedulerAccount({ maxConcurrency: 5, rpmLimit: 0, tpmLimit: 0 })];
       },
       async getFallbackGroupId() { return null; },
     };
@@ -265,9 +265,10 @@ describe('GatewayScheduler', () => {
       capability: 'chat_completions', estimatedTokens: 10,
     };
 
-    const attempts = await Promise.allSettled([scheduler.acquire(request), scheduler.acquire(request)]);
+    const attempts = await Promise.allSettled(Array.from({ length: 6 }, () => scheduler.acquire(request)));
 
-    expect(attempts.map(result => result.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(attempts.filter(result => result.status === 'fulfilled')).toHaveLength(5);
+    expect(attempts.filter(result => result.status === 'rejected')).toHaveLength(1);
     expect(attempts.find(result => result.status === 'rejected').reason).toMatchObject({
       code: 'account_capacity_exhausted', status: 503,
     });
@@ -377,6 +378,7 @@ describe('GatewayScheduler', () => {
             schedulerAccount({ id: 'concurrent', maxConcurrency: 1, rpmLimit: 0, tpmLimit: 0 }),
             schedulerAccount({ id: 'rpm', maxConcurrency: 5, rpmLimit: 1, tpmLimit: 0 }),
             schedulerAccount({ id: 'tpm', maxConcurrency: 5, rpmLimit: 0, tpmLimit: 50 }),
+            schedulerAccount({ id: 'cooldown', maxConcurrency: 5, rpmLimit: 0, tpmLimit: 0, cooldownUntil: 12_000 }),
           ];
         },
         async getFallbackGroupId() { return null; },
@@ -392,11 +394,12 @@ describe('GatewayScheduler', () => {
     })).rejects.toMatchObject({
       code: 'account_capacity_exhausted',
       details: {
-        rejections: [
+        rejections: expect.arrayContaining([
           expect.objectContaining({ accountId: 'concurrent', reason: 'concurrency' }),
           expect.objectContaining({ accountId: 'rpm', reason: 'rpm' }),
           expect.objectContaining({ accountId: 'tpm', reason: 'tpm' }),
-        ],
+          expect.objectContaining({ accountId: 'cooldown', reason: 'cooldown', retryAfterMs: 5_000 }),
+        ]),
       },
     });
   });

@@ -448,6 +448,7 @@ function createTables() {
     id INTEGER PRIMARY KEY AUTOINCREMENT, channel_name TEXT NOT NULL,
     base_url TEXT NOT NULL, api_key TEXT NOT NULL, model_mapping TEXT,
     priority INTEGER DEFAULT 0, weight INTEGER DEFAULT 100,
+    max_concurrency INTEGER DEFAULT 5,
     billing_multiplier_input REAL, billing_multiplier_output REAL, billing_multiplier_image REAL,
     status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive','error')),
     health_score REAL DEFAULT 100, last_check_time DATETIME,
@@ -461,6 +462,7 @@ function createTables() {
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN total_successes INTEGER DEFAULT 0"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN protocol_type TEXT DEFAULT 'openai_compatible'"); } catch(e) {}
   try { sqlDb.run("ALTER TABLE upstream_channels ADD COLUMN capabilities TEXT DEFAULT '[\"chat_completions\"]'"); } catch(e) {}
+  try { sqlDb.run('ALTER TABLE upstream_channels ADD COLUMN max_concurrency INTEGER DEFAULT 5'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE upstream_channels ADD COLUMN billing_multiplier_input REAL'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE upstream_channels ADD COLUMN billing_multiplier_output REAL'); } catch(e) {}
   try { sqlDb.run('ALTER TABLE upstream_channels ADD COLUMN billing_multiplier_image REAL'); } catch(e) {}

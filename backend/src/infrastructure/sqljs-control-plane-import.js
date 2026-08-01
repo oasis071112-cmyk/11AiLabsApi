@@ -151,7 +151,7 @@ function buildControlPlaneImportPlan(snapshot = {}) {
       protocolType: channel.protocol_type || 'openai_compatible',
       capabilities: jsonValue(channel.capabilities) || [],
       status: channel.status === 'active' ? 'active' : 'inactive',
-      maxConcurrency: nonNegativeInteger(channel.max_concurrency, 1),
+      maxConcurrency: nonNegativeInteger(channel.max_concurrency, 5),
       rpmLimit: nonNegativeInteger(channel.rpm_limit, 60),
       tpmLimit: nonNegativeInteger(channel.tpm_limit, 100000),
       cooldownSeconds: nonNegativeInteger(channel.cooldown_seconds, 60),
