@@ -42,7 +42,7 @@ class PostgresDashboardRepository {
           jsonb_build_object('status','failed','count',COALESCE(SUM(u.failed_count) FILTER (WHERE u.usage_date=CURRENT_DATE),0)),
           jsonb_build_object('status','blocked','count',COALESCE(SUM(u.blocked_count) FILTER (WHERE u.usage_date=CURRENT_DATE),0))))
         FROM user_daily_usage u WHERE u.user_id=$1),'{}'::jsonb) AS stats,
-      COALESCE((SELECT jsonb_agg(day ORDER BY usage_date) FROM (
+      COALESCE((SELECT jsonb_agg(day ORDER BY date) FROM (
         SELECT usage_date AS date,SUM(request_count) AS calls,SUM(input_tokens) AS input_tokens,
           SUM(output_tokens) AS output_tokens,SUM(total_cost) AS cost
         FROM user_daily_usage WHERE user_id=$1 AND usage_date>=CURRENT_DATE-6
@@ -140,7 +140,7 @@ class PostgresDashboardRepository {
       (SELECT COUNT(*) FROM users) AS total_users,
       (SELECT COUNT(*) FROM users WHERE created_at>=CURRENT_DATE) AS new_users_today,
       (SELECT COUNT(*) FROM upstream_accounts WHERE status='active') AS active_accounts,
-      COALESCE((SELECT jsonb_agg(day ORDER BY usage_date) FROM (
+      COALESCE((SELECT jsonb_agg(day ORDER BY date) FROM (
         SELECT usage_date AS date,SUM(request_count) AS calls,SUM(success_count) AS success_calls,
           SUM(failed_count) AS failed_calls,SUM(total_cost) AS cost
         FROM platform_daily_usage WHERE usage_date>=CURRENT_DATE-6 GROUP BY usage_date) day),'[]'::jsonb) AS daily_trend,

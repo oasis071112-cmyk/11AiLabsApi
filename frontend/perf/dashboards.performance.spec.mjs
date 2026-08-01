@@ -4,6 +4,7 @@ import {
   CORE_DATA_BUDGET_MS,
   delayedJson,
   installSessionMocks,
+  json,
 } from './mock-api.mjs'
 
 test('user dashboard shows an actionable skeleton and core bootstrap data within budget', async ({ page }) => {
@@ -71,4 +72,23 @@ test('admin dashboard shows an actionable skeleton and core bootstrap data withi
   const elapsed = await browserElapsedMs(page)
   expect(elapsed, `admin core data took ${elapsed.toFixed(0)}ms`).toBeLessThanOrEqual(CORE_DATA_BUDGET_MS)
   expect(bootstrapRequests).toBe(1)
+})
+
+test('admin dashboard ends the skeleton and exposes retry when bootstrap fails', async ({ page }) => {
+  let fallbackRequests = 0
+  await installSessionMocks(page, 'admin')
+  await page.route(/\/api\/admin\/dashboard\/bootstrap(?:\?.*)?$/, route => json(route, {
+    error: 'dashboard query failed',
+  }, 500))
+  await page.route(/\/api\/admin\/dashboard(?:\?.*)?$/, route => {
+    fallbackRequests += 1
+    return json(route, { error: 'legacy dashboard should not mask server failures' }, 500)
+  })
+
+  await page.goto('/admin', { waitUntil: 'domcontentloaded' })
+
+  await expect(page.locator('[aria-label="正在加载管理概览"]')).toBeHidden()
+  await expect(page.getByRole('alert', { name: '管理概览加载失败' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '重试' })).toBeVisible()
+  expect(fallbackRequests).toBe(0)
 })

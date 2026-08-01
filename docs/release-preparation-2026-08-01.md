@@ -52,15 +52,17 @@
 
 ## 测试与性能
 
-- 后端全量：54 个测试文件、340 项测试全部通过。
+- 后端全量：56 个测试文件、345 项测试通过；1 个真实 PostgreSQL 集成文件在普通全量命令中按环境变量跳过，已单独连接演练库通过。
 - 前端生产构建通过；首屏预算、性能垂直切片、登录 bootstrap、日志筛选防旧响应覆盖、HTTP 取消与渠道兼容契约均通过。
-- Playwright：用户首屏核心数据 1.1s、管理员首屏 868ms；日志 A→B 筛选只保留最新 B 响应。3 项全部通过。
-- Lighthouse：Performance 100、Accessibility 100、Best Practices 100、SEO 92；FCP 479ms、LCP 702ms、CLS 0.000。
+- Playwright：用户首屏核心数据 983ms、管理员首屏 855ms；管理仪表盘 500 会在 574ms 内结束骨架屏并显示错误与重试；日志 A→B 筛选只保留最新 B 响应。4 项全部通过。此外，使用本地真实 API + PostgreSQL + Redis 完成管理员登录和全部管理页面骨架收敛验收，未观察到管理接口 5xx。
+- Lighthouse：Performance 100、Accessibility 100、Best Practices 100、SEO 92；FCP 470ms、LCP 677ms、CLS 0.000。
 - 前端 `dist/index.html` SHA-256：`c7da90a19aa0a22fab87132af1fff36f6d4325884dd27da6c67885a80c6ae8f8`。
 - 本机 mock 上游 Autocannon 基线：普通 JSON 响应约 8013 req/s，p99 2ms；250ms 延迟场景约 21 req/s，p99 268ms；429 与 503 场景均稳定返回预期非 2xx。
 - Redis 原子租约、并发、RPM、TPM、429/503 冷却、释放与失败回退已有自动化测试覆盖。
+- 隔离网关端到端 Autocannon 已完成：普通并发 142 个完成请求、容量场景 151 个、429 回退 181 个、上游 503 回退 169 个，四类场景均为 0 网关错误。专用 Redis 停止后网关返回 HTTP 503；一次性用户、Key、数据库、Redis 容器和 PM2 进程随后全部清理。
+- 后端与前端完整 `npm audit` 均为 0 漏洞；发布范围历史和当前源码的密钥模式扫描未发现真实凭据。
 
-未完成项：连接隔离 API、账号池和结算模块的端到端 Autocannon/k6 压测未执行。安全门禁拒绝从临时脚本提取测试凭据，并发现早期脚本曾把目标数据库写成未核实的 `ionailabs`；该脚本没有获得执行权限，也没有产生数据库写入或压测请求。后续若要补跑，必须单独确认目标数据库为 `ionailabs_rehearsal`，并以显式提供的一次性测试凭据启动。k6 本机也未安装。
+未完成项：k6 本机未安装，本轮已用同级网关链路的 Autocannon 完成并发与回退验证。真正生产切换仍须使用最新线上 SQL.js 备份重做服务器端独立导入演练，不能复用本机旧快照。
 
 ## 演练中修复的问题
 
@@ -79,7 +81,7 @@
 1. 生产切换前再次备份生产 SQL.js 并生成 manifest，禁止复用本次演练备份。
 2. 正式导入后核对上述控制面数量、密文可用性、用户面为空和支付关闭。
 3. 旧 SQL.js 中 `image2` 没有 `image_edits` 能力且映射的 `supports_image_input` 为 false。本次仅在隔离 PostgreSQL 中按已验证能力修正；生产切换时必须把该差异列入显式导入后配置步骤。
-4. 补跑经授权的网关级 mock Autocannon/k6，并确认 RPM/TPM、429 冷却和双账号故障切换的端到端证据。
+4. 将已通过的网关级 mock Autocannon 结果纳入发布证据；生产不执行并发压测。
 5. 由用户单独授权后，才可停止旧写入、正式导入、启动生产 API/worker、原子切换前端/Nginx 并执行真实流量验收。
 6. 回滚点：生产切换前 SQL.js 备份、PostgreSQL 切换前 dump、旧前端 dist、旧 PM2/Nginx 配置。回滚时先停止新写入，再恢复数据库和前端，最后恢复旧 API 路由。
 

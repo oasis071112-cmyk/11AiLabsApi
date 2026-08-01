@@ -11,6 +11,7 @@
     "backup:sqljs": "node scripts/backup-sqljs-control-plane.js",
     "migrate:postgres": "node scripts/migrate-postgres.js",
     "import:control-plane": "node scripts/import-sqljs-control-plane.js",
+    "release:control-plane-overrides": "node scripts/apply-release-control-plane-overrides.js",
     "load:mock": "node load/mock-upstream.js",
     "load:autocannon": "node load/run-autocannon.js",
     "test": "vitest run"
