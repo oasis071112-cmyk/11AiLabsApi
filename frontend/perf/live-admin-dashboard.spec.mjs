@@ -22,7 +22,9 @@ test('live admin login and every management page settle without server errors', 
   await page.getByPlaceholder('用户名').fill(username)
   await page.getByPlaceholder('密码').fill(password)
   await page.getByRole('button', { name: '登 录' }).click()
-  await expect(page).toHaveURL(/\/admin(?:\/|$)/)
+  // Authentication includes password hashing and a public network round trip.
+  // The two-second UI SLA begins after navigation reaches the dashboard.
+  await expect(page).toHaveURL(/\/admin(?:\/|$)/, { timeout: 10_000 })
 
   await expect(page.locator('[aria-label="正在加载管理概览"]')).toBeHidden({ timeout: 2_000 })
   await expect(page.locator('[aria-label="管理概览加载失败"]')).toBeHidden()
