@@ -5,8 +5,8 @@
     "semantic_hash": "d5b768625845c2743c28b0b59fe24e54"
   },
   "backend/package.json": {
-    "mtime": 1785530483.0788324,
-    "ast_hash": "f223b340b442f0c859dd6731be58ffcb",
+    "mtime": 1785562805.3320692,
+    "ast_hash": "064af617f408f49b008c3de3de819881",
     "semantic_hash": ""
   },
   "backend/scripts/create-initial-admin.js": {
@@ -35,8 +35,8 @@
     "semantic_hash": "15711ec438b5d7f32ca686ddcc5596f5"
   },
   "backend/src/index.js": {
-    "mtime": 1785536156.6334965,
-    "ast_hash": "f8c48ef226d782807a5dab5dd1febbe0",
+    "mtime": 1785566921.6716037,
+    "ast_hash": "867f9dd40b3a313cdf4a557cda80deef",
     "semantic_hash": ""
   },
   "backend/src/middleware/auth.js": {
@@ -200,8 +200,8 @@
     "semantic_hash": "c2189ad1c654399d0226bd71887efb6b"
   },
   "backend/tests/image-generations.test.js": {
-    "mtime": 1785516434.514853,
-    "ast_hash": "74b4a81137197e5fe8a3972429ddfb83",
+    "mtime": 1785568083.43028,
+    "ast_hash": "c14e1417fd7133ab81a66f4cd3fdcf86",
     "semantic_hash": ""
   },
   "backend/tests/manual-pricing.test.js": {
@@ -260,12 +260,12 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1785537780.114698,
+    "mtime": 1785568497.1271706,
     "ast_hash": "6b8d14708b6271bee11c056cc10bca38",
     "semantic_hash": "6b8d14708b6271bee11c056cc10bca38"
   },
   "frontend/components.d.ts": {
-    "mtime": 1785537781.2277734,
+    "mtime": 1785568025.575063,
     "ast_hash": "48c43a11b7ee94629b6b8a4e21cc87b8",
     "semantic_hash": ""
   },
@@ -365,8 +365,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/admin/Dashboard.vue": {
-    "mtime": 1785522661.1394973,
-    "ast_hash": "bcafa0c268f6d7fea8cd6de9183ff666",
+    "mtime": 1785562988.6689198,
+    "ast_hash": "1da934d432c0f3ae7f01aa3a575aa6ba",
     "semantic_hash": ""
   },
   "frontend/src/views/admin/Keys.vue": {
@@ -395,9 +395,9 @@
     "semantic_hash": "72094b87c0ee22ac5fbec6c2a73ee1fa"
   },
   "frontend/src/views/admin/Settings.vue": {
-    "mtime": 1784376140.3980708,
-    "ast_hash": "41451cfef4d13342d0ffbc012ea6cbe3",
-    "semantic_hash": "41451cfef4d13342d0ffbc012ea6cbe3"
+    "mtime": 1785566937.5949037,
+    "ast_hash": "1edf57d684730947ab761e0f1b416ce4",
+    "semantic_hash": ""
   },
   "frontend/src/views/admin/Users.vue": {
     "mtime": 1784376131.1406975,
@@ -435,8 +435,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/user/Logs.vue": {
-    "mtime": 1785527934.04794,
-    "ast_hash": "8b40cf17fb4da1c2ab3b1cb4f4797ed6",
+    "mtime": 1785566937.5979617,
+    "ast_hash": "04c34e0f2600aa20a2b55b4afec18655",
     "semantic_hash": ""
   },
   "frontend/src/views/user/Models.vue": {
@@ -455,9 +455,9 @@
     "semantic_hash": ""
   },
   "frontend/vite.config.js": {
-    "mtime": 1784206591.1283054,
-    "ast_hash": "3967e507eccb00f9e5e2459d50350a48",
-    "semantic_hash": "3967e507eccb00f9e5e2459d50350a48"
+    "mtime": 1785560648.1064172,
+    "ast_hash": "24d2b76d939a6baeee12b80889dbb40f",
+    "semantic_hash": ""
   },
   "test.sh": {
     "mtime": 1783845535.1863568,
@@ -620,13 +620,13 @@
     "semantic_hash": ""
   },
   "backend/src/utils/image-request-executor.js": {
-    "mtime": 1785516081.7487426,
-    "ast_hash": "dd6e3c064ee618bc3c955f98ee0d2f2c",
+    "mtime": 1785566880.9738467,
+    "ast_hash": "08be89d59d0ee03506d7b82a88883ee7",
     "semantic_hash": ""
   },
   "backend/tests/image-request-executor.test.js": {
-    "mtime": 1785516105.0895789,
-    "ast_hash": "d3164b56581e0ef0761d73bb43bf873c",
+    "mtime": 1785566653.2909608,
+    "ast_hash": "c9a1ffc473ec413e25caf594c55f0c9f",
     "semantic_hash": ""
   },
   "backend/migrations/postgres/000_bootstrap.sql": {
@@ -655,13 +655,13 @@
     "semantic_hash": ""
   },
   "backend/src/infrastructure/redis.js": {
-    "mtime": 1785519774.25254,
-    "ast_hash": "27c919a0b9051bc9ef8f880fff7275c8",
+    "mtime": 1785554736.923914,
+    "ast_hash": "2b0c941c1ecbd06cdcdd62404ca23e35",
     "semantic_hash": ""
   },
   "backend/src/infrastructure/sqljs-control-plane-import.js": {
-    "mtime": 1785529605.0160587,
-    "ast_hash": "74bc4f636d239d7b1b7ee847333b404a",
+    "mtime": 1785567471.6043558,
+    "ast_hash": "b6a7b6e528d66fda6dcf74f4c302d604",
     "semantic_hash": ""
   },
   "backend/src/infrastructure/versioned-secret.js": {
@@ -680,8 +680,8 @@
     "semantic_hash": ""
   },
   "backend/src/modules/usage-settlement/index.js": {
-    "mtime": 1785526353.6799908,
-    "ast_hash": "aaac0e68d6fdd1d5861dd64ea7fec2e5",
+    "mtime": 1785566812.0435345,
+    "ast_hash": "6543e1acdce17ac53a03d359832bbc47",
     "semantic_hash": ""
   },
   "backend/tests/control-plane.test.js": {
@@ -695,28 +695,28 @@
     "semantic_hash": ""
   },
   "backend/tests/infrastructure-clients.test.js": {
-    "mtime": 1785532479.3056476,
-    "ast_hash": "80b3eacb17ed51084a1ec0a762ac862b",
+    "mtime": 1785554712.4332092,
+    "ast_hash": "c1716cfe92e42084914be2fef769bc24",
     "semantic_hash": ""
   },
   "backend/tests/infrastructure-static-contract.test.js": {
-    "mtime": 1785520142.9680886,
-    "ast_hash": "dcac383711559ae7a60ab6e4c115fef5",
+    "mtime": 1785553388.087392,
+    "ast_hash": "785ff87be04f982135462a4bde4f3bd2",
     "semantic_hash": ""
   },
   "backend/tests/postgres-migrations.test.js": {
-    "mtime": 1785537242.5936694,
-    "ast_hash": "46cff8be68f67384eab399971c792be6",
+    "mtime": 1785566766.8763194,
+    "ast_hash": "37a4f8e50a4ab73d37e67dac114d3de4",
     "semantic_hash": ""
   },
   "backend/tests/postgres-schema-contract.test.js": {
-    "mtime": 1785537221.128132,
-    "ast_hash": "81b0c0b4f83937498833f2caa8d64420",
+    "mtime": 1785566766.8801222,
+    "ast_hash": "a37f07af9be29345f04f477bff55d5bd",
     "semantic_hash": ""
   },
   "backend/tests/sqljs-control-plane-import.test.js": {
-    "mtime": 1785529590.2097187,
-    "ast_hash": "6c746239aad748045e2941c4902c484d",
+    "mtime": 1785567999.8975096,
+    "ast_hash": "4d3f6d87ba2f8b04417e984b4abcf2cf",
     "semantic_hash": ""
   },
   "backend/tests/sqljs-import-cli.test.js": {
@@ -725,8 +725,8 @@
     "semantic_hash": ""
   },
   "backend/tests/usage-settlement-module.test.js": {
-    "mtime": 1785526358.2762399,
-    "ast_hash": "0c155ff3db4a6bddceb65df0b6c7dc74",
+    "mtime": 1785566626.6290064,
+    "ast_hash": "0e58e208d2d6482afe3d05ddf4c7610b",
     "semantic_hash": ""
   },
   "backend/tests/versioned-secret.test.js": {
@@ -760,8 +760,8 @@
     "semantic_hash": ""
   },
   "docs/infrastructure-health-contract.md": {
-    "mtime": 1785537560.0134914,
-    "ast_hash": "3d4f027b636b042e18c37c8e3b0eb796",
+    "mtime": 1785556768.9271355,
+    "ast_hash": "7c408a943fdeb80682aba392ead4cec8",
     "semantic_hash": ""
   },
   "backend/migrations/postgres/002_runtime_limits_and_billing.sql": {
@@ -815,8 +815,8 @@
     "semantic_hash": ""
   },
   "backend/src/modules/dashboard-read-model/postgres-repository.js": {
-    "mtime": 1785528521.1076424,
-    "ast_hash": "9e9ffeda7475c6243630cfab88b781cf",
+    "mtime": 1785560922.938264,
+    "ast_hash": "0decc09c67ad042b7f2b6d25fb2136b7",
     "semantic_hash": ""
   },
   "backend/src/modules/dashboard-read-model/redis-cache.js": {
@@ -835,13 +835,13 @@
     "semantic_hash": ""
   },
   "backend/src/runtime/services.js": {
-    "mtime": 1785533258.5556967,
-    "ast_hash": "62346e3929cbb2a0cf3bcf84c9f1091d",
+    "mtime": 1785554739.6882076,
+    "ast_hash": "b0d5d6822e27121c3d26959647d85078",
     "semantic_hash": ""
   },
   "backend/src/worker.js": {
-    "mtime": 1785533313.759065,
-    "ast_hash": "c798c34e7d335b4836234dab07b29dbd",
+    "mtime": 1785554742.584872,
+    "ast_hash": "80099eb447e4684a49d57b7f42cd2fbb",
     "semantic_hash": ""
   },
   "backend/tests/background-worker.test.js": {
@@ -885,8 +885,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-admin.js": {
-    "mtime": 1785536138.5317216,
-    "ast_hash": "efcd211e85ae5d78f3b607e425444337",
+    "mtime": 1785554045.1547675,
+    "ast_hash": "1189b307cb49a9f5081b297b5e22e7ec",
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-auth.js": {
@@ -895,8 +895,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-proxy.js": {
-    "mtime": 1785536175.9426894,
-    "ast_hash": "cff15ced0eb9a6f8fb33f3af93039e46",
+    "mtime": 1785566812.0455358,
+    "ast_hash": "5bfc48524284a1069e5ffa0a60b21684",
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-user.js": {
@@ -905,8 +905,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-admin.test.js": {
-    "mtime": 1785537323.16444,
-    "ast_hash": "c04f1cdfcf3309a8b10a5fc3cf8accea",
+    "mtime": 1785554024.2072334,
+    "ast_hash": "72070a539448d5c260653a0075c07f05",
     "semantic_hash": ""
   },
   "backend/tests/postgres-auth-user-routes.test.js": {
@@ -915,8 +915,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-proxy.test.js": {
-    "mtime": 1785537536.9225135,
-    "ast_hash": "54c300685eb62d347aa0a08f5e74764c",
+    "mtime": 1785568338.5271814,
+    "ast_hash": "1cad625faaaa21a3413bf88b85c5b619",
     "semantic_hash": ""
   },
   "backend/load/autocannon-scenarios.js": {
@@ -930,8 +930,8 @@
     "semantic_hash": ""
   },
   "backend/load/mock-upstream.js": {
-    "mtime": 1785524852.2420976,
-    "ast_hash": "4dae4f96249163dcd4819013b984c499",
+    "mtime": 1785555190.150664,
+    "ast_hash": "7d5439463a90ad83d4a4aab2f69a8b8f",
     "semantic_hash": ""
   },
   "backend/load/run-autocannon.js": {
@@ -945,13 +945,13 @@
     "semantic_hash": ""
   },
   "backend/src/modules/postgres-payment/index.js": {
-    "mtime": 1785528614.9282172,
-    "ast_hash": "62fd5ad5d78ad2e75142ec5ba1b00e7b",
+    "mtime": 1785566865.6826327,
+    "ast_hash": "b160efaa07749e6ede4526a417b0a29f",
     "semantic_hash": ""
   },
   "backend/src/modules/postgres-proxy/postgres-adapters.js": {
-    "mtime": 1785536154.4488666,
-    "ast_hash": "6940ecc77cb1757aeedac820f00951ee",
+    "mtime": 1785566893.6321976,
+    "ast_hash": "ecbe26a01c869224b5c6f0c374a2a88c",
     "semantic_hash": ""
   },
   "backend/src/modules/postgres-proxy/upstream.js": {
@@ -970,8 +970,8 @@
     "semantic_hash": ""
   },
   "backend/tests/performance-delivery-static-contract.test.js": {
-    "mtime": 1785524712.9668438,
-    "ast_hash": "7accaef8e6f47911ac53923b9e00da9a",
+    "mtime": 1785555158.8386874,
+    "ast_hash": "ade355cda6de104c4642ba581299304c",
     "semantic_hash": ""
   },
   "backend/tests/postgres-api-key-auth.test.js": {
@@ -980,8 +980,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-payment-routes.test.js": {
-    "mtime": 1785529299.714964,
-    "ast_hash": "580d63ab10eca127ef6e87d1d2f18361",
+    "mtime": 1785566638.7656777,
+    "ast_hash": "c7678e29ee817b74548035c0a6fa83bf",
     "semantic_hash": ""
   },
   "backend/tests/postgres-public.test.js": {
@@ -1025,8 +1025,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-proxy-adapters.test.js": {
-    "mtime": 1785536135.179889,
-    "ast_hash": "2cb1b273fb608c44872b0211e2eb710b",
+    "mtime": 1785566683.5388818,
+    "ast_hash": "7b590ea734efb5f55cbb91a2493294e1",
     "semantic_hash": ""
   },
   "backend/tests/sqljs-control-plane-backup.test.js": {
@@ -1045,13 +1045,13 @@
     "semantic_hash": ""
   },
   "frontend/perf/dashboards.performance.spec.mjs": {
-    "mtime": 1785531190.0135055,
-    "ast_hash": "65ece4094daaf9aff80a04658e38c105",
+    "mtime": 1785562925.39179,
+    "ast_hash": "ff5e9cde5ab1269ac66075366d6251d3",
     "semantic_hash": ""
   },
   "frontend/perf/logs-latest-response.spec.mjs": {
-    "mtime": 1785531194.445048,
-    "ast_hash": "b3a1c4feb2ab2193e63a763eafe19d1c",
+    "mtime": 1785566726.1833735,
+    "ast_hash": "aad5bb2fc633cd2717cd0367042be37a",
     "semantic_hash": ""
   },
   "frontend/perf/mock-api.mjs": {
@@ -1072,6 +1072,61 @@
   "frontend/scripts/run-lighthouse.mjs": {
     "mtime": 1785531620.7082438,
     "ast_hash": "e78acb04ed1f4d1ef45e34e7fbbb0978",
+    "semantic_hash": ""
+  },
+  "docs/release-preparation-2026-08-01.md": {
+    "mtime": 1785568557.084982,
+    "ast_hash": "d53f7496071ce724bc615ba99cdb9d02",
+    "semantic_hash": ""
+  },
+  "backend/tests/postgres-dashboard-repository.test.js": {
+    "mtime": 1785560908.522971,
+    "ast_hash": "2436e7ea8ab49393c1fd22fff3956b14",
+    "semantic_hash": ""
+  },
+  "backend/migrations/postgres/005_wallet_nonnegative.sql": {
+    "mtime": 1785566844.4276974,
+    "ast_hash": "1f1d55f167970dd9fa62b4fbf722862d",
+    "semantic_hash": ""
+  },
+  "backend/scripts/apply-release-control-plane-overrides.js": {
+    "mtime": 1785566909.6286528,
+    "ast_hash": "f19149496bac08e415675c78d09736a9",
+    "semantic_hash": ""
+  },
+  "backend/src/utils/access-log.js": {
+    "mtime": 1785566921.6683357,
+    "ast_hash": "d546ae1982ec7e205f1eeb81fbfd79f3",
+    "semantic_hash": ""
+  },
+  "backend/tests/access-log.test.js": {
+    "mtime": 1785566690.5926926,
+    "ast_hash": "b72a3d19a6906ce825ef45cced7df80a",
+    "semantic_hash": ""
+  },
+  "backend/tests/postgres-dashboard-integration.test.js": {
+    "mtime": 1785562751.734533,
+    "ast_hash": "7897dee2dcc5f550c73cd786e558db93",
+    "semantic_hash": ""
+  },
+  "backend/tests/postgres-payment-integration.test.js": {
+    "mtime": 1785567174.8133154,
+    "ast_hash": "9ec7a149cb4ecccbe9645bebea29915e",
+    "semantic_hash": ""
+  },
+  "backend/tests/release-control-plane-overrides.test.js": {
+    "mtime": 1785566662.4562645,
+    "ast_hash": "bc4e90bd3514ec5be5cbc9d8e4463f0b",
+    "semantic_hash": ""
+  },
+  "frontend/perf/admin-payment-settings.spec.mjs": {
+    "mtime": 1785566747.004658,
+    "ast_hash": "431e98ffcdc9ce2ba8ed158f08a86dce",
+    "semantic_hash": ""
+  },
+  "frontend/perf/live-admin-dashboard.spec.mjs": {
+    "mtime": 1785563037.6294878,
+    "ast_hash": "e065f95b8022f999c39003fc670f0e79",
     "semantic_hash": ""
   }
 }
