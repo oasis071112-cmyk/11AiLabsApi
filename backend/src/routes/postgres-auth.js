@@ -38,8 +38,15 @@ function createPostgresAuthRouter({ pool, identity = createPostgresIdentity({ po
     if (password.length < 6) return res.status(400).json({ error: '密码至少 6 位' });
 
     try {
-      const registration = await pool.query('SELECT config_value FROM system_config WHERE config_key=$1', ['registration_enabled']);
-      if (jsonConfigValue(registration.rows[0], true) === false) return res.status(403).json({ error: '暂未开放注册' });
+      const configResult = await pool.query(`SELECT config_key,config_value FROM system_config
+        WHERE config_key = ANY($1::text[])`, [[
+        'registration_enabled', 'new_user_gift_enabled', 'new_user_gift_amount',
+      ]]);
+      const config = new Map(configResult.rows.map(row => [row.config_key, jsonConfigValue(row, null)]));
+      if (config.get('registration_enabled') === false) return res.status(403).json({ error: '暂未开放注册' });
+      const configuredGift = Number(config.get('new_user_gift_amount'));
+      const giftAmount = config.get('new_user_gift_enabled') === true
+        && Number.isFinite(configuredGift) && configuredGift > 0 ? configuredGift : 0;
       const email = compatibleEmail(username, requestedEmail);
       const passwordHash = await identity.bcrypt.hash(password, 10);
       const user = await withTransaction(pool, async client => {
@@ -54,13 +61,21 @@ function createPostgresAuthRouter({ pool, identity = createPostgresIdentity({ po
         const inserted = await client.query(`INSERT INTO users (username,email,password_hash,role,status)
           VALUES ($1,$2,$3,'user','active') RETURNING id,username,email,role,status`, [username, email, passwordHash]);
         await client.query(`INSERT INTO wallets (user_id,quota_balance,gift_quota,frozen_balance,total_spent)
-          VALUES ($1,0,0,0,0)`, [inserted.rows[0].id]);
+          VALUES ($1,0,$2,0,0)`, [inserted.rows[0].id, giftAmount]);
+        if (giftAmount > 0) {
+          await client.query(`INSERT INTO wallet_transactions
+            (transaction_key,user_id,transaction_type,balance_type,amount,balance_after,before_balance,after_balance,remark,metadata)
+            VALUES ($1,$2,'gift','gift',$3,$4,0,$4,'新用户注册赠送',$5::jsonb)`, [
+            `registration-gift:${inserted.rows[0].id}`, inserted.rows[0].id, giftAmount, giftAmount,
+            JSON.stringify({ source: 'registration' }),
+          ]);
+        }
         return inserted.rows[0];
       });
       return res.status(201).json({
         message: '注册成功，登录中...',
         token: identity.generateToken(user),
-        gift_amount: 0,
+        gift_amount: giftAmount,
         user: { id: user.id, username: user.username, email: publicEmail(user.email), role: user.role },
       });
     } catch (error) {

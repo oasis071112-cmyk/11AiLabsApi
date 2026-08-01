@@ -4,6 +4,7 @@ const { withTransaction } = require('../../infrastructure/postgres');
 const { ACCOUNT_CAPABILITIES, ACCOUNT_PROTOCOLS } = require('./index');
 const { normalizeUpstreamModels, inferModelType } = require('../../utils/model-sync');
 const { inferProvider } = require('../../utils/pricing-sync');
+const { defaultImageDisplayPricing } = require('../../utils/pricing-engine');
 
 class AdminCompatError extends Error {
   constructor(status, code, message) {
@@ -50,6 +51,14 @@ function positiveMultiplier(value, fallback = 1) {
     throw new AdminCompatError(400, 'invalid_multiplier', '计费倍率必须大于 0');
   }
   return number;
+}
+
+function optionalTimestamp(value, fallback = null) {
+  const candidate = value === undefined ? fallback : value;
+  if (candidate === null || candidate === '') return null;
+  const timestamp = new Date(candidate);
+  if (Number.isNaN(timestamp.getTime())) throw new AdminCompatError(400, 'invalid_timestamp', '生效时间无效');
+  return timestamp.toISOString();
 }
 
 function status(value, fallback = 'active') {
@@ -106,6 +115,8 @@ function publicChannel(row) {
 function publicModel(row) {
   if (!row) return row;
   const metadata = asObject(row.metadata);
+  const capabilities = asObject(row.capabilities, asObject(metadata.capabilities));
+  const imagePricing = defaultImageDisplayPricing();
   return {
     ...metadata,
     id: row.model_code,
@@ -114,6 +125,26 @@ function publicModel(row) {
     provider: row.provider,
     model_type: row.model_type,
     status: row.status,
+    context_length: row.context_length ?? metadata.context_length ?? null,
+    sort_order: Number(row.sort_order ?? metadata.sort_order ?? 0),
+    capabilities,
+    is_multimodal: Boolean(capabilities.image_input ?? metadata.is_multimodal),
+    official_provider: row.official_provider ?? metadata.official_provider ?? 'manual',
+    official_model_id: metadata.official_model_id ?? row.model_code,
+    official_pricing_mode: metadata.official_pricing_mode ?? 'auto',
+    official_currency: row.official_currency ?? metadata.official_currency ?? 'USD',
+    official_input_price: row.official_input_price ?? metadata.official_input_price ?? 0,
+    official_output_price: row.official_output_price ?? metadata.official_output_price ?? 0,
+    official_cached_input_price: row.official_cached_input_price ?? metadata.official_cached_input_price ?? 0,
+    official_unit_tokens: row.official_unit_tokens ?? metadata.official_unit_tokens ?? 1_000_000,
+    official_price_updated_at: row.official_price_updated_at ?? metadata.official_price_updated_at ?? null,
+    official_image_prices: metadata.official_image_prices || {},
+    billing_multiplier_input: Number(metadata.billing_multiplier_input ?? metadata.multiplier_input ?? 1),
+    billing_multiplier_output: Number(metadata.billing_multiplier_output ?? metadata.multiplier_output ?? 1),
+    billing_multiplier_image: Number(metadata.billing_multiplier_image ?? metadata.multiplier_image ?? 1),
+    default_image_unit_price: row.model_type === 'image' ? imagePricing.unitPrice : undefined,
+    default_image_currency: row.model_type === 'image' ? imagePricing.currency : undefined,
+    channel_mappings: asArray(row.channel_mappings),
     metadata,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -255,21 +286,134 @@ class PostgresAdminCompatRepository {
       FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=$1`, [userId]);
     const user = rows[0];
     if (!user) return null;
-    const [keys, logs, transactions] = await Promise.all([
+    const [keys, logs, transactions, pendingOrders] = await Promise.all([
       this.pool.query(`SELECT id,user_id,key_name,key_prefix,status,created_at,last_used_at FROM api_keys WHERE user_id=$1 ORDER BY created_at DESC`, [userId]),
       this.pool.query(`SELECT id,request_id,model_code,status,latency_ms,total_cost,created_at FROM api_request_logs WHERE user_id=$1 ORDER BY created_at DESC LIMIT 10`, [userId]),
       this.pool.query(`SELECT id,transaction_key,transaction_type,amount,balance_after,metadata,created_at FROM wallet_transactions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 10`, [userId]),
+      this.pool.query(`SELECT id,order_no,amount,payment_method,status,created_at FROM quota_orders
+        WHERE user_id=$1 AND status IN ('pending','paid') ORDER BY created_at DESC`, [userId]),
     ]);
     return {
       user: { ...user, recharge_balance: user.quota_balance, gift_balance: user.gift_quota },
       keys: keys.rows,
       recent_logs: logs.rows,
       recent_transactions: transactions.rows,
-      pending_orders: [],
+      pending_orders: pendingOrders.rows,
     };
   }
 
-  async listKeys({ page, limit, userId }) {
+  async setUserStatus(userId, nextStatus, actor) {
+    return this._transaction('admin.user.status', actor, async client => {
+      const row = await this._requireRow(client, `UPDATE users SET status=$2,updated_at=CURRENT_TIMESTAMP WHERE id=$1
+        RETURNING id,username,status`, [userId, nextStatus], new AdminCompatError(404, 'user_not_found', '用户不存在'));
+      return { value: row, audit: { target_type: 'user', target_id: userId, status: nextStatus } };
+    });
+  }
+
+  async adjustUserBalance(userId, body, actor) {
+    const transactionType = text(body.type);
+    if (!['manual_add', 'manual_deduct'].includes(transactionType)) throw new AdminCompatError(400, 'invalid_adjustment_type', '调账类型无效');
+    const balanceType = ['gift', 'gift_quota'].includes(body.balance_type) ? 'gift_quota'
+      : (['recharge', 'quota'].includes(body.balance_type) ? 'quota_balance' : '');
+    if (!balanceType) throw new AdminCompatError(400, 'invalid_balance_type', '点数类型无效');
+    const amount = optionalNumber(body.amount, null);
+    if (!Number.isFinite(amount) || amount <= 0) throw new AdminCompatError(400, 'invalid_adjustment_amount', '调账点数必须大于 0');
+    return this._transaction('admin.user.balance.adjust', actor, async client => {
+      const user = await this._requireRow(client, 'SELECT id,username FROM users WHERE id=$1 FOR UPDATE', [userId], new AdminCompatError(404, 'user_not_found', '用户不存在'));
+      const wallet = await this._requireRow(client, `SELECT user_id,quota_balance,gift_quota FROM wallets WHERE user_id=$1 FOR UPDATE`, [userId], new AdminCompatError(409, 'wallet_not_found', '用户钱包不存在'));
+      if (transactionType === 'manual_add' && balanceType === 'quota_balance' && body.allow_pending_order_conflict !== true) {
+        const conflict = await client.query(`SELECT id,order_no FROM quota_orders WHERE user_id=$1 AND status IN ('pending','paid')
+          AND amount=$2::numeric ORDER BY created_at ASC LIMIT 1`, [userId, amount]);
+        if (conflict.rows[0]) throw new AdminCompatError(409, 'PENDING_ORDER_CONFLICT', `存在同额待处理订单 ${conflict.rows[0].order_no}`);
+      }
+      const before = Number(wallet[balanceType] || 0);
+      const after = transactionType === 'manual_add' ? before + amount : before - amount;
+      if (after < 0) throw new AdminCompatError(400, 'insufficient_balance', '余额不足，不能扣减');
+      const column = balanceType === 'gift_quota' ? 'gift_quota' : 'quota_balance';
+      await client.query(`UPDATE wallets SET ${column}=$2::numeric,updated_at=CURRENT_TIMESTAMP WHERE user_id=$1`, [userId, after]);
+      const transactionKey = `manual:${randomUUID()}`;
+      await client.query(`INSERT INTO wallet_transactions
+        (transaction_key,user_id,transaction_type,balance_type,amount,balance_after,before_balance,after_balance,operator_id,remark,metadata)
+        VALUES ($1,$2,$3,$4,$5::numeric,$6::numeric,$7::numeric,$8::numeric,$9,$10,$11::jsonb)`, [
+        transactionKey, userId, transactionType, balanceType === 'quota_balance' ? 'quota' : 'gift_quota',
+        transactionType === 'manual_add' ? amount : -amount, after, before, after, actor.staffId ?? null,
+        text(body.remark), JSON.stringify({ username: user.username, pending_order_override: body.allow_pending_order_conflict === true }),
+      ]);
+      return { value: { user_id: Number(userId), balance_type: column, before_balance: before, after_balance: after }, audit: { target_type: 'user', target_id: userId, transaction_key: transactionKey } };
+    });
+  }
+
+  async listRechargeOrders({ page, limit, status: requestedStatus }) {
+    const values = [];
+    const where = requestedStatus ? (values.push(text(requestedStatus)), `WHERE qo.status=$1`) : '';
+    const [orders, total] = await Promise.all([
+      this.pool.query(`SELECT qo.id,qo.order_no,qo.user_id,qo.amount,qo.payment_method,qo.payment_channel,
+        qo.payment_proof,qo.admin_remark,qo.status,qo.created_at,qo.paid_at,qo.granted_at AS credited_at,u.username
+        FROM quota_orders qo JOIN users u ON u.id=qo.user_id ${where}
+        ORDER BY qo.created_at DESC,qo.id DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, limit, (page - 1) * limit]),
+      this.pool.query(`SELECT COUNT(*) AS count FROM quota_orders qo ${where}`, values),
+    ]);
+    return { data: orders.rows, pagination: { page, limit, total: Number(total.rows[0]?.count || 0) } };
+  }
+
+  async confirmRechargeOrder(orderId, _body, actor) {
+    return this._transaction('admin.quota_order.grant', actor, async client => {
+      const order = await this._requireRow(client, `SELECT id,order_no,user_id,amount,status FROM quota_orders WHERE id=$1 FOR UPDATE`, [orderId], new AdminCompatError(404, 'order_not_found', '订单不存在'));
+      if (order.status === 'granted') return { value: order, audit: { target_type: 'quota_order', target_id: orderId, duplicate: true } };
+      if (!['pending', 'paid'].includes(order.status)) throw new AdminCompatError(409, 'order_status_conflict', '订单当前状态不能发放');
+      const existing = await client.query(`SELECT id FROM wallet_transactions WHERE related_order_id=$1 AND transaction_type='purchase' FOR UPDATE`, [orderId]);
+      if (!existing.rows[0]) {
+        const wallet = await this._requireRow(client, `SELECT quota_balance FROM wallets WHERE user_id=$1 FOR UPDATE`, [order.user_id], new AdminCompatError(409, 'wallet_not_found', '用户钱包不存在'));
+        const before = Number(wallet.quota_balance || 0);
+        const after = before + Number(order.amount);
+        await client.query(`UPDATE wallets SET quota_balance=$2::numeric,updated_at=CURRENT_TIMESTAMP WHERE user_id=$1`, [order.user_id, after]);
+        await client.query(`INSERT INTO wallet_transactions
+          (transaction_key,user_id,transaction_type,balance_type,amount,balance_after,before_balance,after_balance,related_order_id,operator_id,remark,metadata)
+          VALUES ($1,$2,'purchase','quota',$3::numeric,$4::numeric,$5::numeric,$4::numeric,$6,$7,'管理员确认发放',$8::jsonb)`, [
+          `quota-order:${order.id}`, order.user_id, order.amount, after, before, order.id, actor.staffId ?? null, JSON.stringify({ order_no: order.order_no }),
+        ]);
+      }
+      const updated = await this._requireRow(client, `UPDATE quota_orders SET status='granted',granted_at=COALESCE(granted_at,CURRENT_TIMESTAMP),
+        updated_at=CURRENT_TIMESTAMP WHERE id=$1 RETURNING id,order_no,user_id,amount,status,granted_at`, [orderId], new AdminCompatError(409, 'order_update_failed', '订单发放失败'));
+      return { value: updated, audit: { target_type: 'quota_order', target_id: orderId, status: 'granted' } };
+    });
+  }
+
+  async rejectRechargeOrder(orderId, body, actor) {
+    return this._transaction('admin.quota_order.reject', actor, async client => {
+      const order = await this._requireRow(client, `SELECT id,order_no,user_id,amount,status FROM quota_orders WHERE id=$1 FOR UPDATE`, [orderId], new AdminCompatError(404, 'order_not_found', '订单不存在'));
+      if (order.status === 'paid') throw new AdminCompatError(409, 'paid_order_requires_grant', '已付款订单不能驳回，请确认发放或通过退款流程处理');
+      if (order.status !== 'pending') throw new AdminCompatError(409, 'order_status_conflict', '订单当前状态不能驳回');
+      const row = await this._requireRow(client, `UPDATE quota_orders SET status='rejected',admin_remark=$2,updated_at=CURRENT_TIMESTAMP
+        WHERE id=$1 AND status='pending' RETURNING id,order_no,user_id,amount,status,admin_remark`, [orderId, text(body.remark)], new AdminCompatError(409, 'order_status_conflict', '订单当前状态不能驳回'));
+      return { value: row, audit: { target_type: 'quota_order', target_id: orderId, status: 'rejected' } };
+    });
+  }
+
+  async listKeys({ page, limit, userId, groupBy }) {
+    if (groupBy === 'user') {
+      const values = [];
+      const where = userId === undefined || userId === null || userId === '' ? '' : (values.push(userId), 'WHERE u.id=$1');
+      const [users, total] = await Promise.all([
+        this.pool.query(`SELECT u.id AS user_id,u.username,u.role,u.status AS user_status,
+          COUNT(ak.id) AS key_count,COUNT(ak.id) FILTER (WHERE ak.status='active') AS active_key_count
+          FROM users u JOIN api_keys ak ON ak.user_id=u.id ${where} GROUP BY u.id
+          ORDER BY u.id DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, limit, (page - 1) * limit]),
+        this.pool.query(`SELECT COUNT(DISTINCT u.id) AS count FROM users u JOIN api_keys ak ON ak.user_id=u.id ${where}`, values),
+      ]);
+      const userIds = users.rows.map(row => row.user_id);
+      if (!userIds.length) return { data: [], pagination: { page, limit, total: Number(total.rows[0]?.count || 0) } };
+      const { rows: keys } = await this.pool.query(`SELECT ak.id,ak.user_id,ak.key_name,ak.key_prefix,ak.status,ak.created_at,ak.last_used_at,
+        ak.rate_limit_per_minute AS rate_limit_per_min,ak.permission_mode,ak.routing_group_id,rg.group_name,
+        COALESCE(array_agg(akp.model_code ORDER BY akp.model_code) FILTER (WHERE akp.status='active'),'{}') AS permissions
+        FROM api_keys ak LEFT JOIN routing_groups rg ON rg.id=ak.routing_group_id
+        LEFT JOIN api_key_permissions akp ON akp.api_key_id=ak.id WHERE ak.user_id=ANY($1::bigint[])
+        GROUP BY ak.id,rg.group_name ORDER BY ak.created_at DESC`, [userIds]);
+      return {
+        data: users.rows.map(row => ({ ...row, key_count: Number(row.key_count), active_key_count: Number(row.active_key_count), keys: keys.filter(key => String(key.user_id) === String(row.user_id)) })),
+        pagination: { page, limit, total: Number(total.rows[0]?.count || 0) },
+      };
+    }
     const values = [];
     const where = userId === undefined || userId === null || userId === '' ? '' : (values.push(userId), 'WHERE ak.user_id=$1');
     const [keys, total] = await Promise.all([
@@ -281,6 +425,93 @@ class PostgresAdminCompatRepository {
       this.pool.query(`SELECT COUNT(*) AS count FROM api_keys ak ${where}`, values),
     ]);
     return { data: keys.rows, pagination: { page, limit, total: Number(total.rows[0]?.count || 0) } };
+  }
+
+  async setKeyStatus(keyId, nextStatus, actor) {
+    return this._transaction('admin.api_key.status', actor, async client => {
+      const existing = await this._requireRow(client, `SELECT id,user_id,key_name,status FROM api_keys WHERE id=$1 FOR UPDATE`, [keyId], new AdminCompatError(404, 'api_key_not_found', 'API Key 不存在'));
+      if (existing.status === 'revoked' && nextStatus !== 'revoked') {
+        throw new AdminCompatError(409, 'revoked_key_immutable', '已撤销的 API Key 不能重新启用');
+      }
+      const row = await this._requireRow(client, `UPDATE api_keys SET status=$2 WHERE id=$1 RETURNING id,user_id,key_name,status`, [keyId, nextStatus], new AdminCompatError(404, 'api_key_not_found', 'API Key 不存在'));
+      return { value: row, audit: { target_type: 'api_key', target_id: keyId, status: nextStatus } };
+    });
+  }
+
+  async updateKeyPermissions(keyId, modelCodes, actor) {
+    const codes = [...new Set(asArray(modelCodes).map(text).filter(Boolean))];
+    return this._transaction('admin.api_key.permissions.update', actor, async client => {
+      const key = await this._requireRow(client, `SELECT id,user_id,permission_mode FROM api_keys WHERE id=$1 FOR UPDATE`, [keyId], new AdminCompatError(404, 'api_key_not_found', 'API Key 不存在'));
+      if (key.permission_mode === 'group_dynamic') {
+        throw new AdminCompatError(409, 'dynamic_key_permissions', '分组 Key 的模型权限由路由分组动态管理');
+      }
+      await client.query('DELETE FROM api_key_permissions WHERE api_key_id=$1', [keyId]);
+      for (const code of codes) await client.query(`INSERT INTO api_key_permissions (api_key_id,model_code,status) VALUES ($1,$2,'active')`, [keyId, code]);
+      return { value: { id: key.id, user_id: key.user_id, permission_mode: 'custom', permissions: codes }, audit: { target_type: 'api_key', target_id: keyId, model_codes: codes } };
+    });
+  }
+
+  _pricingRulePayload(body, existing = {}) {
+    const scopeType = text(body.scope_type, existing.scope_type || 'platform');
+    if (!['platform', 'user'].includes(scopeType)) throw new AdminCompatError(400, 'invalid_pricing_scope', '定价范围无效');
+    const input = positiveMultiplier(body.multiplier_input ?? body.billing_multiplier_input, existing.billing_multiplier_input ?? 1);
+    const output = positiveMultiplier(body.multiplier_output ?? body.billing_multiplier_output, existing.billing_multiplier_output ?? 1);
+    const image = positiveMultiplier(body.multiplier_image ?? body.billing_multiplier_image, existing.billing_multiplier_image ?? 1);
+    const scopeId = scopeType === 'user' ? Number(body.scope_id ?? existing.scope_id) : null;
+    if (scopeType === 'user' && (!Number.isSafeInteger(scopeId) || scopeId < 1)) {
+      throw new AdminCompatError(400, 'invalid_pricing_scope_id', '用户定价规则必须指定有效用户 ID');
+    }
+    const startTime = optionalTimestamp(body.start_time, existing.start_time ?? null);
+    const endTime = optionalTimestamp(body.end_time, existing.end_time ?? null);
+    if (startTime && endTime && Date.parse(startTime) > Date.parse(endTime)) {
+      throw new AdminCompatError(400, 'invalid_pricing_window', '规则开始时间不能晚于结束时间');
+    }
+    return {
+      rule_name: text(body.rule_name, existing.rule_name || '未命名规则'), model_code: text(body.model_code, existing.model_code) || null,
+      scope_type: scopeType, scope_id: scopeId,
+      billing_multiplier_input: input, billing_multiplier_output: output, billing_multiplier_image: image,
+      priority: Math.max(0, Math.trunc(optionalNumber(body.priority, existing.priority ?? 0))),
+      start_time: startTime, end_time: endTime,
+      status: body.status === undefined ? (existing.status || 'active') : status(body.status),
+    };
+  }
+
+  _publicPricingRule(row) {
+    const rule = asObject(row.rule);
+    return { id: row.rule_key, rule_key: row.rule_key, model_code: row.model_code, billing_mode: row.billing_mode, status: row.status, ...rule };
+  }
+
+  async listPricingRules() {
+    const { rows } = await this.pool.query(`SELECT rule_key,model_code,billing_mode,rule,status,updated_at FROM pricing_rules
+      ORDER BY COALESCE((rule->>'priority')::integer,0) DESC,updated_at DESC`);
+    return rows.map(row => this._publicPricingRule(row));
+  }
+
+  async createPricingRule(body, actor) {
+    const payload = this._pricingRulePayload(body);
+    const key = generatedKey('pricing', body.rule_key || payload.rule_name);
+    return this._transaction('admin.pricing_rule.create', actor, async client => {
+      const row = await this._requireRow(client, `INSERT INTO pricing_rules (rule_key,model_code,billing_mode,rule,status)
+        VALUES ($1,$2,'token',$3::jsonb,$4) RETURNING rule_key,model_code,billing_mode,rule,status,updated_at`, [key, payload.model_code, JSON.stringify(payload), payload.status], new AdminCompatError(409, 'pricing_rule_conflict', '定价规则已存在'));
+      return { value: this._publicPricingRule(row), audit: { target_type: 'pricing_rule', target_id: key } };
+    });
+  }
+
+  async updatePricingRule(ruleKey, body, actor) {
+    return this._transaction('admin.pricing_rule.update', actor, async client => {
+      const existing = await this._requireRow(client, `SELECT rule_key,model_code,billing_mode,rule,status FROM pricing_rules WHERE rule_key=$1 FOR UPDATE`, [ruleKey], new AdminCompatError(404, 'pricing_rule_not_found', '定价规则不存在'));
+      const payload = this._pricingRulePayload(body, { ...asObject(existing.rule), model_code: existing.model_code, status: existing.status });
+      const row = await this._requireRow(client, `UPDATE pricing_rules SET model_code=$2,rule=$3::jsonb,status=$4,updated_at=CURRENT_TIMESTAMP
+        WHERE rule_key=$1 RETURNING rule_key,model_code,billing_mode,rule,status,updated_at`, [ruleKey, payload.model_code, JSON.stringify(payload), payload.status], new AdminCompatError(404, 'pricing_rule_not_found', '定价规则不存在'));
+      return { value: this._publicPricingRule(row), audit: { target_type: 'pricing_rule', target_id: ruleKey } };
+    });
+  }
+
+  async deletePricingRule(ruleKey, actor) {
+    return this._transaction('admin.pricing_rule.delete', actor, async client => {
+      await this._requireRow(client, `DELETE FROM pricing_rules WHERE rule_key=$1 RETURNING rule_key`, [ruleKey], new AdminCompatError(404, 'pricing_rule_not_found', '定价规则不存在'));
+      return { value: true, audit: { target_type: 'pricing_rule', target_id: ruleKey } };
+    });
   }
 
   async listLogs({ page, limit, userId, model, status: requestedStatus }) {
@@ -300,27 +531,73 @@ class PostgresAdminCompatRepository {
   }
 
   async listModels() {
-    const { rows } = await this.pool.query(`SELECT model_code,model_name,provider,model_type,status,metadata,created_at,updated_at
-      FROM models ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,model_code ASC`);
-    return rows.map(publicModel);
+    const [models, mappings] = await Promise.all([
+      this.pool.query(`SELECT model_code,model_name,provider,model_type,status,metadata,context_length,sort_order,capabilities,
+        official_provider,official_currency,official_input_price,official_output_price,official_cached_input_price,
+        official_unit_tokens,official_price_updated_at,created_at,updated_at
+        FROM models ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,sort_order ASC,model_code ASC`),
+      this.pool.query(`SELECT am.model_code,am.account_id AS channel_id,ua.display_name AS channel_name,ua.base_url,
+        am.upstream_model_name,am.supports_image_input,am.interface_capabilities,am.configuration,am.status,
+        COALESCE(array_agg(DISTINCT rg.group_name) FILTER (WHERE rg.id IS NOT NULL),'{}') AS group_names
+        FROM account_models am JOIN upstream_accounts ua ON ua.id=am.account_id
+        LEFT JOIN routing_group_accounts rga ON rga.account_id=ua.id LEFT JOIN routing_groups rg ON rg.id=rga.routing_group_id
+        GROUP BY am.model_code,am.account_id,ua.display_name,ua.base_url,am.upstream_model_name,
+          am.supports_image_input,am.interface_capabilities,am.configuration,am.status
+        ORDER BY am.account_id ASC`),
+    ]);
+    return models.rows.map(row => publicModel({
+      ...row,
+      channel_mappings: mappings.rows.filter(mapping => mapping.model_code === row.model_code),
+    }));
+  }
+
+  _modelPayload(body, existing = {}) {
+    const currentMetadata = asObject(existing.metadata);
+    const metadata = body.metadata === undefined ? { ...currentMetadata } : { ...asObject(body.metadata) };
+    for (const key of ['upstream_model_name', 'description']) if (body[key] !== undefined) metadata[key] = body[key];
+    metadata.official_model_id = text(body.official_model_id, metadata.official_model_id || body.model_code || existing.model_code);
+    metadata.official_pricing_mode = text(body.official_pricing_mode, metadata.official_pricing_mode || 'auto');
+    if (!['auto', 'manual'].includes(metadata.official_pricing_mode)) throw new AdminCompatError(400, 'invalid_pricing_mode', '官方定价方式无效');
+    const imageKeys = {
+      official_image_price_1k: '1K', official_image_price_2k: '2K', official_image_price_4k: '4K',
+      official_image_price_square: '1024x1024', official_image_price_landscape: '1536x1024', official_image_price_portrait: '1024x1536',
+    };
+    const imagePrices = { ...asObject(metadata.official_image_prices) };
+    for (const [field, key] of Object.entries(imageKeys)) if (body[field] !== undefined && body[field] !== null && body[field] !== '') imagePrices[key] = optionalNumber(body[field], imagePrices[key]);
+    metadata.official_image_prices = imagePrices;
+    metadata.billing_multiplier_input = positiveMultiplier(body.multiplier_input ?? body.billing_multiplier_input, metadata.billing_multiplier_input ?? 1);
+    metadata.billing_multiplier_output = positiveMultiplier(body.multiplier_output ?? body.billing_multiplier_output, metadata.billing_multiplier_output ?? 1);
+    metadata.billing_multiplier_image = positiveMultiplier(body.multiplier_image ?? body.billing_multiplier_image, metadata.billing_multiplier_image ?? 1);
+    const existingCapabilities = asObject(existing.capabilities, asObject(currentMetadata.capabilities));
+    const capabilities = body.capabilities === undefined ? { ...existingCapabilities } : { ...asObject(body.capabilities) };
+    if (body.is_multimodal !== undefined) capabilities.image_input = Boolean(body.is_multimodal);
+    return {
+      modelName: text(body.model_name, existing.model_name), provider: text(body.provider, existing.provider),
+      modelType: text(body.model_type, existing.model_type || 'llm'), status: body.status === undefined ? (existing.status || 'inactive') : status(body.status),
+      metadata, contextLength: body.context_length === undefined ? (existing.context_length ?? null) : optionalNumber(body.context_length, null),
+      sortOrder: Math.trunc(optionalNumber(body.sort_order, existing.sort_order ?? 0)), capabilities,
+      officialProvider: text(body.official_provider, existing.official_provider || metadata.official_provider || 'manual'),
+      officialCurrency: text(body.official_currency, existing.official_currency || 'USD'),
+      officialInput: optionalNumber(body.official_input_price, existing.official_input_price ?? 0),
+      officialOutput: optionalNumber(body.official_output_price, existing.official_output_price ?? 0),
+      officialCached: optionalNumber(body.official_cached_input_price, existing.official_cached_input_price ?? 0),
+      officialUnit: positiveInteger(body.official_unit_tokens, Number(existing.official_unit_tokens ?? 1_000_000), 'official_unit_tokens'),
+    };
   }
 
   async createModel(body, actor) {
     const modelCode = text(body.model_code);
     const modelName = text(body.model_name);
-    const modelType = text(body.model_type, 'llm');
-    const modelStatus = status(body.status, 'inactive');
-    const metadata = { ...asObject(body.metadata), ...Object.fromEntries(Object.entries({
-      upstream_model_name: body.upstream_model_name,
-      context_length: body.context_length,
-      is_multimodal: body.is_multimodal,
-      description: body.description,
-      sort_order: body.sort_order,
-    }).filter(([, value]) => value !== undefined)) };
+    const payload = this._modelPayload(body);
     return this._transaction('admin.model.create', actor, async client => {
-      const row = await this._requireRow(client, `INSERT INTO models (model_code,model_name,provider,model_type,status,metadata)
-        VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING model_code,model_name,provider,model_type,status,metadata,created_at,updated_at`,
-      [modelCode, modelName, text(body.provider), modelType, modelStatus, JSON.stringify(metadata)],
+      const row = await this._requireRow(client, `INSERT INTO models
+        (model_code,model_name,provider,model_type,status,metadata,context_length,sort_order,capabilities,official_provider,
+          official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens)
+        VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15)
+        RETURNING *`,
+      [modelCode, modelName, payload.provider, payload.modelType, payload.status, JSON.stringify(payload.metadata), payload.contextLength,
+        payload.sortOrder, JSON.stringify(payload.capabilities), payload.officialProvider, payload.officialCurrency, payload.officialInput,
+        payload.officialOutput, payload.officialCached, payload.officialUnit],
       new AdminCompatError(409, 'model_conflict', '模型编码已存在'));
       return { value: publicModel(row), audit: { target_type: 'model', target_id: modelCode } };
     });
@@ -328,15 +605,15 @@ class PostgresAdminCompatRepository {
 
   async updateModel(modelCode, body, actor) {
     return this._transaction('admin.model.update', actor, async client => {
-      const existing = await this._requireRow(client, `SELECT model_code,model_name,provider,model_type,status,metadata FROM models WHERE model_code=$1 FOR UPDATE`, [modelCode], new AdminCompatError(404, 'model_not_found', '模型不存在'));
-      const metadata = body.metadata === undefined ? asObject(existing.metadata) : asObject(body.metadata);
-      for (const key of ['upstream_model_name', 'context_length', 'is_multimodal', 'description', 'sort_order']) {
-        if (body[key] !== undefined) metadata[key] = body[key];
-      }
-      const row = await this._requireRow(client, `UPDATE models SET model_name=$2,provider=$3,model_type=$4,status=$5,metadata=$6::jsonb,updated_at=CURRENT_TIMESTAMP
-        WHERE model_code=$1 RETURNING model_code,model_name,provider,model_type,status,metadata,created_at,updated_at`, [
-        modelCode, text(body.model_name, existing.model_name), text(body.provider, existing.provider), text(body.model_type, existing.model_type),
-        body.status === undefined ? existing.status : status(body.status), JSON.stringify(metadata),
+      const existing = await this._requireRow(client, `SELECT * FROM models WHERE model_code=$1 FOR UPDATE`, [modelCode], new AdminCompatError(404, 'model_not_found', '模型不存在'));
+      const payload = this._modelPayload(body, existing);
+      const row = await this._requireRow(client, `UPDATE models SET model_name=$2,provider=$3,model_type=$4,status=$5,metadata=$6::jsonb,
+        context_length=$7,sort_order=$8,capabilities=$9::jsonb,official_provider=$10,official_currency=$11,
+        official_input_price=$12,official_output_price=$13,official_cached_input_price=$14,official_unit_tokens=$15,
+        updated_at=CURRENT_TIMESTAMP WHERE model_code=$1 RETURNING *`, [
+        modelCode, payload.modelName, payload.provider, payload.modelType, payload.status, JSON.stringify(payload.metadata), payload.contextLength,
+        payload.sortOrder, JSON.stringify(payload.capabilities), payload.officialProvider, payload.officialCurrency, payload.officialInput,
+        payload.officialOutput, payload.officialCached, payload.officialUnit,
       ], new AdminCompatError(404, 'model_not_found', '模型不存在'));
       return { value: publicModel(row), audit: { target_type: 'model', target_id: modelCode } };
     });
@@ -478,8 +755,14 @@ class PostgresAdminCompatRepository {
 
   async setChannelStatus(id, nextStatus, actor) {
     return this._transaction('admin.channel.status', actor, async client => {
+      const mappings = await client.query('SELECT model_code,status FROM account_models WHERE account_id=$1 FOR UPDATE', [id]);
+      const next = status(nextStatus);
+      if (next === 'active') for (const mapping of mappings.rows) {
+        if (mapping.status === 'active') await this._validateMappingActivation(client, id, mapping.model_code);
+      }
       const row = await this._requireRow(client, `UPDATE upstream_accounts SET status=$2,updated_at=CURRENT_TIMESTAMP WHERE id=$1
-        RETURNING id,account_key,display_name,base_url,protocol_type,capabilities,status,max_concurrency,rpm_limit,tpm_limit,cooldown_seconds,priority,weight,health_score,cooldown_until,latency_ms,last_probe_at,created_at,updated_at,(api_key_envelope IS NOT NULL) AS secret_configured`, [id, status(nextStatus)], new AdminCompatError(404, 'channel_not_found', '渠道不存在'));
+        RETURNING id,account_key,display_name,base_url,protocol_type,capabilities,status,max_concurrency,rpm_limit,tpm_limit,cooldown_seconds,priority,weight,health_score,cooldown_until,latency_ms,last_probe_at,created_at,updated_at,(api_key_envelope IS NOT NULL) AS secret_configured`, [id, next], new AdminCompatError(404, 'channel_not_found', '渠道不存在'));
+      for (const mapping of mappings.rows) await this._reconcileModelStatus(client, mapping.model_code);
       return { value: publicChannel(row), audit: { target_type: 'upstream_account', target_id: id, status: row.status } };
     });
   }
@@ -497,9 +780,23 @@ class PostgresAdminCompatRepository {
     return rows.map(row => ({ ...row, ...asObject(row.configuration), configuration: asObject(row.configuration) }));
   }
 
+  async _validateMappingActivation(client, channelId, modelCode) {
+    await this._requireRow(client, `SELECT ua.id FROM upstream_accounts ua JOIN models m ON m.model_code=$2
+      WHERE ua.id=$1 FOR UPDATE`, [channelId, modelCode], new AdminCompatError(409, 'mapping_activation_unavailable', '渠道或模型不存在'));
+  }
+
+  async _reconcileModelStatus(client, modelCode) {
+    const { rows } = await client.query(`UPDATE models SET status=CASE WHEN EXISTS (
+      SELECT 1 FROM account_models am JOIN upstream_accounts ua ON ua.id=am.account_id AND ua.status='active'
+      WHERE am.model_code=$1 AND am.status='active'
+    ) THEN 'active' ELSE 'inactive' END,updated_at=CURRENT_TIMESTAMP WHERE model_code=$1 RETURNING status`, [modelCode]);
+    return rows[0]?.status || null;
+  }
+
   async replaceChannelModels(channelId, mappings, actor) {
     return this._transaction('admin.channel.models.replace', actor, async client => {
       await this._requireRow(client, 'SELECT id FROM upstream_accounts WHERE id=$1 FOR UPDATE', [channelId], new AdminCompatError(404, 'channel_not_found', '渠道不存在'));
+      const previous = await client.query('SELECT model_code FROM account_models WHERE account_id=$1 FOR UPDATE', [channelId]);
       const normalized = mappings.map(item => {
         const source = asObject(item);
         const modelCode = text(source.model_code);
@@ -519,10 +816,14 @@ class PostgresAdminCompatRepository {
           status: status(source.status, 'active'),
         };
       });
+      for (const mapping of normalized) if (mapping.status === 'active') await this._validateMappingActivation(client, channelId, mapping.modelCode);
       await client.query('DELETE FROM account_models WHERE account_id=$1', [channelId]);
       for (const mapping of normalized) {
         await client.query(`INSERT INTO account_models (account_id,model_code,upstream_model_name,supports_image_input,configuration,status)
           VALUES ($1,$2,$3,$4,$5::jsonb,$6)`, [channelId, mapping.modelCode, mapping.upstreamName, mapping.imageInput, JSON.stringify(mapping.configuration), mapping.status]);
+      }
+      for (const modelCode of new Set([...previous.rows.map(row => row.model_code), ...normalized.map(row => row.modelCode)])) {
+        await this._reconcileModelStatus(client, modelCode);
       }
       return { value: normalized.map(mapping => ({ account_id: Number(channelId), model_code: mapping.modelCode, upstream_model_name: mapping.upstreamName, supports_image_input: mapping.imageInput, configuration: mapping.configuration, status: mapping.status })), audit: { target_type: 'upstream_account', target_id: channelId, model_codes: normalized.map(item => item.modelCode) } };
     });
@@ -580,9 +881,12 @@ class PostgresAdminCompatRepository {
 
   async setChannelModelStatus(channelId, modelCode, nextStatus, actor) {
     return this._transaction('admin.channel_model.status', actor, async client => {
+      const next = status(nextStatus);
+      if (next === 'active') await this._validateMappingActivation(client, channelId, modelCode);
       const row = await this._requireRow(client, `UPDATE account_models SET status=$3 WHERE account_id=$1 AND model_code=$2
-        RETURNING account_id,model_code,upstream_model_name,supports_image_input,configuration,status`, [channelId, modelCode, status(nextStatus)], new AdminCompatError(404, 'channel_model_not_found', '渠道模型映射不存在'));
-      return { value: row, audit: { target_type: 'account_model', target_id: `${channelId}:${modelCode}`, status: row.status } };
+        RETURNING account_id,model_code,upstream_model_name,supports_image_input,configuration,status`, [channelId, modelCode, next], new AdminCompatError(404, 'channel_model_not_found', '渠道模型映射不存在'));
+      const modelStatus = await this._reconcileModelStatus(client, modelCode);
+      return { value: { ...row, model_status: modelStatus }, audit: { target_type: 'account_model', target_id: `${channelId}:${modelCode}`, status: row.status, model_status: modelStatus } };
     });
   }
 
@@ -635,6 +939,17 @@ class PostgresAdminCompatRepository {
     return normalized;
   }
 
+  async _validateFallbackChain(client, groupId, fallbackGroupId) {
+    if (!fallbackGroupId) return;
+    const cycle = await client.query(`WITH RECURSIVE chain(id,fallback_group_id,path) AS (
+      SELECT id,fallback_group_id,ARRAY[id] FROM routing_groups WHERE id=$2
+      UNION ALL
+      SELECT rg.id,rg.fallback_group_id,chain.path||rg.id FROM routing_groups rg JOIN chain ON rg.id=chain.fallback_group_id
+      WHERE NOT rg.id=ANY(chain.path)
+    ) SELECT 1 FROM chain WHERE id=$1 LIMIT 1`, [groupId, fallbackGroupId]);
+    if (cycle.rows[0]) throw new AdminCompatError(400, 'invalid_fallback_cycle', '备用分组不能形成循环');
+  }
+
   async _replaceGroupModels(client, groupId, rules) {
     const existingResult = await client.query(`SELECT routing_group_id,model_code,status,billing_multiplier,
       billing_multiplier_input,billing_multiplier_output,billing_multiplier_image
@@ -681,6 +996,7 @@ class PostgresAdminCompatRepository {
         groupKey, payload.groupName, payload.protocol, payload.status, JSON.stringify(payload.configuration), payload.fallbackGroupId, payload.restrictModels,
         payload.inputMultiplier, payload.outputMultiplier, payload.imageMultiplier,
       ], new AdminCompatError(409, 'routing_group_conflict', '分组编码已存在'));
+      await this._validateFallbackChain(client, row.id, payload.fallbackGroupId);
       const members = await this._replaceGroupMembers(client, row.id, body.members ?? body.channels ?? []);
       const rules = await this._replaceGroupModels(client, row.id, body.model_rules ?? body.model_codes ?? []);
       return { value: { ...publicRoutingGroup(row), channels: members, model_codes: rules.filter(rule => rule.status === 'active').map(rule => rule.modelCode), model_rules: rules }, audit: { target_type: 'routing_group', target_id: row.id, group_key: groupKey } };
@@ -699,6 +1015,7 @@ class PostgresAdminCompatRepository {
         id, payload.groupName, payload.protocol, payload.status, JSON.stringify(payload.configuration), payload.fallbackGroupId, payload.restrictModels,
         payload.inputMultiplier, payload.outputMultiplier, payload.imageMultiplier,
       ], new AdminCompatError(404, 'routing_group_not_found', '路由分组不存在'));
+      await this._validateFallbackChain(client, id, payload.fallbackGroupId);
       const members = body.members === undefined && body.channels === undefined
         ? await this._listRoutingGroupMembers(client, id)
         : await this._replaceGroupMembers(client, id, body.members ?? body.channels);
@@ -712,7 +1029,7 @@ class PostgresAdminCompatRepository {
   async setRoutingGroupStatus(id, nextStatus, actor) {
     return this._transaction('admin.routing_group.status', actor, async client => {
       const row = await this._requireRow(client, `UPDATE routing_groups SET status=$2,updated_at=CURRENT_TIMESTAMP WHERE id=$1
-        RETURNING id,group_key,group_name,protocol_type,status,configuration,fallback_group_id,restrict_models,created_at,updated_at`, [id, status(nextStatus)], new AdminCompatError(404, 'routing_group_not_found', '路由分组不存在'));
+      RETURNING id,group_key,group_name,protocol_type,status,configuration,fallback_group_id,restrict_models,created_at,updated_at`, [id, status(nextStatus)], new AdminCompatError(404, 'routing_group_not_found', '路由分组不存在'));
       return { value: publicRoutingGroup(row), audit: { target_type: 'routing_group', target_id: id, status: row.status } };
     });
   }
@@ -774,7 +1091,7 @@ class PostgresAdminCompatRepository {
   }
 
   _paymentPayload(body, existing = {}) {
-    const providerCode = text(body.provider_code, existing.provider_code);
+    const providerCode = text(body.provider_code, existing.provider_code) || generatedKey('payment', body.provider_name);
     const providerName = text(body.provider_name, existing.provider_name);
     if (!providerCode || !providerName) throw new AdminCompatError(400, 'invalid_payment_provider', '服务商编码和名称不能为空');
     if (body.status === 'active' && body.enable !== true) throw new AdminCompatError(400, 'payment_enable_required', '启用支付必须明确传入 enable: true');

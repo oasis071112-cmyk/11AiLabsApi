@@ -85,6 +85,9 @@ const bootstrapAuthenticate = createRuntimeBootstrapAuthenticate({
 
 app.use('/api', createBootstrapRouter({
   authenticate: bootstrapAuthenticate,
+  requireUser: (req, res, next) => req.user?.role === 'user'
+    ? next()
+    : res.status(403).json({ error: '仅普通用户可访问' }),
   requireAdmin,
   dashboardReadModel: runtimeService('dashboardReadModel'),
   controlPlane: runtimeService('controlPlane'),

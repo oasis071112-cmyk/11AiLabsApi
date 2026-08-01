@@ -11,6 +11,16 @@ afterEach(async () => {
 });
 
 describe('PostgreSQL public read routes', () => {
+  it('treats imported string false as a disabled registration switch', async () => {
+    const pool = { query: async () => ({ rows: [{ config_key: 'registration_enabled', config_value: 'false' }] }) };
+    const app = express().use('/api/public', createPostgresPublicRouter({ pool }));
+    const server = app.listen(0, '127.0.0.1');
+    servers.push(server);
+    await new Promise(resolve => server.once('listening', resolve));
+    const payload = await fetch(`http://127.0.0.1:${server.address().port}/api/public/info`).then(response => response.json());
+    expect(payload.registration_enabled).toBe(false);
+  });
+
   it('returns site information and the capability catalog without SQL.js', async () => {
     const pool = {
       async query(sql) {

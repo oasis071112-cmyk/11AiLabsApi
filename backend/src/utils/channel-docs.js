@@ -320,10 +320,62 @@ function generateDocs(
   };
 }
 
+function generateImageDocs(baseUrl, keyPrefix, models) {
+  const sampleModel = models.length > 0 ? models[0].model_code : 'your-image-model';
+  const supportsGeneration = models.some(model => model.capabilities?.image_generations === true);
+  const supportsEdits = models.some(model => model.capabilities?.image_edits === true);
+  const endpoint = supportsGeneration ? '/v1/images/generations' : '/v1/images/edits';
+  const enabledCapabilities = [
+    ...(supportsGeneration ? ['image_generations'] : []),
+    ...(supportsEdits ? ['image_edits'] : []),
+  ];
+  return {
+    protocol_type: 'openai_images',
+    protocol_label: 'OpenAI 图片',
+    endpoint,
+    additional_endpoints: supportsGeneration && supportsEdits ? ['/v1/images/edits'] : [],
+    enabled_capabilities: enabledCapabilities,
+    curl: supportsGeneration
+      ? `curl ${baseUrl}/v1/images/generations \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer ${keyPrefix}..." \\\n  -d '{"model":"${sampleModel}","prompt":"一只在窗边晒太阳的猫","size":"1K"}'`
+      : `curl ${baseUrl}/v1/images/edits \\\n  -H "Authorization: Bearer ${keyPrefix}..." \\\n  -F "model=${sampleModel}" -F "prompt=保留主体并更换背景" -F "image=@input.png"`,
+    python: supportsGeneration ? `from openai import OpenAI
+
+client = OpenAI(base_url="${baseUrl}/v1", api_key="${keyPrefix}...")
+result = client.images.generate(
+    model="${sampleModel}",
+    prompt="一只在窗边晒太阳的猫",
+    size="1K"
+)
+print(result.data[0].b64_json or result.data[0].url)` : `from openai import OpenAI
+
+client = OpenAI(base_url="${baseUrl}/v1", api_key="${keyPrefix}...")
+with open("input.png", "rb") as image:
+    result = client.images.edit(model="${sampleModel}", image=image, prompt="保留主体并更换背景")
+print(result.data[0].b64_json or result.data[0].url)`,
+    nodejs: supportsGeneration ? `import OpenAI from "openai";
+
+const client = new OpenAI({ baseURL: "${baseUrl}/v1", apiKey: "${keyPrefix}..." });
+const result = await client.images.generate({
+  model: "${sampleModel}",
+  prompt: "一只在窗边晒太阳的猫",
+  size: "1K"
+});
+console.log(result.data[0].b64_json ?? result.data[0].url);` : `import fs from "node:fs";
+import OpenAI from "openai";
+
+const client = new OpenAI({ baseURL: "${baseUrl}/v1", apiKey: "${keyPrefix}..." });
+const result = await client.images.edit({
+  model: "${sampleModel}", image: fs.createReadStream("input.png"), prompt: "保留主体并更换背景"
+});
+console.log(result.data[0].b64_json ?? result.data[0].url);`,
+  };
+}
+
 module.exports = {
   PROTOCOLS,
   CHANNEL_PROTOCOL_MAP,
   getProtocol,
   getConfiguredProtocol,
   generateDocs,
+  generateImageDocs,
 };

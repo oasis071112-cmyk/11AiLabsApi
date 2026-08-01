@@ -37,8 +37,8 @@ import { formatBeijingTime } from '@/utils/time'
 const groups=ref([]),loading=ref(false),page=ref(1),total=ref(0),expandedUsers=ref('')
 const permDialog=ref(false),selModels=ref([]),editingKeyId=ref(null),allModels=ref([])
 const modelGroups=computed(()=>['openai','deepseek','anthropic'].map(name=>({name,label:{openai:'OpenAI',deepseek:'DeepSeek',anthropic:'Anthropic'}[name],models:allModels.value.filter(model=>model.official_provider===name)})).filter(group=>group.models.length))
-onMounted(async()=>{try{allModels.value=(await api.get('/api/admin/models')).data.data||[]}catch(e){};fetch()})
-async function fetch(){loading.value=true;try{const r=await api.get('/api/admin/keys',{params:{page:page.value,limit:10,group_by:'user'}});groups.value=r.data.data||[];total.value=r.data.pagination.total}catch(e){}loading.value=false}
+onMounted(async()=>{try{allModels.value=(await api.get('/api/admin/models')).data.data||[]}catch(e){ElMessage.error(e.response?.data?.error||'模型权限目录加载失败')};fetch()})
+async function fetch(){loading.value=true;try{const r=await api.get('/api/admin/keys',{params:{page:page.value,limit:10,group_by:'user'}});groups.value=r.data.data||[];total.value=r.data.pagination.total}catch(e){ElMessage.error(e.response?.data?.error||'API Key 列表加载失败，请重试')}loading.value=false}
 async function toggleKey(key){const status=key.status==='active'?'disabled':'active';await api.patch(`/api/admin/keys/${key.id}/status`,{status});ElMessage.success('操作成功');fetch()}
 function editPerms(key){editingKeyId.value=key.id;selModels.value=[...(key.permissions||[])];permDialog.value=true}
 async function savePerms(){await api.put(`/api/admin/keys/${editingKeyId.value}/permissions`,{model_codes:selModels.value});ElMessage.success('权限已更新');permDialog.value=false;fetch()}

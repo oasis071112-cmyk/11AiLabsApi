@@ -37,6 +37,9 @@ function dependencies(role = 'admin') {
     dashboardReadModel,
     controlPlane,
     authenticate(req, _res, next) { req.user = { id: 7, role }; next(); },
+    requireUser(req, res, next) {
+      return req.user.role === 'user' ? next() : res.status(403).json({ error: '仅普通用户可访问' });
+    },
     requireAdmin: (...roles) => (req, res, next) => roles.includes(req.user.role)
       ? next()
       : res.status(403).json({ error: '权限不足' }),
@@ -45,7 +48,7 @@ function dependencies(role = 'admin') {
 
 describe('bootstrap aggregate routes', () => {
   it('serves user dashboard and logs overview through one aggregate endpoint each', async () => {
-    const deps = dependencies();
+    const deps = dependencies('user');
     const baseUrl = await serve(createBootstrapRouter(deps));
 
     const dashboard = await fetch(`${baseUrl}/api/user/dashboard/bootstrap`).then(response => response.json());
@@ -54,6 +57,14 @@ describe('bootstrap aggregate routes', () => {
     expect(dashboard).toEqual({ user_id: 7, stats: { calls: 4 } });
     expect(logs).toMatchObject({ user_id: 7, data: [], query: { limit: '25', model: 'gpt-image-2' } });
     expect(deps.dashboardReadModel.userBootstrap).toHaveBeenCalledWith(7);
+  });
+
+  it('rejects staff tokens on user aggregate endpoints', async () => {
+    const deps = dependencies('admin');
+    const baseUrl = await serve(createBootstrapRouter(deps));
+    expect((await fetch(`${baseUrl}/api/user/dashboard/bootstrap`)).status).toBe(403);
+    expect((await fetch(`${baseUrl}/api/user/logs/overview`)).status).toBe(403);
+    expect(deps.dashboardReadModel.userBootstrap).not.toHaveBeenCalled();
   });
 
   it('serves admin dashboard and sanitized control-plane bootstrap', async () => {

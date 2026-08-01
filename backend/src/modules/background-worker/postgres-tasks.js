@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { withTransaction } = require('../../infrastructure/postgres');
 const { extendRedisCooldown } = require('../gateway-scheduler');
+const { PostgresPricingSyncService } = require('../pricing-sync/postgres-service');
 
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
 const AGGREGATE_WATERMARK_KEY = 'worker_daily_aggregate_watermark';
@@ -241,6 +242,7 @@ function createPostgresWorkerTasks({
 } = {}) {
   if (!pool?.query) throw new Error('worker PostgreSQL pool is required');
   if (!secretBox?.open) throw new Error('worker secret box is required');
+  const pricingSync = new PostgresPricingSyncService({ pool, http, logger, clock });
   const safeRetentionDays = validateRetentionDays(retentionDays);
   if (!Number.isInteger(partitionHorizonMonths) || partitionHorizonMonths < 1 || partitionHorizonMonths > 12) {
     throw new Error('partition horizon must be an integer between 1 and 12 months');
@@ -260,6 +262,8 @@ function createPostgresWorkerTasks({
     { name: 'partition-maintenance', intervalMs: 3_600_000, run: () => maintainPartitions(pool, clock, partitionHorizonMonths) },
     { name: 'probe-retention', intervalMs: 86_400_000, run: () => retainProbeHistory(pool, probeRetentionDays) },
     { name: 'log-retention', intervalMs: 86_400_000, run: () => retainLogs(pool, safeRetentionDays) },
+    { name: 'exchange-rate-sync', intervalMs: 86_400_000, runOnStart: false, run: () => pricingSync.syncExchangeRate() },
+    { name: 'official-pricing-sync', intervalMs: 7 * 86_400_000, runOnStart: false, run: () => pricingSync.syncOfficialPricing() },
   ];
 }
 

@@ -117,7 +117,38 @@ describe('PostgreSQL public proxy adapters', () => {
         output_multiplier: 3,
       },
     });
-    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('FROM models m'), ['public-chat', 7]);
+    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('FROM models m'), ['public-chat', 7, null]);
+  });
+
+  it('applies active pricing rules in user, routing-group, then platform priority order', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{
+          model_code: 'priority-chat', model_type: 'llm', metadata: {},
+          official_currency: 'USD', official_input_price: 10, official_output_price: 20,
+          official_cached_input_price: 1, official_unit_tokens: 1_000_000,
+          input_multiplier: 2, output_multiplier: 3, image_multiplier: null,
+          platform_billing_mode: 'token',
+          platform_rule: {
+            billing_multiplier_input: 1.1,
+            billing_multiplier_output: 1.2,
+            billing_multiplier_image: 1.3,
+          },
+          user_billing_mode: null,
+          user_rule: { billing_multiplier_input: 4 },
+          usd_cny_rate: 7,
+        }],
+      }),
+    };
+    const policy = new PostgresProxyBillingPolicy(pool);
+
+    const loaded = await policy.loadPolicy('priority-chat', 7, 42);
+
+    expect(loaded.multipliers).toEqual({ input: 4, output: 3, image: 1.3 });
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringMatching(/scope_type[\s\S]*priority[\s\S]*start_time[\s\S]*end_time/i),
+      ['priority-chat', 7, 42],
+    );
   });
 
   it('settles against the actual fallback group and selected account mapping', async () => {
@@ -161,7 +192,7 @@ describe('PostgreSQL public proxy adapters', () => {
       },
     });
 
-    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('FROM models m'), ['fallback-chat', 19]);
+    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('FROM models m'), ['fallback-chat', 19, null]);
     expect(charge).toMatchObject({
       billingMode: 'token',
       snapshot: {

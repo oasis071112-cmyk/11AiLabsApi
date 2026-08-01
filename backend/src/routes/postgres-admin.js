@@ -1,8 +1,10 @@
 const express = require('express');
 const { authenticate: defaultAuthenticate, requireAdmin: defaultRequireAdmin } = require('../middleware/auth');
 const { PostgresAdminCompatRepository, AdminCompatError } = require('../modules/control-plane/admin-compat-repository');
+const { PostgresPricingSyncService } = require('../modules/pricing-sync/postgres-service');
 
 const VALID_STATUS = new Set(['active', 'inactive']);
+const BOOLEAN_CONFIG_KEYS = new Set(['registration_enabled', 'new_user_gift_enabled', 'payment_enabled', 'maintenance_mode']);
 
 function actorFromRequest(req) {
   return {
@@ -72,12 +74,15 @@ function createPostgresAdminRouter({
   authenticate = defaultAuthenticate,
   requireAdmin = defaultRequireAdmin,
   onMutation = null,
+  pricingSyncService = null,
 } = {}) {
   const data = repository || new PostgresAdminCompatRepository({ pool, secretBox });
+  const pricingSync = pricingSyncService || (pool ? new PostgresPricingSyncService({ pool }) : null);
   const router = express.Router();
   const readers = [authenticate, requireAdmin('admin', 'operator', 'finance')];
   const operators = [authenticate, requireAdmin('admin', 'operator')];
   const admins = [authenticate, requireAdmin('admin')];
+  const finance = [authenticate, requireAdmin('admin', 'finance')];
   router.use((req, res, next) => {
     if (typeof onMutation === 'function' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
       res.once('finish', () => {
@@ -98,14 +103,59 @@ function createPostgresAdminRouter({
     if (!user) throw new AdminCompatError(404, 'user_not_found', '用户不存在');
     res.json(publicValue(user));
   }));
+  router.patch('/users/:id/status', ...admins, asyncRoute(async (req, res) => {
+    const nextStatus = String(req.body?.status || '');
+    if (!['active', 'disabled'].includes(nextStatus)) throw new AdminCompatError(400, 'invalid_status', '用户状态无效');
+    res.json({ message: '用户状态已更新', data: publicValue(await data.setUserStatus(req.params.id, nextStatus, actorFromRequest(req))) });
+  }));
+  router.post('/users/:id/adjust-balance', ...finance, asyncRoute(async (req, res) => {
+    res.json({ message: '调账成功', data: publicValue(await data.adjustUserBalance(req.params.id, req.body || {}, actorFromRequest(req))) });
+  }));
+  router.get(['/recharge-orders', '/quota-orders'], ...readers, asyncRoute(async (req, res) => {
+    res.json(publicValue(await data.listRechargeOrders({ ...pagination(req.query, 20), status: req.query.status })));
+  }));
+  router.patch(['/recharge-orders/:id/confirm', '/quota-orders/:id/grant'], ...finance, asyncRoute(async (req, res) => {
+    res.json({ message: '订单已确认并发放', data: publicValue(await data.confirmRechargeOrder(req.params.id, req.body || {}, actorFromRequest(req))) });
+  }));
+  router.patch(['/recharge-orders/:id/reject', '/quota-orders/:id/reject'], ...finance, asyncRoute(async (req, res) => {
+    res.json({ message: '订单已驳回', data: publicValue(await data.rejectRechargeOrder(req.params.id, req.body || {}, actorFromRequest(req))) });
+  }));
   router.get('/keys', ...operators, asyncRoute(async (req, res) => {
-    res.json(publicValue(await data.listKeys({ ...pagination(req.query, 20), userId: req.query.user_id })));
+    res.json(publicValue(await data.listKeys({ ...pagination(req.query, 20), userId: req.query.user_id, groupBy: req.query.group_by })));
+  }));
+  router.patch('/keys/:id/status', ...admins, asyncRoute(async (req, res) => {
+    const nextStatus = String(req.body?.status || '');
+    if (!['active', 'disabled', 'revoked'].includes(nextStatus)) throw new AdminCompatError(400, 'invalid_status', 'Key 状态无效');
+    res.json({ message: 'Key 状态已更新', data: publicValue(await data.setKeyStatus(req.params.id, nextStatus, actorFromRequest(req))) });
+  }));
+  router.put('/keys/:id/permissions', ...admins, asyncRoute(async (req, res) => {
+    if (!Array.isArray(req.body?.model_codes)) throw new AdminCompatError(400, 'invalid_permissions', '模型权限必须是数组');
+    res.json({ message: 'Key 权限已更新', data: publicValue(await data.updateKeyPermissions(req.params.id, req.body.model_codes, actorFromRequest(req))) });
   }));
   router.get('/logs', ...operators, asyncRoute(async (req, res) => {
     res.json(publicValue(await data.listLogs({ ...pagination(req.query, 50), userId: req.query.user_id, model: req.query.model, status: req.query.status })));
   }));
 
   router.get('/models', ...operators, asyncRoute(async (_req, res) => res.json({ data: publicValue(await data.listModels()) })));
+  router.get('/pricing-sync/status', ...operators, asyncRoute(async (_req, res) => {
+    if (!pricingSync) throw new AdminCompatError(503, 'pricing_sync_unavailable', '价格同步服务未就绪');
+    res.json(publicValue(await pricingSync.status()));
+  }));
+  router.post('/pricing-sync', ...admins, asyncRoute(async (_req, res) => {
+    if (!pricingSync) throw new AdminCompatError(503, 'pricing_sync_unavailable', '价格同步服务未就绪');
+    res.json(publicValue(await pricingSync.syncAll()));
+  }));
+  router.get('/pricing-rules', ...operators, asyncRoute(async (_req, res) => res.json({ data: publicValue(await data.listPricingRules()) })));
+  router.post('/pricing-rules', ...operators, asyncRoute(async (req, res) => {
+    res.status(201).json({ message: '定价规则已创建', data: publicValue(await data.createPricingRule(req.body || {}, actorFromRequest(req))) });
+  }));
+  router.put('/pricing-rules/:id', ...operators, asyncRoute(async (req, res) => {
+    res.json({ message: '定价规则已更新', data: publicValue(await data.updatePricingRule(req.params.id, req.body || {}, actorFromRequest(req))) });
+  }));
+  router.delete('/pricing-rules/:id', ...admins, asyncRoute(async (req, res) => {
+    await data.deletePricingRule(req.params.id, actorFromRequest(req));
+    res.json({ message: '定价规则已删除' });
+  }));
   router.post('/models', ...admins, asyncRoute(async (req, res) => {
     if (!String(req.body?.model_code || '').trim() || !String(req.body?.model_name || '').trim()) {
       throw new AdminCompatError(400, 'invalid_model', '模型编码和名称不能为空');
@@ -204,8 +254,8 @@ function createPostgresAdminRouter({
   router.get('/payment/providers', ...admins, asyncRoute(async (_req, res) => res.json({ data: publicValue(await data.listPaymentProviders()) })));
   router.post('/payment/providers', ...admins, asyncRoute(async (req, res) => {
     const body = req.body || {};
-    if (!String(body.provider_name || '').trim() || !String(body.provider_code || '').trim() || !String(body.merchant_key || '').trim()) {
-      throw new AdminCompatError(400, 'invalid_payment_provider', '服务商编码、名称和商户密钥不能为空');
+    if (!String(body.provider_name || '').trim() || !String(body.merchant_key || '').trim()) {
+      throw new AdminCompatError(400, 'invalid_payment_provider', '服务商名称和商户密钥不能为空');
     }
     if (body.status === 'active' && body.enable !== true) {
       throw new AdminCompatError(400, 'payment_enable_required', '启用支付必须明确传入 enable: true');
@@ -234,6 +284,11 @@ function createPostgresAdminRouter({
         throw new AdminCompatError(400, 'invalid_config', '缺少 config_value');
       }
       value = req.body.config_value;
+      if (BOOLEAN_CONFIG_KEYS.has(req.params.key)) {
+        if (value === 'true') value = true;
+        if (value === 'false') value = false;
+        if (typeof value !== 'boolean') throw new AdminCompatError(400, 'invalid_config', '开关配置必须是布尔值');
+      }
     }
     res.json({ message: '配置已更新', data: publicValue(await data.updateConfig(req.params.key, value, actorFromRequest(req))) });
   }));

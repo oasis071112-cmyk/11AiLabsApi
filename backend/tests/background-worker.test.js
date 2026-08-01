@@ -49,4 +49,15 @@ describe('BackgroundWorker', () => {
     expect(task.run).toHaveBeenCalledTimes(1);
     expect(scheduled).toHaveLength(1);
   });
+
+  it('defers expensive scheduled tasks on startup while keeping them due later', async () => {
+    let now = new Date('2026-08-01T00:00:00.000Z');
+    const expensive = { name: 'official-pricing-sync', intervalMs: 1000, runOnStart: false, run: vi.fn(async () => ({})) };
+    const worker = new BackgroundWorker({ tasks: [expensive], clock: () => now });
+    expect((await worker.runCycle()).tasks).toMatchObject([{ status: 'skipped', reason: 'initial_delay' }]);
+    expect(expensive.run).not.toHaveBeenCalled();
+    now = new Date('2026-08-01T00:00:01.000Z');
+    expect((await worker.runCycle()).tasks).toMatchObject([{ status: 'ok' }]);
+    expect(expensive.run).toHaveBeenCalledTimes(1);
+  });
 });

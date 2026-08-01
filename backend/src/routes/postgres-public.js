@@ -4,6 +4,13 @@ function configMap(rows) {
   return new Map((rows || []).map(row => [row.config_key, row.config_value]));
 }
 
+function configBoolean(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.trim().toLowerCase() === 'true';
+  if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'value')) return configBoolean(value.value, fallback);
+  return fallback;
+}
+
 function createPostgresPublicRouter({ pool } = {}) {
   if (!pool?.query) throw new TypeError('PostgreSQL public router requires pool.query');
   const router = express.Router();
@@ -19,7 +26,7 @@ function createPostgresPublicRouter({ pool } = {}) {
       res.json({
         platform_name: config.get('platform_name') ?? 'IonAiLabs',
         announcement: config.get('platform_announcement') ?? '',
-        registration_enabled: config.get('registration_enabled') !== false,
+        registration_enabled: configBoolean(config.get('registration_enabled'), true),
         customer_service_text: config.get('customer_service_text') ?? 'QQ群：575334175',
         customer_service_url: config.get('customer_service_url') ?? '',
       });
@@ -64,4 +71,4 @@ function createPostgresPublicRouter({ pool } = {}) {
   return router;
 }
 
-module.exports = { createPostgresPublicRouter };
+module.exports = { configBoolean, createPostgresPublicRouter };

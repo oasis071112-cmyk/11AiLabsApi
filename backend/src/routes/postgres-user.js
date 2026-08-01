@@ -3,6 +3,8 @@ const express = require('express');
 const { withTransaction } = require('../infrastructure/postgres');
 const { createPostgresIdentity } = require('../modules/identity');
 const { createPostgresPaymentService } = require('../modules/postgres-payment');
+const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
+const { generateDocs, generateImageDocs } = require('../utils/channel-docs');
 
 function numberValues(row = {}) {
   const result = { ...row };
@@ -10,6 +12,43 @@ function numberValues(row = {}) {
     if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value)) result[key] = Number(value);
   }
   return result;
+}
+
+function asObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function buildChannelProtocolDocs({ baseUrl, channelName, keyPrefix, models, protocolTypes }) {
+  return protocolTypes.flatMap(protocolType => {
+    const effectiveType = protocolType === 'anthropic' ? 'anthropic' : 'openai_compatible';
+    if (effectiveType === 'anthropic') {
+      const supported = models.filter(model => model.capabilities.anthropic_messages || model.capabilities.anthropic_count_tokens);
+      const enabled = [...(supported.some(model => model.capabilities.anthropic_messages) ? ['anthropic_messages'] : []),
+        ...(supported.some(model => model.capabilities.anthropic_count_tokens) ? ['anthropic_count_tokens'] : [])];
+      return supported.length ? [{ ...generateDocs(baseUrl, channelName, keyPrefix, supported, effectiveType, enabled), models: supported }] : [];
+    }
+    const chatModels = models.filter(model => model.capabilities.chat_completions === true);
+    const imageModels = models.filter(model => model.capabilities.image_generations === true || model.capabilities.image_edits === true);
+    return [
+      ...(chatModels.length ? [{ ...generateDocs(baseUrl, channelName, keyPrefix, chatModels, effectiveType, ['chat_completions']), models: chatModels }] : []),
+      ...(imageModels.length ? [{ ...generateImageDocs(baseUrl, keyPrefix, imageModels), models: imageModels }] : []),
+    ];
+  }).filter(item => item.models.length);
+}
+
+function effectiveModelCapabilities(row) {
+  const capabilities = {
+    ...asObject(row.capabilities),
+    ...[...(row.interface_capability_sets || []), ...(row.account_capability_sets || [])]
+      .flatMap(value => Array.isArray(value) ? value : [])
+      .reduce((result, capability) => ({ ...result, [capability]: true }), {}),
+  };
+  if (!Boolean(row.supports_image_input)) {
+    for (const capability of ['image_edits', 'image_variations', 'image_transformations']) {
+      capabilities[capability] = false;
+    }
+  }
+  return capabilities;
 }
 
 function positiveInteger(value, fallback, maximum) {
@@ -103,8 +142,11 @@ function createPostgresUserRouter(options = {}) {
   }
   if (!secretBox?.seal || !secretBox?.open) throw new TypeError('PostgreSQL user secretBox is required');
   const router = express.Router();
+  const requireUser = identity.requireUser || ((req, res, next) => req.user?.role === 'user'
+    ? next() : res.status(403).json({ error: '仅普通用户可访问' }));
+  router.use(identity.authenticate, requireUser);
 
-  router.get('/wallet', identity.authenticate, async (req, res, next) => {
+  router.get('/wallet', async (req, res, next) => {
     try {
       const { rows } = await pool.query(`SELECT quota_balance,gift_quota,frozen_balance,total_spent
         FROM wallets WHERE user_id=$1`, [req.user.id]);
@@ -112,7 +154,7 @@ function createPostgresUserRouter(options = {}) {
     } catch (error) { return next(error); }
   });
 
-  router.get('/transactions', identity.authenticate, async (req, res, next) => {
+  router.get('/transactions', async (req, res, next) => {
     const page = positiveInteger(req.query.page, 1, 1_000_000);
     const limit = positiveInteger(req.query.limit, 20, 100);
     if (!page || !limit) return res.status(400).json({ error: '页码或每页数量无效' });
@@ -136,13 +178,13 @@ function createPostgresUserRouter(options = {}) {
     } catch (error) { return next(error); }
   });
 
-  router.get('/payment-options', identity.authenticate, async (_req, res, next) => {
+  router.get('/payment-options', async (_req, res, next) => {
     try {
       return res.json(await paymentService.getPaymentOptions());
     } catch (error) { return next(error); }
   });
 
-  router.post('/payment-orders', identity.authenticate, async (req, res, next) => {
+  router.post('/payment-orders', async (req, res, next) => {
     try {
       const payload = await paymentService.createPaymentOrder({
         userId: req.user.id,
@@ -156,7 +198,7 @@ function createPostgresUserRouter(options = {}) {
     }
   });
 
-  router.get('/payment-orders/:orderNo', identity.authenticate, async (req, res, next) => {
+  router.get('/payment-orders/:orderNo', async (req, res, next) => {
     try {
       return res.json(await paymentService.getPaymentOrder({ userId: req.user.id, orderNo: req.params.orderNo }));
     } catch (error) {
@@ -185,16 +227,19 @@ function createPostgresUserRouter(options = {}) {
       return next(error);
     }
   };
-  router.post('/quota-order', identity.authenticate, createManualOrder);
-  router.get('/quota-orders', identity.authenticate, listManualOrders);
-  router.post('/recharge', identity.authenticate, createManualOrder);
-  router.get('/recharge-orders', identity.authenticate, listManualOrders);
+  router.post('/quota-order', createManualOrder);
+  router.get('/quota-orders', listManualOrders);
+  router.post('/recharge', createManualOrder);
+  router.get('/recharge-orders', listManualOrders);
 
-  router.get('/models', identity.authenticate, async (req, res, next) => {
+  router.get('/models', async (req, res, next) => {
     try {
       const [modelResult, keyResult] = await Promise.all([
-        pool.query(`SELECT DISTINCT m.model_code,m.model_name,m.model_type,
-        COALESCE((m.metadata->>'sort_order')::integer,0) AS sort_order,
+        pool.query(`SELECT ak.id AS key_id,ak.routing_group_id,ak.permission_mode,
+        rg.group_name,rg.description,rg.billing_multiplier_input,rg.billing_multiplier_output,rg.billing_multiplier_image,
+        m.model_code,m.model_name,m.model_type,m.context_length,m.sort_order,m.capabilities,
+        m.official_provider,m.official_currency,m.official_input_price,m.official_output_price,
+        m.official_cached_input_price,m.official_unit_tokens,m.official_price_updated_at,
         BOOL_OR(am.supports_image_input) AS supports_image_input,
         jsonb_agg(DISTINCT ua.protocol_type) AS protocol_types
         FROM api_keys ak
@@ -211,33 +256,95 @@ function createPostgresUserRouter(options = {}) {
           AND (ak.expired_at IS NULL OR ak.expired_at>=CURRENT_TIMESTAMP)
           AND (rg.restrict_models=FALSE OR group_model.model_code IS NOT NULL)
           AND (ak.permission_mode='group_dynamic' OR permission.api_key_id IS NOT NULL)
-        GROUP BY m.model_code,m.model_name,m.model_type,m.metadata
-        ORDER BY sort_order ASC,m.model_code ASC`, [req.user.id]),
+        GROUP BY ak.id,ak.routing_group_id,ak.permission_mode,rg.group_name,rg.description,
+          rg.billing_multiplier_input,rg.billing_multiplier_output,rg.billing_multiplier_image,
+          m.model_code,m.model_name,m.model_type,m.context_length,m.sort_order,m.capabilities,
+          m.official_provider,m.official_currency,m.official_input_price,m.official_output_price,
+          m.official_cached_input_price,m.official_unit_tokens,m.official_price_updated_at
+        ORDER BY ak.routing_group_id ASC,m.sort_order ASC,m.model_code ASC`, [req.user.id]),
         pool.query(`SELECT EXISTS(SELECT 1 FROM api_keys WHERE user_id=$1 AND status='active'
           AND (expired_at IS NULL OR expired_at>=CURRENT_TIMESTAMP)) AS has_api_keys`, [req.user.id]),
       ]);
-      const models = modelResult.rows.map(row => ({ ...numberValues(row), is_multimodal: Boolean(row.supports_image_input) }));
-      return res.json({ data: models, groups: [], has_api_keys: Boolean(keyResult.rows[0]?.has_api_keys) });
+      const imagePricing = defaultImageDisplayPricing();
+      const groupsById = new Map();
+      for (const rawRow of modelResult.rows) {
+        const row = numberValues(rawRow);
+        const group = groupsById.get(row.routing_group_id) || {
+          id: row.routing_group_id,
+          group_name: row.group_name,
+          description: row.description,
+          billing_multiplier_input: row.billing_multiplier_input,
+          billing_multiplier_output: row.billing_multiplier_output,
+          billing_multiplier_image: row.billing_multiplier_image,
+          protocol_types: [],
+          modelsByCode: new Map(),
+        };
+        const model = {
+          model_code: row.model_code, model_name: row.model_name, model_type: row.model_type,
+          context_length: row.context_length, sort_order: row.sort_order, capabilities: row.capabilities || {},
+          official_provider: row.official_provider, official_currency: row.official_currency,
+          official_input_price: row.official_input_price, official_output_price: row.official_output_price,
+          official_cached_input_price: row.official_cached_input_price, official_unit_tokens: row.official_unit_tokens,
+          official_price_updated_at: row.official_price_updated_at,
+          supports_image_input: Boolean(row.supports_image_input), is_multimodal: Boolean(row.supports_image_input),
+          protocol_types: row.protocol_types || [],
+          ...(row.model_type === 'image' ? {
+            default_image_unit_price: imagePricing.unitPrice,
+            default_image_currency: imagePricing.currency,
+          } : {}),
+        };
+        const previous = group.modelsByCode.get(model.model_code);
+        group.modelsByCode.set(model.model_code, previous ? {
+          ...previous,
+          supports_image_input: previous.supports_image_input || model.supports_image_input,
+          is_multimodal: previous.is_multimodal || model.is_multimodal,
+          protocol_types: [...new Set([...(previous.protocol_types || []), ...(model.protocol_types || [])])].sort(),
+        } : model);
+        group.protocol_types = [...new Set([...group.protocol_types, ...(model.protocol_types || [])])].sort();
+        groupsById.set(row.routing_group_id, group);
+      }
+      const groups = [...groupsById.values()].map(({ modelsByCode, ...group }) => ({
+        ...group,
+        models: [...modelsByCode.values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0)
+          || a.model_code.localeCompare(b.model_code)),
+      }));
+      const modelsByCode = new Map();
+      for (const group of groups) for (const model of group.models) {
+        const previous = modelsByCode.get(model.model_code);
+        modelsByCode.set(model.model_code, previous ? {
+          ...previous,
+          supports_image_input: previous.supports_image_input || model.supports_image_input,
+          is_multimodal: previous.is_multimodal || model.is_multimodal,
+          protocol_types: [...new Set([...(previous.protocol_types || []), ...(model.protocol_types || [])])].sort(),
+        } : model);
+      }
+      const models = [...modelsByCode.values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0)
+        || a.model_code.localeCompare(b.model_code));
+      return res.json({ data: models, groups, has_api_keys: Boolean(keyResult.rows[0]?.has_api_keys) });
     } catch (error) { return next(error); }
   });
 
-  router.get('/channels', identity.authenticate, async (req, res, next) => {
+  router.get('/channels', async (req, res, next) => {
     try {
-      const { rows } = await pool.query(`SELECT DISTINCT rg.id,rg.group_name AS channel_name,rg.protocol_type,
-        COUNT(DISTINCT am.model_code) FILTER (WHERE am.status='active') AS model_count
-        FROM api_keys ak
-        JOIN routing_groups rg ON rg.id=ak.routing_group_id AND rg.status='active'
+      const { rows } = await pool.query(`SELECT rg.id,rg.group_name AS channel_name,rg.description,
+        CASE WHEN COUNT(DISTINCT ua.protocol_type)=1 THEN MIN(ua.protocol_type) ELSE 'mixed' END AS protocol_type,
+        COALESCE(jsonb_agg(DISTINCT ua.protocol_type) FILTER (WHERE ua.protocol_type IS NOT NULL),'[]'::jsonb) AS protocol_types,
+        COUNT(DISTINCT am.model_code) FILTER (WHERE am.status='active' AND m.status='active'
+          AND (rg.restrict_models=FALSE OR group_model.model_code IS NOT NULL)) AS model_count
+        FROM routing_groups rg
         LEFT JOIN routing_group_accounts rga ON rga.routing_group_id=rg.id AND rga.status='active'
         LEFT JOIN upstream_accounts ua ON ua.id=rga.account_id AND ua.status='active'
-        LEFT JOIN account_models am ON am.account_id=ua.id
-        WHERE ak.user_id=$1 AND ak.status='active'
-          AND (ak.expired_at IS NULL OR ak.expired_at>=CURRENT_TIMESTAMP)
-        GROUP BY rg.id,rg.group_name,rg.protocol_type ORDER BY rg.id ASC`, [req.user.id]);
+        LEFT JOIN account_models am ON am.account_id=ua.id AND am.status='active'
+        LEFT JOIN models m ON m.model_code=am.model_code AND m.status='active'
+        LEFT JOIN routing_group_models group_model ON group_model.routing_group_id=rg.id
+          AND group_model.model_code=am.model_code AND group_model.status='active'
+        WHERE rg.status='active'
+        GROUP BY rg.id,rg.group_name,rg.description,rg.restrict_models ORDER BY rg.id ASC`);
       return res.json({ data: rows.map(numberValues) });
     } catch (error) { return next(error); }
   });
 
-  router.get('/keys', identity.authenticate, async (req, res, next) => {
+  router.get('/keys', async (req, res, next) => {
     try {
       const { rows } = await pool.query(`SELECT ak.id,ak.key_name,ak.key_prefix,ak.status,ak.created_at,ak.last_used_at,
         ak.routing_group_id,ak.permission_mode,rg.group_name,
@@ -246,14 +353,23 @@ function createPostgresUserRouter(options = {}) {
         LEFT JOIN api_key_permissions permission ON permission.api_key_id=ak.id
         WHERE ak.user_id=$1 AND ak.status!='revoked'
         GROUP BY ak.id,rg.group_name ORDER BY ak.created_at DESC,ak.id DESC`, [req.user.id]);
-      return res.json({ data: rows.map(row => ({
-        ...numberValues(row), key_prefix: identity.desensitizeKey(row.key_prefix),
-        channel_name: row.group_name || null, channel_names: row.group_name ? [row.group_name] : [],
-      })) });
+      const allowedByKey = await Promise.all(rows.map(row => identity.allowedModels(row)));
+      const allCodes = [...new Set(allowedByKey.flat())];
+      const catalog = allCodes.length
+        ? await pool.query(`SELECT model_code,model_name,model_type FROM models WHERE model_code=ANY($1::text[]) ORDER BY sort_order,model_code`, [allCodes])
+        : { rows: [] };
+      const catalogByCode = new Map(catalog.rows.map(model => [model.model_code, model]));
+      return res.json({ data: rows.map((row, index) => {
+        const models = allowedByKey[index].map(code => catalogByCode.get(code) || { model_code: code, model_name: code });
+        return {
+          ...numberValues(row), key_prefix: identity.desensitizeKey(row.key_prefix), models, model_count: models.length,
+          channel_name: row.group_name || null, channel_names: row.group_name ? [row.group_name] : [],
+        };
+      }) });
     } catch (error) { return next(error); }
   });
 
-  router.post('/keys', identity.authenticate, async (req, res, next) => {
+  router.post('/keys', async (req, res, next) => {
     const keyName = String(req.body?.key_name || '未命名密钥');
     const routingGroupId = req.body?.routing_group_id ?? req.body?.channel_id;
     if (!routingGroupId) return res.status(400).json({ error: '请选择分组' });
@@ -291,7 +407,7 @@ function createPostgresUserRouter(options = {}) {
     }
   });
 
-  router.post('/keys/:id/export', identity.authenticate, async (req, res, next) => {
+  router.post('/keys/:id/export', async (req, res, next) => {
     try {
       const rawKey = await withTransaction(pool, async client => {
         const key = await client.query(`SELECT id,key_envelope FROM api_keys
@@ -316,7 +432,7 @@ function createPostgresUserRouter(options = {}) {
     }
   });
 
-  router.delete('/keys/:id', identity.authenticate, async (req, res, next) => {
+  router.delete('/keys/:id', async (req, res, next) => {
     try {
       const result = await pool.query(`UPDATE api_keys SET status='revoked' WHERE id=$1 AND user_id=$2
         RETURNING id`, [req.params.id, req.user.id]);
@@ -325,17 +441,66 @@ function createPostgresUserRouter(options = {}) {
     } catch (error) { return next(error); }
   });
 
-  router.patch('/keys/:id/toggle', identity.authenticate, async (req, res, next) => {
+  router.patch('/keys/:id/toggle', async (req, res, next) => {
     try {
-      const current = await pool.query('SELECT status FROM api_keys WHERE id=$1 AND user_id=$2', [req.params.id, req.user.id]);
-      if (!current.rows[0]) return res.status(404).json({ error: 'API Key 不存在' });
-      const status = current.rows[0].status === 'active' ? 'disabled' : 'active';
-      await pool.query('UPDATE api_keys SET status=$1 WHERE id=$2 AND user_id=$3', [status, req.params.id, req.user.id]);
+      const status = await withTransaction(pool, async client => {
+        const current = await client.query('SELECT status FROM api_keys WHERE id=$1 AND user_id=$2 FOR UPDATE', [req.params.id, req.user.id]);
+        if (!current.rows[0]) {
+          const error = new Error('API Key 不存在'); error.status = 404; throw error;
+        }
+        if (current.rows[0].status === 'revoked') {
+          const error = new Error('已撤销的 API Key 不能重新启用'); error.status = 409; throw error;
+        }
+        const nextStatus = current.rows[0].status === 'active' ? 'disabled' : 'active';
+        await client.query('UPDATE api_keys SET status=$1 WHERE id=$2 AND user_id=$3', [nextStatus, req.params.id, req.user.id]);
+        return nextStatus;
+      });
       return res.json({ message: `API Key 已${status === 'active' ? '启用' : '禁用'}`, status });
+    } catch (error) {
+      if (error.status) return res.status(error.status).json({ error: error.message });
+      return next(error);
+    }
+  });
+
+  router.get('/docs/channel', async (req, res, next) => {
+    const channelName = String(req.query.channel_name || '').trim();
+    if (!channelName) return res.status(400).json({ error: '缺少 channel_name 参数' });
+    try {
+      const groupResult = await pool.query(`SELECT id,group_name FROM routing_groups WHERE group_name=$1 AND status='active'`, [channelName]);
+      const group = groupResult.rows[0];
+      if (!group) return res.status(404).json({ error: '分组不存在' });
+      const keyResult = await pool.query(`SELECT id,key_prefix,routing_group_id,permission_mode FROM api_keys
+        WHERE user_id=$1 AND routing_group_id=$2 AND status='active'
+          AND (expired_at IS NULL OR expired_at>=CURRENT_TIMESTAMP) ORDER BY created_at DESC LIMIT 1`, [req.user.id, group.id]);
+      const apiKey = keyResult.rows[0];
+      if (!apiKey) return res.status(404).json({ error: '当前账户没有该分组的有效 API Key' });
+      const allowedCodes = await identity.allowedModels(apiKey);
+      const modelResult = allowedCodes.length ? await pool.query(`SELECT m.model_code,m.model_name,m.capabilities,
+        BOOL_OR(am.supports_image_input) AS supports_image_input,
+        COALESCE(jsonb_agg(DISTINCT ua.protocol_type) FILTER (WHERE ua.protocol_type IS NOT NULL),'[]'::jsonb) AS protocol_types,
+        COALESCE(jsonb_agg(DISTINCT am.interface_capabilities) FILTER (WHERE am.interface_capabilities IS NOT NULL),'[]'::jsonb) AS interface_capability_sets,
+        COALESCE(jsonb_agg(DISTINCT ua.capabilities) FILTER (WHERE ua.capabilities IS NOT NULL),'[]'::jsonb) AS account_capability_sets
+        FROM models m JOIN account_models am ON am.model_code=m.model_code AND am.status='active'
+        JOIN upstream_accounts ua ON ua.id=am.account_id AND ua.status='active'
+        JOIN routing_group_accounts rga ON rga.account_id=ua.id AND rga.routing_group_id=$2 AND rga.status='active'
+        WHERE m.model_code=ANY($1::text[]) GROUP BY m.model_code,m.model_name,m.capabilities ORDER BY m.model_code`, [allowedCodes, group.id]) : { rows: [] };
+      const models = modelResult.rows.map(row => ({
+        ...row,
+        capabilities: effectiveModelCapabilities(row),
+      }));
+      const protocolTypes = [...new Set(models.flatMap(model => model.protocol_types || []))].sort();
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const keyPrefix = identity.desensitizeKey(apiKey.key_prefix).slice(0, 15);
+      const protocolDocs = buildChannelProtocolDocs({ baseUrl, channelName, keyPrefix, models, protocolTypes });
+      return res.json({
+        channel_name: channelName, base_url: baseUrl, key_prefix_hint: keyPrefix,
+        models: models.map(({ model_code, model_name }) => ({ model_code, model_name })),
+        supported_protocols: protocolTypes, protocol_docs: protocolDocs, ...(protocolDocs[0] || {}),
+      });
     } catch (error) { return next(error); }
   });
 
-  router.get('/logs', identity.authenticate, async (req, res, next) => {
+  router.get('/logs', async (req, res, next) => {
     const page = positiveInteger(req.query.page, 1, 1_000_000);
     const limit = positiveInteger(req.query.limit, 20, 100);
     if (!page || !limit) return res.status(400).json({ error: '页码或每页数量无效' });
@@ -358,7 +523,7 @@ function createPostgresUserRouter(options = {}) {
     } catch (error) { return next(error); }
   });
 
-  router.get('/logs/export', identity.authenticate, async (req, res, next) => {
+  router.get('/logs/export', async (req, res, next) => {
     let filters;
     try {
       filters = buildLogFilters(req.user.id, req.query, {
@@ -395,7 +560,7 @@ function createPostgresUserRouter(options = {}) {
     } catch (error) { return next(error); }
   });
 
-  router.get('/stats/daily', identity.authenticate, async (req, res, next) => {
+  router.get('/stats/daily', async (req, res, next) => {
     let filters;
     try { filters = buildLogFilters(req.user.id, req.query, { requireDates: true, requiredDateMessage: '每日统计必须提供完整的开始和结束日期' }); }
     catch (error) { return res.status(400).json({ error: error.message }); }
@@ -420,7 +585,7 @@ function createPostgresUserRouter(options = {}) {
     } catch (error) { return next(error); }
   });
 
-  router.get('/stats', identity.authenticate, async (req, res, next) => {
+  router.get('/stats', async (req, res, next) => {
     try {
       const { rows } = await pool.query(`SELECT
         COALESCE(SUM(request_count),0) AS total_calls,
@@ -451,7 +616,7 @@ function createPostgresUserRouter(options = {}) {
     } catch (error) { return next(error); }
   });
 
-  router.put('/password', identity.authenticate, async (req, res, next) => {
+  router.put('/password', async (req, res, next) => {
     const oldPassword = String(req.body?.oldPassword ?? req.body?.old_password ?? '');
     const newPassword = String(req.body?.newPassword ?? req.body?.new_password ?? '');
     if (!oldPassword || !newPassword) return res.status(400).json({ error: '请填写旧密码和新密码' });
@@ -469,4 +634,4 @@ function createPostgresUserRouter(options = {}) {
   return router;
 }
 
-module.exports = { buildLogFilters, createPostgresUserRouter, parseDate, positiveInteger, walletPayload };
+module.exports = { buildChannelProtocolDocs, buildLogFilters, createPostgresUserRouter, effectiveModelCapabilities, parseDate, positiveInteger, walletPayload };

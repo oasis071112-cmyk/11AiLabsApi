@@ -27,6 +27,11 @@ class BackgroundWorker {
       for (const task of this.tasks) {
         const nowMs = this.clock().getTime();
         const lastRun = this.taskLastRuns.get(task.name);
+        if (lastRun === undefined && task.runOnStart === false) {
+          this.taskLastRuns.set(task.name, nowMs);
+          results.push({ name: task.name, status: 'skipped', reason: 'initial_delay' });
+          continue;
+        }
         if (lastRun !== undefined && Number(task.intervalMs || 0) > 0
             && nowMs - lastRun < Number(task.intervalMs)) {
           results.push({ name: task.name, status: 'skipped', reason: 'not_due' });

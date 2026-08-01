@@ -70,6 +70,11 @@ function createPostgresIdentity({
     }
   }
 
+  function requireUser(req, res, next) {
+    if (req.user?.role !== 'user') return res.status(403).json({ error: '仅普通用户可访问' });
+    return next();
+  }
+
   async function findApiKey(rawKey) {
     const key = String(rawKey || '');
     if (!key) return null;
@@ -151,6 +156,7 @@ function createPostgresIdentity({
     findApiKey,
     generateToken,
     openApiKey,
+    requireUser,
     sealApiKey,
   });
 }

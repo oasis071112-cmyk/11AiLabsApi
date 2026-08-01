@@ -15,14 +15,27 @@ describe('PostgreSQL management compatibility router', () => {
   let server;
   let baseUrl;
   let repository;
+  let pricingSyncService;
 
   beforeAll(async () => {
     repository = {
       getDashboard: vi.fn(async () => ({ today_calls: 3 })),
       listUsers: vi.fn(async () => ({ data: [{ id: 3, username: 'alice' }], pagination: { page: 1, limit: 20, total: 1 } })),
+      getUser: vi.fn(async id => ({ user: { id: Number(id), username: 'alice' }, pending_orders: [] })),
+      setUserStatus: vi.fn(async (id, status) => ({ id, status })),
+      adjustUserBalance: vi.fn(async (id, body) => ({ user_id: id, amount: body.amount })),
+      listRechargeOrders: vi.fn(async () => ({ data: [{ id: 8, status: 'pending' }], pagination: { page: 1, limit: 20, total: 1 } })),
+      confirmRechargeOrder: vi.fn(async id => ({ id, status: 'granted' })),
+      rejectRechargeOrder: vi.fn(async id => ({ id, status: 'rejected' })),
       listKeys: vi.fn(async () => ({ data: [{ id: 4, key_prefix: 'sk-test' }], pagination: { page: 1, limit: 20, total: 1 } })),
+      setKeyStatus: vi.fn(async (id, status) => ({ id, status })),
+      updateKeyPermissions: vi.fn(async (id, models) => ({ id, permissions: models })),
       listLogs: vi.fn(async () => ({ data: [{ request_id: 'req-1' }], pagination: { page: 1, limit: 50, total: 1 } })),
       listModels: vi.fn(async () => [{ id: 'gpt-image-2', model_code: 'gpt-image-2', status: 'active' }]),
+      listPricingRules: vi.fn(async () => [{ id: 'platform:all', rule_name: '默认', scope_type: 'platform' }]),
+      createPricingRule: vi.fn(async body => ({ id: 'new-rule', ...body })),
+      updatePricingRule: vi.fn(async (id, body) => ({ id, ...body })),
+      deletePricingRule: vi.fn(async () => true),
       createModel: vi.fn(async body => ({ id: body.model_code, model_code: body.model_code, status: 'inactive' })),
       updateModel: vi.fn(async (id, body) => ({ id, ...body })),
       setModelStatus: vi.fn(async (id, status) => ({ id, status })),
@@ -61,10 +74,15 @@ describe('PostgreSQL management compatibility router', () => {
       listConfig: vi.fn(async () => [{ config_key: 'payment_enabled', config_value: false }]),
       updateConfig: vi.fn(async (key, value) => ({ config_key: key, config_value: value })),
     };
+    pricingSyncService = {
+      status: vi.fn(async () => ({ exchange_rate: 7.1, official_pricing_last_sync_status: 'ok' })),
+      syncAll: vi.fn(async () => ({ exchange_rate: { ok: true, rate: 7.1 }, official_pricing: { updated: 2, failed: 0 } })),
+    };
     const app = express();
     app.use(express.json());
     app.use('/api/admin', createPostgresAdminRouter({
       repository,
+      pricingSyncService,
       authenticate: adminOnly,
       requireAdmin: () => adminOnly,
     }));
@@ -124,6 +142,26 @@ describe('PostgreSQL management compatibility router', () => {
     expect(JSON.stringify(payload)).not.toContain('ciphertext-never-return-me');
     expect(JSON.stringify(payload)).not.toContain('envelope-never-return-me');
     expect(JSON.stringify(payload)).not.toContain('api_key_envelope');
+  });
+
+  it('exposes every user, order, key and pricing action used by the management UI', async () => {
+    const calls = [
+      request('/users/3/status', { method: 'PATCH', body: JSON.stringify({ status: 'disabled' }) }),
+      request('/users/3/adjust-balance', { method: 'POST', body: JSON.stringify({ type: 'manual_add', balance_type: 'recharge', amount: 2 }) }),
+      request('/recharge-orders'),
+      request('/recharge-orders/8/confirm', { method: 'PATCH', body: '{}' }),
+      request('/recharge-orders/8/reject', { method: 'PATCH', body: JSON.stringify({ remark: 'invalid' }) }),
+      request('/keys/4/status', { method: 'PATCH', body: JSON.stringify({ status: 'disabled' }) }),
+      request('/keys/4/permissions', { method: 'PUT', body: JSON.stringify({ model_codes: ['model-a'] }) }),
+      request('/pricing-rules'),
+      request('/pricing-rules', { method: 'POST', body: JSON.stringify({ rule_name: '默认', scope_type: 'platform', multiplier_input: 1, multiplier_output: 1, multiplier_image: 1 }) }),
+      request('/pricing-rules/platform%3Aall', { method: 'PUT', body: JSON.stringify({ rule_name: '默认', scope_type: 'platform', multiplier_input: 1, multiplier_output: 1, multiplier_image: 1 }) }),
+      request('/pricing-rules/platform%3Aall', { method: 'DELETE' }),
+      request('/pricing-sync/status'),
+      request('/pricing-sync', { method: 'POST', body: '{}' }),
+    ];
+    for (const response of await Promise.all(calls)) expect(response.status).toBeLessThan(400);
+    expect(repository.listKeys).toHaveBeenCalledWith(expect.objectContaining({ groupBy: undefined }));
   });
 
   it('requires an explicit enable flag before activating payment', async () => {
@@ -301,5 +339,88 @@ describe('PostgreSQL management compatibility router', () => {
     })]);
     const insert = queries.find(query => query.sql.includes('INSERT INTO routing_group_models'));
     expect(insert.values).toEqual([2, 'gpt-image-2', 'active', 1.1, 1.2, 1.3, 1.4]);
+  });
+
+  it('never rejects paid orders and never reactivates revoked API keys', async () => {
+    const calls = [];
+    const client = {
+      async query(sql, values = []) {
+        calls.push({ sql, values });
+        if (sql.includes('FROM quota_orders WHERE id=$1 FOR UPDATE')) {
+          return { rows: [{ id: 8, order_no: 'paid-8', user_id: 3, amount: '2', status: 'paid' }] };
+        }
+        if (sql.includes('FROM api_keys WHERE id=$1 FOR UPDATE')) {
+          return { rows: [{ id: 4, user_id: 3, key_name: 'revoked', status: 'revoked' }] };
+        }
+        return { rows: [] };
+      },
+      release: vi.fn(),
+    };
+    const data = new PostgresAdminCompatRepository({
+      pool: { query: client.query.bind(client), connect: async () => client },
+      secretBox: { activeVersion: 'v1', seal: () => 'unused' },
+    });
+    const actor = { id: 9, staffId: 77, role: 'admin' };
+
+    await expect(data.rejectRechargeOrder(8, { remark: 'invalid' }, actor))
+      .rejects.toMatchObject({ status: 409, code: 'paid_order_requires_grant' });
+    await expect(data.setKeyStatus(4, 'active', actor))
+      .rejects.toMatchObject({ status: 409, code: 'revoked_key_immutable' });
+    expect(calls.some(call => call.sql.includes("SET status='rejected'"))).toBe(false);
+    expect(calls.some(call => call.sql.includes('UPDATE api_keys SET status'))).toBe(false);
+  });
+
+  it('reactivates an inactive channel with active mappings and allows account-pool model overlap', async () => {
+    const calls = [];
+    const client = {
+      async query(sql, values = []) {
+        calls.push({ sql, values });
+        if (sql.includes('SELECT model_code,status FROM account_models')) return { rows: [{ model_code: 'shared-model', status: 'active' }] };
+        if (sql.includes('SELECT ua.id FROM upstream_accounts')) {
+          return sql.includes("ua.status='active'") ? { rows: [] } : { rows: [{ id: 7 }] };
+        }
+        if (sql.includes('UPDATE upstream_accounts SET status')) {
+          return { rows: [{ id: 7, account_key: 'pool-a', display_name: 'Pool A', base_url: 'https://upstream.example/v1', protocol_type: 'openai_compatible', capabilities: [], status: 'active' }] };
+        }
+        if (sql.includes('UPDATE models SET status=CASE')) return { rows: [{ status: 'active' }] };
+        if (sql.includes('SELECT id FROM routing_groups')) return { rows: [{ id: 2 }] };
+        if (sql.includes('HAVING COUNT(DISTINCT am.account_id)>1')) return { rows: [{ model_code: 'shared-model', account_count: '2' }] };
+        return { rows: [] };
+      },
+      release: vi.fn(),
+    };
+    const data = new PostgresAdminCompatRepository({
+      pool: { query: client.query.bind(client), connect: async () => client },
+      secretBox: { activeVersion: 'v1', seal: () => 'unused' },
+    });
+    const actor = { id: 9, staffId: 77, role: 'admin' };
+
+    await expect(data.setChannelStatus(7, 'active', actor)).resolves.toMatchObject({ status: 'active' });
+    await expect(data.replaceRoutingGroupMembers(2, [
+      { account_id: 7, weight: 100 }, { account_id: 8, weight: 100 },
+    ], actor)).resolves.toHaveLength(2);
+    expect(calls.some(call => call.sql.includes('HAVING COUNT(DISTINCT am.account_id)>1'))).toBe(false);
+  });
+
+  it('keeps group-dynamic API key permissions owned by the routing group', async () => {
+    const calls = [];
+    const client = {
+      async query(sql, values = []) {
+        calls.push({ sql, values });
+        if (sql.includes('SELECT id,user_id,permission_mode FROM api_keys')) {
+          return { rows: [{ id: 4, user_id: 3, permission_mode: 'group_dynamic' }] };
+        }
+        return { rows: [] };
+      },
+      release: vi.fn(),
+    };
+    const data = new PostgresAdminCompatRepository({
+      pool: { query: client.query.bind(client), connect: async () => client },
+      secretBox: { activeVersion: 'v1', seal: () => 'unused' },
+    });
+
+    await expect(data.updateKeyPermissions(4, ['model-a'], { staffId: 77 }))
+      .rejects.toMatchObject({ status: 409, code: 'dynamic_key_permissions' });
+    expect(calls.some(call => call.sql.includes('DELETE FROM api_key_permissions'))).toBe(false);
   });
 });

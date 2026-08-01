@@ -157,9 +157,9 @@ const displayedDocs=computed(()=>docsData.value.protocol_docs?.find(item=>item.p
 const activeTab=ref('curl');const activeCode=computed(()=>displayedDocs.value?.[activeTab.value]||'')
 const isMobile=useMobile()
 onMounted(()=>{fetchKeys()})
-async function fetchKeys(){loading.value=true;try{keys.value=(await api.get('/api/user/keys')).data.data}catch(e){}loading.value=false}
-async function openCreate(){createDialog.value=true;selectedChannelId.value=null;channelLoading.value=true;try{channels.value=(await api.get('/api/user/channels')).data.data}catch(e){}channelLoading.value=false}
-async function createKey(){if(!selectedChannelId.value){ElMessage.warning('请选择分组');return};creating.value=true;try{const r=await api.post('/api/user/keys',{key_name:newKeyName.value,routing_group_id:selectedChannelId.value});newKeyRaw.value=r.data.key.key_raw;createDialog.value=false;resultDialog.value=true;newKeyName.value='';fetchKeys()}catch(e){}creating.value=false}
+async function fetchKeys(){loading.value=true;try{keys.value=(await api.get('/api/user/keys')).data.data}catch(e){ElMessage.error(e.response?.data?.error||'API Key 列表加载失败，请重试')}loading.value=false}
+async function openCreate(){createDialog.value=true;selectedChannelId.value=null;channelLoading.value=true;try{channels.value=(await api.get('/api/user/channels')).data.data}catch(e){ElMessage.error(e.response?.data?.error||'可用分组加载失败，请重试')}channelLoading.value=false}
+async function createKey(){if(!selectedChannelId.value){ElMessage.warning('请选择分组');return};creating.value=true;try{const r=await api.post('/api/user/keys',{key_name:newKeyName.value,routing_group_id:selectedChannelId.value});newKeyRaw.value=r.data.key.key_raw;createDialog.value=false;resultDialog.value=true;newKeyName.value='';fetchKeys()}catch(e){ElMessage.error(e.response?.data?.error||'API Key 创建失败')}creating.value=false}
 async function toggleKey(k){await api.patch('/api/user/keys/'+k.id+'/toggle');ElMessage.success('操作成功');fetchKeys()}
 async function deleteKey(id){await api.delete('/api/user/keys/'+id);ElMessage.success('已删除');fetchKeys()}
 async function showCopied(state,text){try{await copyText(text);state.value=true;ElMessage.success('复制成功');setTimeout(()=>state.value=false,2000)}catch(e){ElMessage.error('复制失败，请长按内容手动复制')}}

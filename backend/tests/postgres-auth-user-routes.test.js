@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { createPostgresIdentity } = require('../src/modules/identity/index.js');
 const { createPostgresAuthRouter } = require('../src/routes/postgres-auth.js');
-const { createPostgresUserRouter } = require('../src/routes/postgres-user.js');
+const { buildChannelProtocolDocs, createPostgresUserRouter, effectiveModelCapabilities } = require('../src/routes/postgres-user.js');
 
 class MemoryUserPool {
   constructor() {
@@ -17,6 +17,11 @@ class MemoryUserPool {
     this.nextUserId = 1;
     this.nextKeyId = 1;
     this.queries = [];
+    this.config = new Map([
+      ['registration_enabled', true],
+      ['new_user_gift_enabled', false],
+      ['new_user_gift_amount', 0],
+    ]);
   }
 
   async connect() {
@@ -28,7 +33,12 @@ class MemoryUserPool {
     const compact = sql.replace(/\s+/g, ' ').trim();
     if (/^(BEGIN|COMMIT|ROLLBACK)$/i.test(compact)) return { rows: [] };
     if (compact.startsWith('SELECT pg_advisory_xact_lock')) return { rows: [{ pg_advisory_xact_lock: null }] };
-    if (compact.includes('FROM system_config')) return { rows: [] };
+    if (compact.includes('FROM system_config') && compact.includes('config_key = ANY')) {
+      return { rows: values[0].filter(key => this.config.has(key)).map(key => ({ config_key: key, config_value: this.config.get(key) })) };
+    }
+    if (compact.includes('FROM system_config')) {
+      return { rows: this.config.has(values[0]) ? [{ config_value: this.config.get(values[0]) }] : [] };
+    }
     if (compact.includes('SELECT id FROM users WHERE username=$1 OR email=$2')) {
       return { rows: this.users.filter(user => user.username === values[0] || user.email === values[1]).map(user => ({ id: user.id })) };
     }
@@ -41,8 +51,12 @@ class MemoryUserPool {
       return { rows: [user] };
     }
     if (compact.includes('INSERT INTO wallets')) {
-      this.wallets.set(values[0], { user_id: values[0], quota_balance: 0, gift_quota: 0, frozen_balance: 0, total_spent: 0 });
+      this.wallets.set(values[0], { user_id: values[0], quota_balance: 0, gift_quota: Number(values[1] || 0), frozen_balance: 0, total_spent: 0 });
       return { rows: [this.wallets.get(values[0])] };
+    }
+    if (compact.includes('INSERT INTO wallet_transactions')) {
+      this.transactions.push({ transaction_key: values[0], user_id: values[1], amount: Number(values[2]), balance_after: Number(values[3]) });
+      return { rows: [] };
     }
     if (compact.includes('FROM users WHERE username=$1 OR email=$1')) {
       return { rows: this.users.filter(user => user.username === values[0] || user.email === values[0]) };
@@ -90,6 +104,14 @@ class MemoryUserPool {
     if (compact.includes('SELECT id,key_envelope FROM api_keys')) {
       return { rows: this.keys.filter(key => String(key.id) === String(values[0]) && String(key.user_id) === String(values[1])) };
     }
+    if (compact.startsWith('SELECT status FROM api_keys WHERE id=$1 AND user_id=$2 FOR UPDATE')) {
+      return { rows: this.keys.filter(key => String(key.id) === String(values[0]) && String(key.user_id) === String(values[1])).map(key => ({ status: key.status })) };
+    }
+    if (compact.startsWith('UPDATE api_keys SET status=$1 WHERE id=$2 AND user_id=$3')) {
+      const key = this.keys.find(item => String(item.id) === String(values[1]) && String(item.user_id) === String(values[2]));
+      if (key) key.status = values[0];
+      return { rows: [] };
+    }
     if (compact.includes('FROM api_keys ak JOIN users u')) {
       const rows = this.keys.filter(key => key.key_prefix === values[0] && key.status === 'active').map(key => ({ ...key, user_status: 'active' }));
       return { rows };
@@ -99,10 +121,10 @@ class MemoryUserPool {
     }
     if (compact.startsWith('SELECT COUNT(*) AS count FROM wallet_transactions')) return { rows: [{ count: '1' }] };
     if (compact.includes('BOOL_OR(am.supports_image_input)')) {
-      return { rows: [{ model_code: 'model-a', model_name: 'Model A', model_type: 'llm', sort_order: 1, supports_image_input: true, protocol_types: ['openai_compatible'] }] };
+      return { rows: [{ key_id: 1, routing_group_id: 7, permission_mode: 'group_dynamic', group_name: '测试分组', description: '', billing_multiplier_input: '1', billing_multiplier_output: '1', billing_multiplier_image: '1', model_code: 'model-a', model_name: 'Model A', model_type: 'llm', sort_order: 1, supports_image_input: true, protocol_types: ['openai_compatible'] }] };
     }
     if (compact.startsWith('SELECT EXISTS(SELECT 1 FROM api_keys')) return { rows: [{ has_api_keys: true }] };
-    if (compact.startsWith('SELECT DISTINCT rg.id,rg.group_name AS channel_name')) {
+    if (compact.startsWith('SELECT rg.id,rg.group_name AS channel_name')) {
       return { rows: [{ id: 7, channel_name: '测试分组', protocol_type: 'openai_compatible', model_count: '1' }] };
     }
     if (compact.startsWith('SELECT request_id,api_key_id,model_code')) {
@@ -170,6 +192,27 @@ describe('PostgreSQL 用户面兼容路由', () => {
     expect(pool.queries.every(item => Array.isArray(item.values))).toBe(true);
   });
 
+  it('注册赠送开启时把配置金额写入赠送余额并返回真实赠送额', async () => {
+    pool.config.set('new_user_gift_enabled', true);
+    pool.config.set('new_user_gift_amount', 1);
+    try {
+      const response = await fetch(`${baseUrl}/api/auth/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'gift-user', password: 'safe-pass-123' }),
+      });
+      expect(response.status).toBe(201);
+      const payload = await response.json();
+      expect(payload.gift_amount).toBe(1);
+      expect(pool.wallets.get(payload.user.id).gift_quota).toBe(1);
+      expect(pool.transactions).toContainEqual(expect.objectContaining({
+        transaction_key: `registration-gift:${payload.user.id}`, user_id: payload.user.id, amount: 1, balance_after: 1,
+      }));
+    } finally {
+      pool.config.set('new_user_gift_enabled', false);
+      pool.config.set('new_user_gift_amount', 0);
+    }
+  });
+
   it('rejects registration when the username is already reserved by a staff account', async () => {
     const staff = {
       id: 87,
@@ -209,6 +252,10 @@ describe('PostgreSQL 用户面兼容路由', () => {
     const paymentOptions = await fetch(`${baseUrl}/api/user/payment-options`, { headers });
     expect(paymentOptions.status).toBe(200);
     expect(await paymentOptions.json()).toEqual({ enabled: false, methods: [], minimum: 1, maximum: 10000 });
+
+    const channels = await fetch(`${baseUrl}/api/user/channels`, { headers });
+    expect(channels.status).toBe(200);
+    expect((await channels.json()).data).toMatchObject([{ id: 7, channel_name: '测试分组', model_count: 1 }]);
   });
 
   it('创建 Key 仅保存 bcrypt hash 与 AAD 绑定密文，导出只能成功一次', async () => {
@@ -238,6 +285,49 @@ describe('PostgreSQL 用户面兼容路由', () => {
     expect((await fetch(`${baseUrl}/api/user/keys/${created.key.id}/export`, { method: 'POST', headers })).status).toBe(200);
   });
 
+  it('永久撤销的用户 API Key 不能通过 toggle 重新启用', async () => {
+    const user = pool.users.find(item => item.username === 'pg-user');
+    const key = pool.keys.find(item => item.user_id === user.id);
+    key.status = 'revoked';
+    const token = identity.generateToken(user);
+
+    const response = await fetch(`${baseUrl}/api/user/keys/${key.id}/toggle`, {
+      method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: '已撤销的 API Key 不能重新启用' });
+    expect(key.status).toBe('revoked');
+  });
+
+  it('只为显式声明的聊天模型生成 Chat 文档，并为图片模型生成 Images 文档', () => {
+    const docs = buildChannelProtocolDocs({
+      baseUrl: 'https://example.test', channelName: '图片分组', keyPrefix: 'sk-test',
+      protocolTypes: ['openai_compatible'],
+      models: [
+        { model_code: 'image2', capabilities: { image_generations: true, image_edits: true } },
+        { model_code: 'chat', capabilities: { chat_completions: true } },
+        { model_code: 'undeclared', capabilities: {} },
+      ],
+    });
+
+    expect(docs).toHaveLength(2);
+    expect(docs.find(item => item.protocol_type === 'openai').models.map(model => model.model_code)).toEqual(['chat']);
+    expect(docs.find(item => item.protocol_type === 'openai_images')).toMatchObject({
+      endpoint: '/v1/images/generations', additional_endpoints: ['/v1/images/edits'],
+      models: [{ model_code: 'image2' }],
+    });
+    expect(JSON.stringify(docs)).not.toContain('undeclared');
+  });
+
+  it('模型映射未开放图片输入时不发布图片编辑能力', () => {
+    expect(effectiveModelCapabilities({
+      capabilities: {}, supports_image_input: false,
+      interface_capability_sets: [['image_generations']],
+      account_capability_sets: [['image_generations', 'image_edits']],
+    })).toMatchObject({ image_generations: true, image_edits: false });
+  });
+
   it('authenticates an imported staff account without copying it into ordinary users', async () => {
     pool.staff.push({
       id: 88,
@@ -257,6 +347,10 @@ describe('PostgreSQL 用户面兼容路由', () => {
     const payload = await response.json();
     expect(payload.user).toMatchObject({ id: 88, username: 'pg-admin', role: 'admin' });
     expect(pool.users.some(user => user.username === 'pg-admin')).toBe(false);
+    const userWallet = await fetch(`${baseUrl}/api/user/wallet`, {
+      headers: { Authorization: `Bearer ${payload.token}` },
+    });
+    expect(userWallet.status).toBe(403);
   });
 
   it('rejects an old staff JWT after the account is disabled', async () => {
@@ -302,7 +396,9 @@ describe('PostgreSQL 用户面兼容路由', () => {
     ]);
 
     expect((await transactions.json()).pagination).toEqual({ page: 1, limit: 20, total: 1 });
-    expect((await models.json()).data).toMatchObject([{ model_code: 'model-a', is_multimodal: true }]);
+    const modelPayload = await models.json();
+    expect(modelPayload.data).toMatchObject([{ model_code: 'model-a', is_multimodal: true }]);
+    expect(modelPayload.groups).toMatchObject([{ id: 7, group_name: '测试分组', models: [{ model_code: 'model-a' }] }]);
     expect((await channels.json()).data).toMatchObject([{ channel_name: '测试分组', model_count: 1 }]);
     expect((await logs.json()).pagination).toEqual({ page: 1, limit: 20, total: 1 });
     expect((await daily.json()).data).toEqual([{ date: '2026-08-01', calls: 1, cost: 0.5, input_tokens: 10, output_tokens: 20 }]);

@@ -70,6 +70,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api'
+import { ElMessage } from 'element-plus'
 
 const router=useRouter()
 const groups=ref([]),loading=ref(false),hasApiKeys=ref(false)
@@ -81,7 +82,7 @@ onMounted(async()=>{
     const response=(await api.get('/api/user/models')).data
     groups.value=response.groups||[]
     hasApiKeys.value=Boolean(response.has_api_keys)
-  }catch(e){}finally{
+  }catch(e){ElMessage.error(e.response?.data?.error||'模型与价格加载失败，请重试')}finally{
     loading.value=false
   }
 })

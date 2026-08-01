@@ -35,9 +35,9 @@ const users=ref([]),loading=ref(false),search=ref(''),page=ref(1),limit=ref(20),
 const detailDialog=ref(false),detailUser=ref(null),pendingOrders=ref([]),adjustDialog=ref(false),adjusting=ref(false)
 const adj=ref({type:'manual_add',balance_type:'recharge',amount:0,remark:''})
 onMounted(()=>fetch())
-async function fetch(){loading.value=true;try{const r=await api.get('/api/admin/users',{params:{page:page.value,limit:limit.value,search:search.value}});users.value=r.data.data;total.value=r.data.pagination.total}catch(e){}loading.value=false}
+async function fetch(){loading.value=true;try{const r=await api.get('/api/admin/users',{params:{page:page.value,limit:limit.value,search:search.value}});users.value=r.data.data;total.value=r.data.pagination.total}catch(e){ElMessage.error(e.response?.data?.error||'用户列表加载失败，请重试')}loading.value=false}
 async function toggleStatus(u){const s=u.status==='active'?'disabled':'active';await api.patch(`/api/admin/users/${u.id}/status`,{status:s});ElMessage.success('状态已更新');fetch()}
-async function showDetail(u){detailUser.value=u;pendingOrders.value=[];detailDialog.value=true;try{const r=await api.get(`/api/admin/users/${u.id}`);detailUser.value=r.data.user;pendingOrders.value=r.data.pending_orders||[]}catch(e){}}
+async function showDetail(u){detailUser.value=u;pendingOrders.value=[];detailDialog.value=true;try{const r=await api.get(`/api/admin/users/${u.id}`);detailUser.value=r.data.user;pendingOrders.value=r.data.pending_orders||[]}catch(e){ElMessage.error(e.response?.data?.error||'用户详情加载失败')}}
 async function doAdjust(){
   if(!adj.value.amount)return ElMessage.warning('请输入点数')
   adjusting.value=true

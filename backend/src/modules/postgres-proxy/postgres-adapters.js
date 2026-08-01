@@ -135,7 +135,7 @@ class PostgresProxyBillingPolicy {
     this.minimumReservation = minimumReservation;
   }
 
-  async loadPolicy(model, routingGroupId) {
+  async loadPolicy(model, routingGroupId, userId = null) {
     const { rows } = await this.pool.query(`
       WITH RECURSIVE eligible_groups AS (
         SELECT id,fallback_group_id FROM routing_groups WHERE id=$2 AND status='active'
@@ -147,10 +147,12 @@ class PostgresProxyBillingPolicy {
       SELECT m.model_code,m.model_type,m.context_length,m.metadata,
         m.official_currency,m.official_input_price,m.official_output_price,
         m.official_cached_input_price,m.official_unit_tokens,
-        COALESCE(rgm.billing_multiplier_input,rgm.billing_multiplier,rg.billing_multiplier_input,1) AS input_multiplier,
-        COALESCE(rgm.billing_multiplier_output,rgm.billing_multiplier,rg.billing_multiplier_output,1) AS output_multiplier,
-        COALESCE(rgm.billing_multiplier_image,rgm.billing_multiplier,rg.billing_multiplier_image,1) AS image_multiplier,
-        pricing.billing_mode,pricing.rule,candidates.configurations AS candidate_configurations,
+        COALESCE(rgm.billing_multiplier_input,rgm.billing_multiplier,rg.billing_multiplier_input) AS input_multiplier,
+        COALESCE(rgm.billing_multiplier_output,rgm.billing_multiplier,rg.billing_multiplier_output) AS output_multiplier,
+        COALESCE(rgm.billing_multiplier_image,rgm.billing_multiplier,rg.billing_multiplier_image) AS image_multiplier,
+        platform_pricing.billing_mode AS platform_billing_mode,platform_pricing.rule AS platform_rule,
+        user_pricing.billing_mode AS user_billing_mode,user_pricing.rule AS user_rule,
+        candidates.configurations AS candidate_configurations,
         (SELECT config_value FROM system_config WHERE config_key='usd_cny_exchange_rate') AS usd_cny_rate
       FROM models m
       LEFT JOIN routing_groups rg ON rg.id=$2 AND rg.status='active'
@@ -159,8 +161,30 @@ class PostgresProxyBillingPolicy {
       LEFT JOIN LATERAL (
         SELECT billing_mode,rule FROM pricing_rules
         WHERE status='active' AND (model_code=m.model_code OR model_code IS NULL)
-        ORDER BY (model_code=m.model_code) DESC,updated_at DESC LIMIT 1
-      ) pricing ON TRUE
+          AND COALESCE(rule->>'scope_type','platform')='platform'
+          AND CASE WHEN NULLIF(rule->>'start_time','') IS NULL THEN TRUE
+            WHEN pg_input_is_valid(rule->>'start_time','timestamp with time zone')
+              THEN (rule->>'start_time')::timestamptz<=CURRENT_TIMESTAMP ELSE FALSE END
+          AND CASE WHEN NULLIF(rule->>'end_time','') IS NULL THEN TRUE
+            WHEN pg_input_is_valid(rule->>'end_time','timestamp with time zone')
+              THEN (rule->>'end_time')::timestamptz>=CURRENT_TIMESTAMP ELSE FALSE END
+        ORDER BY (model_code=m.model_code) DESC,COALESCE((rule->>'priority')::integer,0) DESC,updated_at DESC LIMIT 1
+      ) platform_pricing ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT billing_mode,rule FROM pricing_rules
+        WHERE status='active' AND $3::bigint IS NOT NULL
+          AND (model_code=m.model_code OR model_code IS NULL)
+          AND COALESCE(rule->>'scope_type','platform')='user'
+          AND CASE WHEN COALESCE(rule->>'scope_id','') ~ '^[0-9]+$'
+            THEN (rule->>'scope_id')::bigint=$3::bigint ELSE FALSE END
+          AND CASE WHEN NULLIF(rule->>'start_time','') IS NULL THEN TRUE
+            WHEN pg_input_is_valid(rule->>'start_time','timestamp with time zone')
+              THEN (rule->>'start_time')::timestamptz<=CURRENT_TIMESTAMP ELSE FALSE END
+          AND CASE WHEN NULLIF(rule->>'end_time','') IS NULL THEN TRUE
+            WHEN pg_input_is_valid(rule->>'end_time','timestamp with time zone')
+              THEN (rule->>'end_time')::timestamptz>=CURRENT_TIMESTAMP ELSE FALSE END
+        ORDER BY (model_code=m.model_code) DESC,COALESCE((rule->>'priority')::integer,0) DESC,updated_at DESC LIMIT 1
+      ) user_pricing ON TRUE
       LEFT JOIN LATERAL (
         SELECT COALESCE(jsonb_agg(am.configuration),'[]'::jsonb) AS configurations
         FROM account_models am
@@ -170,7 +194,7 @@ class PostgresProxyBillingPolicy {
         WHERE am.model_code=m.model_code AND am.status='active'
       ) candidates ON TRUE
       WHERE m.model_code=$1 AND m.status='active'
-    `, [model, routingGroupId ?? null]);
+    `, [model, routingGroupId ?? null, userId ?? null]);
     if (!rows[0]) {
       const error = new Error(`Model ${model} is not available for billing`);
       error.code = 'model_not_found';
@@ -179,14 +203,19 @@ class PostgresProxyBillingPolicy {
     }
     const row = rows[0];
     const metadata = jsonObject(row.metadata);
-    const rule = jsonObject(row.rule);
+    const legacyRule = jsonObject(row.rule);
+    const platformRule = Object.keys(jsonObject(row.platform_rule)).length
+      ? jsonObject(row.platform_rule)
+      : legacyRule;
+    const userRule = jsonObject(row.user_rule);
+    const rule = { ...platformRule, ...userRule };
     const inputPrice = price(row.official_input_price, metadata.official_input_price, rule.input_price);
     const outputPrice = price(row.official_output_price, metadata.official_output_price, rule.output_price);
     return {
       model,
       modelType: row.model_type || metadata.model_type || 'llm',
       contextLength: positive(row.context_length, positive(metadata.context_length, 0)),
-      billingMode: row.billing_mode || rule.billing_mode || 'token',
+      billingMode: row.user_billing_mode || row.platform_billing_mode || row.billing_mode || rule.billing_mode || 'token',
       currency: row.official_currency || metadata.official_currency || rule.official_currency || 'USD',
       unitTokens: positive(row.official_unit_tokens, positive(metadata.official_unit_tokens, 1_000_000)),
       usdCnyRate: positive(row.usd_cny_rate, 7),
@@ -204,9 +233,12 @@ class PostgresProxyBillingPolicy {
       perRequestPrice: price(rule.per_request_price),
       candidateConfigurations: Array.isArray(row.candidate_configurations) ? row.candidate_configurations : [],
       multipliers: {
-        input: positive(row.input_multiplier, positive(rule.billing_multiplier_input, 1)),
-        output: positive(row.output_multiplier, positive(rule.billing_multiplier_output, 1)),
-        image: positive(row.image_multiplier, positive(rule.billing_multiplier_image, 1)),
+        input: positive(userRule.billing_multiplier_input,
+          positive(row.input_multiplier, positive(platformRule.billing_multiplier_input, 1))),
+        output: positive(userRule.billing_multiplier_output,
+          positive(row.output_multiplier, positive(platformRule.billing_multiplier_output, 1))),
+        image: positive(userRule.billing_multiplier_image,
+          positive(row.image_multiplier, positive(platformRule.billing_multiplier_image, 1))),
       },
     };
   }
@@ -363,7 +395,7 @@ class PostgresProxyBillingPolicy {
   }
 
   async quoteReservation(context) {
-    const policy = await this.loadPolicy(context.model, context.identity?.routingGroupId);
+    const policy = await this.loadPolicy(context.model, context.identity?.routingGroupId, context.identity?.userId);
     if (this.isImage(context)) {
       const count = Math.max(1, Math.floor(numeric(context.request?.n, 1)));
       const quote = this.reservationImageQuote(policy, context, count);
@@ -419,7 +451,7 @@ class PostgresProxyBillingPolicy {
   async quoteCharge(context) {
     const settlementRoutingGroupId = context.selection?.routingGroupId
       ?? context.identity?.routingGroupId;
-    const policy = await this.loadPolicy(context.model, settlementRoutingGroupId);
+    const policy = await this.loadPolicy(context.model, settlementRoutingGroupId, context.identity?.userId);
     if (this.isImage(context) || context.imageCount > 0) {
       return this.imageQuote(policy, context, Math.max(0, Number(context.imageCount || 0)));
     }

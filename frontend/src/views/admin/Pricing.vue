@@ -7,9 +7,9 @@ import { ref, onMounted } from 'vue';import api from '@/api';import { ElMessage 
 const rules=ref([]),loading=ref(false),dialogVisible=ref(false),isEdit=ref(false),saving=ref(false)
 const empty=()=>({rule_name:'',model_code:'',scope_type:'platform',scope_id:null,multiplier_input:1,multiplier_output:1,multiplier_image:1,priority:0,status:'active'})
 const form=ref(empty());onMounted(fetchRules)
-async function fetchRules(){loading.value=true;try{rules.value=(await api.get('/api/admin/pricing-rules')).data.data}catch(e){}loading.value=false}
+async function fetchRules(){loading.value=true;try{rules.value=(await api.get('/api/admin/pricing-rules')).data.data}catch(e){ElMessage.error(e.response?.data?.error||'倍率规则加载失败，请重试')}loading.value=false}
 function openDialog(row){isEdit.value=!!row;form.value=row?{...row,multiplier_input:row.billing_multiplier_input,multiplier_output:row.billing_multiplier_output,multiplier_image:row.billing_multiplier_image||1}:empty();dialogVisible.value=true}
-async function save(){saving.value=true;try{if(isEdit.value)await api.put(`/api/admin/pricing-rules/${form.value.id}`,form.value);else await api.post('/api/admin/pricing-rules',form.value);ElMessage.success('保存成功');dialogVisible.value=false;fetchRules()}catch(e){}saving.value=false}
+async function save(){saving.value=true;try{if(isEdit.value)await api.put(`/api/admin/pricing-rules/${form.value.id}`,form.value);else await api.post('/api/admin/pricing-rules',form.value);ElMessage.success('保存成功');dialogVisible.value=false;fetchRules()}catch(e){ElMessage.error(e.response?.data?.error||'倍率规则保存失败')}saving.value=false}
 async function delRule(id){await api.delete(`/api/admin/pricing-rules/${id}`);ElMessage.success('已删除');fetchRules()}
 function scl(s){return {platform:'平台默认',user:'单用户'}[s]||s}
 </script>

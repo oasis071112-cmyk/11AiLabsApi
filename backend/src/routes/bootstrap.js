@@ -19,17 +19,17 @@ function createRuntimeBootstrapAuthenticate({ getRuntime, legacyAuthenticate } =
   };
 }
 
-function createBootstrapRouter({ authenticate, requireAdmin, dashboardReadModel, controlPlane }) {
-  if (!authenticate || !requireAdmin || !dashboardReadModel || !controlPlane) {
+function createBootstrapRouter({ authenticate, requireUser, requireAdmin, dashboardReadModel, controlPlane }) {
+  if (!authenticate || !requireUser || !requireAdmin || !dashboardReadModel || !controlPlane) {
     throw new Error('bootstrap routes require authentication, read model, and control plane services');
   }
   const router = express.Router();
 
-  router.get('/user/dashboard/bootstrap', authenticate, asyncRoute(async (req, res) => {
+  router.get('/user/dashboard/bootstrap', authenticate, requireUser, asyncRoute(async (req, res) => {
     res.json(await dashboardReadModel.userBootstrap(req.user.id));
   }));
 
-  router.get('/user/logs/overview', authenticate, asyncRoute(async (req, res) => {
+  router.get('/user/logs/overview', authenticate, requireUser, asyncRoute(async (req, res) => {
     res.json(await dashboardReadModel.userLogsOverview(req.user.id, req.query));
   }));
 
