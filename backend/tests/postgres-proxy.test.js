@@ -531,7 +531,9 @@ describe('PostgreSQL public proxy bridge', () => {
       const form = new FormData();
       form.append('model', 'public-image');
       if (entry.prompt) form.append('prompt', entry.prompt);
-      form.append('image', new Blob([Buffer.from('safe-image-bytes')], { type: 'image/png' }), 'input.png');
+      form.append('image', new Blob([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      ], { type: 'image/png' }), 'input.png');
       const response = await fetch(`${baseUrl}${entry.route}`, {
         method: 'POST', headers: { Authorization: 'Bearer sk-test' }, body: form,
       });
@@ -544,10 +546,8 @@ describe('PostgreSQL public proxy bridge', () => {
     expect(editCalls).toHaveLength(2);
     expect(editCalls[0].body).not.toBe(editCalls[1].body);
     expect(editCalls.map(call => call.model)).toEqual(['vendor-image-first', 'vendor-image-second']);
-    expect(editCalls.map(call => call.imageBytes)).toEqual([
-      Buffer.from('safe-image-bytes').toString('hex'),
-      Buffer.from('safe-image-bytes').toString('hex'),
-    ]);
+    const expectedPngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString('hex');
+    expect(editCalls.map(call => call.imageBytes)).toEqual([expectedPngHeader, expectedPngHeader]);
     expect(upstreamCalls.find(call => call.url.endsWith('/images/variations')).model).toBe('vendor-image-first');
     const transformation = upstreamCalls.find(call => call.url.endsWith('/responses'));
     expect(transformation.json).toMatchObject({

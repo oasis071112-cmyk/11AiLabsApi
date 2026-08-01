@@ -26,7 +26,10 @@ function sameJson(left, right) {
 
 async function readTarget(client, plan, { lock = false } = {}) {
   const { rows } = await client.query(`SELECT ua.account_key,ua.capabilities,
-      am.supports_image_input,m.official_currency,
+      am.supports_image_input,
+      jsonb_build_object('1K',am.configuration->'image_price_1k','2K',am.configuration->'image_price_2k',
+        '4K',am.configuration->'image_price_4k') AS mapping_image_prices,
+      m.official_currency,
       COALESCE(m.metadata->'official_image_prices','{}'::jsonb) AS official_image_prices
     FROM upstream_accounts ua
     JOIN account_models am ON am.account_id=ua.id AND am.model_code=$2
@@ -41,6 +44,11 @@ async function readTarget(client, plan, { lock = false } = {}) {
 function assertVerified(row, plan) {
   if (!sameJson(row.capabilities, plan.capabilities)) throw new Error('发布覆盖核对失败: capabilities');
   if (row.supports_image_input !== true) throw new Error('发布覆盖核对失败: supports_image_input');
+  for (const [tier, expected] of Object.entries(plan.imagePricesUsd)) {
+    if (Number(row.mapping_image_prices?.[tier]) !== expected) {
+      throw new Error(`发布覆盖核对失败: account_models.image_price_${tier.toLowerCase()}`);
+    }
+  }
   if (String(row.official_currency || '').toUpperCase() !== 'USD') throw new Error('发布覆盖核对失败: official_currency');
   if (!sameJson(row.official_image_prices, plan.imagePricesUsd)) throw new Error('发布覆盖核对失败: official_image_prices');
 }
@@ -55,7 +63,10 @@ async function applyReleaseControlPlaneOverrides(client, { actor = 'production-r
     SET capabilities=$2::jsonb,updated_at=CURRENT_TIMESTAMP
     WHERE account_key=$1`, [plan.accountKey, capabilities]);
   const mappingUpdate = await client.query(`UPDATE account_models am
-    SET supports_image_input=TRUE
+    SET supports_image_input=TRUE,
+      configuration=jsonb_set(jsonb_set(jsonb_set(COALESCE(am.configuration,'{}'::jsonb),
+        '{image_price_1k}','0.2'::jsonb,TRUE),'{image_price_2k}','0.2'::jsonb,TRUE),
+        '{image_price_4k}','0.2'::jsonb,TRUE)
     FROM upstream_accounts ua
     WHERE am.account_id=ua.id AND ua.account_key=$1 AND am.model_code=$2`, [plan.accountKey, plan.modelCode]);
   const modelUpdate = await client.query(`UPDATE models

@@ -126,6 +126,27 @@ class UsageSettlement {
       if (reservation.status !== 'reserved') throw new Error(`冻结记录状态不可结算: ${reservation.status}`);
       const current = balances(await tx.lockWallet(userId));
       if (current.frozen + 1e-9 < reserved) throw new Error('冻结额度异常');
+      const otherFrozen = quantizeAmount(Math.max(0, current.frozen - reserved));
+      const billableFunds = quantizeAmount(Math.max(0, current.quota + current.gift - otherFrozen));
+      if (charge > billableFunds + 1e-9) {
+        const shortfall = quantizeAmount(charge - billableFunds);
+        const result = { pending: reserved, requiredCharge: charge, shortfall };
+        if (successLog) await tx.appendRequestLog({
+          ...successLog,
+          status: 'settlement_pending',
+          total_cost: 0,
+          error_type: 'insufficient_settlement_balance',
+          error_message: '实际费用超出可结算余额，已保留冻结等待核对',
+          pending_reserved_amount: reserved,
+          billing_snapshot: {
+            ...(successLog.billing_snapshot || {}),
+            settlement: { required_charge: charge, billable_funds: billableFunds, shortfall },
+          },
+          request_id: successLog.request_id || stableRequestId,
+        });
+        await tx.updateReservation(stableRequestId, { status: 'pending_review', result });
+        return result;
+      }
       const giftCharged = quantizeAmount(Math.min(current.gift, charge));
       const quotaCharged = quantizeAmount(charge - giftCharged);
       const nextGift = quantizeAmount(current.gift - giftCharged);

@@ -23,9 +23,10 @@ const freshProvider=()=>({id:null,provider_name:'易支付',api_base_url:'',merc
 const providerForm=reactive(freshProvider())
 async function load(){try{const [configResponse,providerResponse]=await Promise.all([api.get('/api/admin/config'),api.get('/api/admin/payment/providers')]);configs.value=configResponse.data.data;providers.value=providerResponse.data.data}catch(e){}}
 onMounted(load)
-async function saveConfigs(items){saving.value=true;try{for(const item of items){await api.put(`/api/admin/config/${item.config_key}`,{config_value:item.config_value})}ElMessage.success('设置已保存')}catch(e){}saving.value=false}
+function enabled(value){return value===true||value==='true'}
+async function saveConfigs(items){saving.value=true;try{for(const item of items){const body=item.config_key==='payment_enabled'?{enable:enabled(item.config_value)}:{config_value:item.config_value};await api.put(`/api/admin/config/${item.config_key}`,body)}ElMessage.success('设置已保存')}catch(e){}saving.value=false}
 function paymentMethodLabels(methods){const labels={alipay:'支付宝',wechat:'微信支付'};return (Array.isArray(methods)?methods:[]).map(method=>labels[method]||method).join('、')||'未配置'}
 function openProvider(row){Object.assign(providerForm,freshProvider(),row?{...row,enabled_methods:Array.isArray(row.enabled_methods)?row.enabled_methods:['alipay'],merchant_key:''}:{});providerDialog.value=true}
-async function saveProvider(){providerSaving.value=true;try{if(providerForm.id)await api.put(`/api/admin/payment/providers/${providerForm.id}`,providerForm);else await api.post('/api/admin/payment/providers',providerForm);ElMessage.success('易支付服务商已保存');providerDialog.value=false;await load()}catch(e){}providerSaving.value=false}
+async function saveProvider(){providerSaving.value=true;try{const payload={...providerForm,enable:providerForm.status==='active'};if(providerForm.id)await api.put(`/api/admin/payment/providers/${providerForm.id}`,payload);else await api.post('/api/admin/payment/providers',payload);ElMessage.success('易支付服务商已保存');providerDialog.value=false;await load()}catch(e){}providerSaving.value=false}
 async function removeProvider(row){try{await ElMessageBox.confirm(`确定删除“${row.provider_name}”吗？`,'删除易支付服务商',{type:'warning'});await api.delete(`/api/admin/payment/providers/${row.id}`);ElMessage.success('已删除');await load()}catch(e){}}
 </script>

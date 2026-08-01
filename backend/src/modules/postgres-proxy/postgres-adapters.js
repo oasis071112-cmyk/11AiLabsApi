@@ -234,14 +234,10 @@ class PostgresProxyBillingPolicy {
     const actualBreakdown = sizeResolution.source === 'output' && sizeResolution.breakdown
       ? sizeResolution.breakdown
       : null;
-    const tierCounts = {};
-    let remaining = requestedCount;
-    for (const tier of ['1K', '2K', '4K']) {
-      const count = Math.min(remaining, Math.max(0, Math.floor(Number(actualBreakdown?.[tier] || 0))));
-      if (count > 0) tierCounts[tier] = count;
-      remaining -= count;
-    }
-    if (remaining > 0) tierCounts[size] = (tierCounts[size] || 0) + remaining;
+    // Sub2API compatibility bills a multi-output request at its highest
+    // confirmed tier. Keep the raw output breakdown for audit, but never mix
+    // unit prices inside one request.
+    const tierCounts = requestedCount > 0 ? { [size]: requestedCount } : {};
 
     let amount = 0;
     const tierCharges = {};
@@ -278,7 +274,7 @@ class PostgresProxyBillingPolicy {
       snapshot: {
         mode: 'image', size, requested_size: String(context.request?.size || ''),
         input_size: sizeResolution.inputSize || '', output_size: sizeResolution.outputSize || '',
-        size_source: sizeResolution.source, size_breakdown: tierCounts,
+        size_source: sizeResolution.source, output_size_breakdown: actualBreakdown || {}, size_breakdown: tierCounts,
         image_count: requestedCount, unit_price: singleTier?.unit_price ?? null,
         currency: singleTier?.currency ?? 'mixed', tier_charges: tierCharges,
         multiplier: policy.multipliers.image,

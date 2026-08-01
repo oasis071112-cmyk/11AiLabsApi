@@ -37,6 +37,7 @@ describe('PostgreSQL foundation schema seam', () => {
       '002_runtime_limits_and_billing',
       '003_public_api_compatibility',
       '004_api_key_daily_usage',
+      '005_wallet_nonnegative',
     ]);
     expect(foundation).not.toContain('max_concurrency');
     for (const column of [
@@ -82,5 +83,14 @@ describe('PostgreSQL foundation schema seam', () => {
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS user_api_key_daily_usage');
     expect(migration).toContain('PRIMARY KEY (usage_date, user_id, api_key_id, model_code)');
     expect(migration).toContain("VALUES ('004_api_key_daily_usage'");
+  });
+
+  it('restores non-negative wallet constraints after pending-review settlement protection', () => {
+    const migration = fs.readFileSync(path.join(migrationsDirectory, '005_wallet_nonnegative.sql'), 'utf8');
+
+    for (const column of ['quota_balance', 'gift_quota', 'frozen_balance', 'total_spent']) {
+      expect(migration).toContain(`${column} >= 0`);
+    }
+    expect(migration).toContain("VALUES ('005_wallet_nonnegative'");
   });
 });

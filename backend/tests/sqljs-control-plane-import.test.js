@@ -22,7 +22,11 @@ describe('SQL.js control-plane import seam', () => {
       official_output_price: 30, official_cached_input_price: 2, official_unit_tokens: 1000000,
       official_price_updated_at: '2026-07-15 10:52:52',
     }],
-    systemConfig: [{ config_key: 'payment_enabled', config_value: 'true', description: 'legacy switch' }],
+    systemConfig: [
+      { config_key: 'payment_enabled', config_value: 'true', description: 'legacy switch' },
+      { config_key: 'registration_enabled', config_value: 'true', description: 'legacy registration switch' },
+      { config_key: 'new_user_gift_enabled', config_value: 'true', description: 'legacy gift switch' },
+    ],
     upstreamChannels: [{
       channel_name: 'primary', base_url: 'https://upstream.test/v1', api_key: 'legacy-api-key',
       protocol_type: 'openai_compatible', status: 'active', priority: 9, weight: 70,
@@ -56,6 +60,10 @@ describe('SQL.js control-plane import seam', () => {
     expect(plan.records.some(record => record.value?.username === 'ordinary-user')).toBe(false);
     expect(plan.records.find(record => record.entity === 'system_config' && record.naturalKey.configKey === 'payment_enabled'))
       .toMatchObject({ value: { configValue: false } });
+    for (const configKey of ['registration_enabled', 'new_user_gift_enabled']) {
+      expect(plan.records.find(record => record.entity === 'system_config' && record.naturalKey.configKey === configKey))
+        .toMatchObject({ value: { configValue: false } });
+    }
     expect(plan.records.find(record => record.entity === 'payment_provider')).toMatchObject({
       value: {
         status: 'disabled', secretEnvelope: null, secretPresent: true,
@@ -173,7 +181,11 @@ describe('SQL.js control-plane import seam', () => {
       maximumInFlight = Math.max(maximumInFlight, inFlight);
       await new Promise(resolve => setTimeout(resolve, 1));
       inFlight -= 1;
-      if (sql.includes('FROM system_config')) return { rows: [{ config_key: 'payment_enabled', config_value: false }] };
+      if (sql.includes('FROM system_config')) return { rows: [
+        { config_key: 'payment_enabled', config_value: false, description: '' },
+        { config_key: 'registration_enabled', config_value: false, description: '' },
+        { config_key: 'new_user_gift_enabled', config_value: false, description: '' },
+      ] };
       if (sql.includes('official_price_updated_at FROM models')) {
         return { rows: [{
           model_code: 'ordered-capabilities', context_length: null, sort_order: 0,
@@ -187,7 +199,8 @@ describe('SQL.js control-plane import seam', () => {
         return { rows: [{
           users: 0, wallets: 0, wallet_transactions: 0, quota_orders: 0, api_keys: 0,
           api_key_permissions: 0, api_request_logs: 0, usage_reservations: 0,
-          user_daily_usage: 0, platform_daily_usage: 0, upstream_account_probes: 0, audit_logs: 0,
+          user_daily_usage: 0, user_api_key_daily_usage: 0, platform_daily_usage: 0,
+          upstream_account_probes: 0, audit_logs: 0,
         }] };
       }
       return { rows: [] };
@@ -218,5 +231,7 @@ describe('SQL.js control-plane import seam', () => {
 
     expect(result.user_plane_zero).toBe(true);
     expect(maximumInFlight).toBe(1);
+    const userPlaneQuery = query.mock.calls.find(([sql]) => sql.includes('FROM users) AS users'))?.[0];
+    expect(userPlaneQuery).toContain('(SELECT COUNT(*) FROM user_api_key_daily_usage) AS user_api_key_daily_usage');
   });
 });

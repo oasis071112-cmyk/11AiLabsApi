@@ -11,12 +11,19 @@ const {
   imageFilesFromRequest,
 } = require('../src/utils/image-request-executor.js');
 
-function file(name, mimetype = 'image/png', content = 'image') {
+function imageBytes(mimetype) {
+  if (mimetype === 'image/jpeg') return Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+  if (mimetype === 'image/webp') return Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP')]);
+  return Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+}
+
+function file(name, mimetype = 'image/png', content = null) {
+  const buffer = content === null ? imageBytes(mimetype) : Buffer.from(content);
   return {
     originalname: name,
     mimetype,
-    buffer: Buffer.from(content),
-    size: Buffer.byteLength(content),
+    buffer,
+    size: buffer.length,
   };
 }
 
@@ -79,6 +86,9 @@ describe('ImageRequestExecutor', () => {
       image: Array.from({ length: IMAGE_MAX_FILES + 1 }, (_, index) => file(`${index}.png`)),
     } })).toThrow('最多上传');
     expect(() => imageFilesFromRequest({ files: { image: [file('bad.gif', 'image/gif')] } })).toThrow('仅支持 PNG');
+    expect(() => imageFilesFromRequest({ files: {
+      image: [file('spoofed.png', 'image/png', 'not an image')],
+    } })).toThrow('内容与声明格式不一致');
     expect(() => executor.prepare({
       endpoint: 'images/transformations',
       body: { model: 'image-model', prompt: 'change', output_compression: '101' },

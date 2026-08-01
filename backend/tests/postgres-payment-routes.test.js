@@ -306,7 +306,7 @@ describe('PostgreSQL 支付用户接口', () => {
     expect(pool.transactions).toHaveLength(1);
   });
 
-  it('回调拒绝错签、错金额、错商户与过期订单，且不会入账', async () => {
+  it('回调拒绝错签、错金额与错商户，但已验签的晚到付款仍只入账一次', async () => {
     pool.orders.length = 0;
     pool.transactions.length = 0;
     pool.wallets.get(42).quota_balance = '0.00';
@@ -343,11 +343,11 @@ describe('PostgreSQL 支付用户接口', () => {
     const expired = await fetch(`${baseUrl}/api/payment/easypay/notify`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(callback),
     });
-    expect(expired.status).toBe(409);
-    expect(await expired.text()).toBe('fail');
-    expect(pool.orders[0].status).toBe('expired');
-    expect(pool.wallets.get(42).quota_balance).toBe('0.00');
-    expect(pool.transactions).toHaveLength(0);
+    expect(expired.status).toBe(200);
+    expect(await expired.text()).toBe('success');
+    expect(pool.orders[0].status).toBe('granted');
+    expect(pool.wallets.get(42).quota_balance).toBe('12.300000');
+    expect(pool.transactions).toHaveLength(1);
   });
 
   it('保留手工额度订单和 recharge 别名，但不在用户提交时直接入账', async () => {

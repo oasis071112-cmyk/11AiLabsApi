@@ -25,6 +25,7 @@ const adminRoutes = require('./routes/admin');
 const proxyRoutes = require('./routes/proxy');
 const publicRoutes = require('./routes/public');
 const paymentRoutes = require('./routes/payment');
+const { shouldSkipAccessLog } = require('./utils/access-log');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -70,7 +71,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // HTTP 请求日志：开发环境 → 控制台，生产环境 → access.log 文件
 app.use(morgan(isProduction ? 'combined' : 'dev', {
-  stream: isProduction ? logger.accessLogStream : process.stdout
+  stream: isProduction ? logger.accessLogStream : process.stdout,
+  skip: shouldSkipAccessLog,
 }));
 
 const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, message: { error: '请求过于频繁，请稍后再试' } });

@@ -38,3 +38,42 @@ test('A to B filtering keeps the latest B response when A completes last', async
   await expect(recentTable.getByText('RESULT_B_WINS', { exact: true })).toBeVisible()
   await expect(recentTable.getByText('RESULT_A_STALE', { exact: true })).toHaveCount(0)
 })
+
+test('legacy overview fallback never commits fulfilled fields from a canceled filter', async ({ page }) => {
+  let dailyRequests = 0
+  let aLogRequests = 0
+  await installSessionMocks(page, 'user')
+  await page.route(/\/api\/user\/models(?:\?.*)?$/, route => json(route, {
+    data: [{ model_code: 'model-A' }, { model_code: 'model-B' }], has_api_keys: true,
+  }))
+  await page.route(/\/api\/user\/logs\/overview(?:\?.*)?$/, route => json(route, { error: 'legacy backend' }, 404))
+  await page.route(/\/api\/user\/stats(?:\?.*)?$/, route => delayedJson(route, { total_calls: 1 }, 10))
+  await page.route(/\/api\/user\/logs(?:\?.*)?$/, route => {
+    const model = new URL(route.request().url()).searchParams.get('model')
+    if (model === 'model-A') {
+      aLogRequests += 1
+      return delayedJson(route, { data: [{ model_code: 'RESULT_A_STALE' }] }, 20)
+    }
+    if (model === 'model-B') return delayedJson(route, { data: [{ model_code: 'RESULT_B_WINS' }] }, 300)
+    return delayedJson(route, { data: [{ model_code: 'RESULT_BASELINE' }] }, 20)
+  })
+  await page.route(/\/api\/user\/stats\/daily(?:\?.*)?$/, route => {
+    dailyRequests += 1
+    return delayedJson(route, { data: [] }, dailyRequests === 2 ? 500 : 20)
+  })
+
+  await page.goto('/logs', { waitUntil: 'domcontentloaded' })
+  const recentTable = page.locator('.desktop-log-table')
+  await expect(recentTable.getByText('RESULT_BASELINE', { exact: true })).toBeVisible()
+  const modelSelect = page.locator('.filter-left .el-select')
+  await modelSelect.click()
+  await page.getByRole('option', { name: 'model-A', exact: true }).click()
+  await expect.poll(() => aLogRequests).toBe(1)
+  await page.waitForTimeout(60)
+  await modelSelect.click()
+  await page.getByRole('option', { name: 'model-B', exact: true }).click()
+
+  await page.waitForTimeout(100)
+  await expect(recentTable.getByText('RESULT_A_STALE', { exact: true })).toHaveCount(0)
+  await expect(recentTable.getByText('RESULT_B_WINS', { exact: true })).toBeVisible()
+})

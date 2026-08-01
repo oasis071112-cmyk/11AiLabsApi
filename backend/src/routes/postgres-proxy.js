@@ -316,7 +316,7 @@ function createPostgresProxyRouter({
           selection: execution.selection,
           response: payload,
         });
-        await runtime.usageSettlement.settle({
+        const settlement = await runtime.usageSettlement.settle({
           userId: identityContext.userId,
           reservedAmount,
           chargeAmount: Number(charge.amount || 0),
@@ -328,6 +328,7 @@ function createPostgresProxyRouter({
           }),
         });
         reservedAmount = 0;
+        if (settlement?.pending && !res.headersSent) res.setHeader('x-settlement-status', 'pending');
         return finishSnapshotResponse(res, execution.value);
       } catch (error) {
         const upstreamHttpError = causeMatching(error, candidate => candidate instanceof UpstreamHttpError);

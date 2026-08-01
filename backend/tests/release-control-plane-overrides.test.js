@@ -29,6 +29,7 @@ describe('release control-plane overrides', () => {
               account_key: 'Uozi-image2',
               capabilities: ['image_generations', 'image_edits'],
               supports_image_input: true,
+              mapping_image_prices: { '1K': 0.2, '2K': 0.2, '4K': 0.2 },
               official_currency: 'USD',
               official_image_prices: { '1K': 0.2, '2K': 0.2, '4K': 0.2 },
             }],
@@ -42,7 +43,9 @@ describe('release control-plane overrides', () => {
 
     expect(result).toMatchObject({ verified: true, profile: RELEASE_OVERRIDE_PROFILE });
     expect(queries.some(item => item.sql.includes('UPDATE upstream_accounts'))).toBe(true);
-    expect(queries.some(item => item.sql.includes('UPDATE account_models'))).toBe(true);
+    expect(queries.some(item => item.sql.includes('UPDATE account_models')
+      && item.sql.includes('image_price_1k') && item.sql.includes('image_price_2k')
+      && item.sql.includes('image_price_4k'))).toBe(true);
     expect(queries.some(item => item.sql.includes('UPDATE models'))).toBe(true);
     expect(queries.some(item => item.sql.includes('INSERT INTO audit_logs'))).toBe(true);
     expect(JSON.stringify(queries)).not.toContain('image_variations');

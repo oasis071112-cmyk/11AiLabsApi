@@ -246,6 +246,7 @@ async function fetchAll() {
         api.get('/api/user/logs',{params:{limit:10,model,start_date:range[0],end_date:range[1]},signal:request.signal}),
         api.get('/api/user/stats/daily',{params:{start_date:range[0],end_date:range[1]},signal:request.signal}),
       ])
+      if(!dashboardRequest.isCurrent(request))return
       if(fallback[0].status==='fulfilled')stats.value=fallback[0].value.data||{}
       if(fallback[1].status==='fulfilled')recentLogs.value=fallback[1].value.data.data||[]
       if(fallback[2].status==='fulfilled')dailyData.value=fallback[2].value.data.data||[]

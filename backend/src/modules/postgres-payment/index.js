@@ -332,12 +332,10 @@ function createPostgresPaymentService({ pool, secretBox, idFactory = randomUUID,
         throw new PostgresPaymentError(400, 'payment_callback_amount_mismatch', '支付金额不匹配');
       }
       if (order.status === 'granted') return { duplicate: true, orderId: order.id };
-      if (order.expires_at && new Date(order.expires_at).getTime() <= now()) {
-        await client.query(`UPDATE quota_orders SET status='expired',updated_at=CURRENT_TIMESTAMP
-          WHERE id=$1 AND status='pending'`, [order.id]);
-        return { expired: true, orderId: order.id };
-      }
-      if (!['pending', 'paid'].includes(order.status)) {
+      // A correctly signed success notification is proof that the provider
+      // accepted funds. Local expiry only blocks creating/continuing unpaid
+      // orders; it must never turn a received payment into a permanent loss.
+      if (!['pending', 'paid', 'expired'].includes(order.status)) {
         throw new PostgresPaymentError(409, 'payment_order_unavailable', '支付订单状态不可处理');
       }
       if (order.provider_trade_no && order.provider_trade_no !== tradeNo) {
@@ -347,7 +345,7 @@ function createPostgresPaymentService({ pool, secretBox, idFactory = randomUUID,
         WHERE related_order_id=$1 AND transaction_type='purchase' FOR UPDATE`, [order.id]);
       if (existingReceipt.rows[0]) {
         await client.query(`UPDATE quota_orders SET status='granted',granted_at=COALESCE(granted_at,CURRENT_TIMESTAMP),
-          updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status IN ('pending','paid')`, [order.id]);
+          updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status IN ('pending','paid','expired')`, [order.id]);
         return { duplicate: true, orderId: order.id };
       }
       const walletResult = await client.query(`SELECT user_id,quota_balance FROM wallets WHERE user_id=$1 FOR UPDATE`, [order.user_id]);
@@ -366,14 +364,11 @@ function createPostgresPaymentService({ pool, secretBox, idFactory = randomUUID,
       ]);
       await client.query(`UPDATE quota_orders SET status='granted',paid_at=COALESCE(paid_at,CURRENT_TIMESTAMP),
         granted_at=CURRENT_TIMESTAMP,provider_trade_no=$1,paid_amount=$2::numeric,payment_channel=$3,
-        updated_at=CURRENT_TIMESTAMP WHERE id=$4 AND status IN ('pending','paid') RETURNING id`, [
+        updated_at=CURRENT_TIMESTAMP WHERE id=$4 AND status IN ('pending','paid','expired') RETURNING id`, [
         tradeNo, paidAmount.value, String(fields.type || ''), order.id,
       ]);
       return { duplicate: false, orderId: order.id };
     });
-    if (result?.expired) {
-      throw new PostgresPaymentError(409, 'payment_order_expired', '支付订单已过期');
-    }
     return result;
   }
 

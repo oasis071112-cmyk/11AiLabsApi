@@ -9,6 +9,16 @@ const { initDatabase, getDatabase } = require('../src/database/init.js');
 const userRoutes = require('../src/routes/user.js');
 const proxyRoutes = require('../src/routes/proxy.js');
 
+const TEST_IMAGE_BYTES = {
+  'image/png': Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  'image/jpeg': Buffer.from([0xff, 0xd8, 0xff, 0xdb]),
+  'image/webp': Buffer.from('524946460400000057454250', 'hex'),
+};
+
+function testImageBlob(type) {
+  return new Blob([TEST_IMAGE_BYTES[type]], { type });
+}
+
 describe('图片生成端点计费', () => {
   let apiServer;
   let upstreamServer;
@@ -485,8 +495,8 @@ describe('图片生成端点计费', () => {
     const form = new FormData();
     form.set('model', modelCode);
     form.set('prompt', 'replace the sky');
-    form.append('image', new Blob(['source-image'], { type: 'image/png' }), 'source.png');
-    form.append('mask', new Blob(['mask-image'], { type: 'image/png' }), 'mask.png');
+    form.append('image', testImageBlob('image/png'), 'source.png');
+    form.append('mask', testImageBlob('image/png'), 'mask.png');
     const response = await multipartRequest('/v1/images/edits', form);
 
     expect(response.status).toBe(200);
@@ -505,7 +515,7 @@ describe('图片生成端点计费', () => {
     const form = new FormData();
     form.set('model', modelCode);
     form.set('n', '1');
-    form.append('image', new Blob(['source-image'], { type: 'image/webp' }), 'source.webp');
+    form.append('image', testImageBlob('image/webp'), 'source.webp');
     const response = await multipartRequest('/v1/images/variations', form);
 
     expect(response.status).toBe(200);
@@ -522,7 +532,7 @@ describe('图片生成端点计费', () => {
     form.set('output_format', 'webp');
     form.set('output_compression', '60');
     form.set('input_fidelity', 'high');
-    form.append('image', new Blob(['source-image'], { type: 'image/jpeg' }), 'source.jpg');
+    form.append('image', testImageBlob('image/jpeg'), 'source.jpg');
     const response = await multipartRequest('/v1/images/transformations', form);
 
     expect(response.status).toBe(200);
@@ -563,7 +573,7 @@ describe('图片生成端点计费', () => {
       const form = new FormData();
       form.set('model', modelCode);
       form.set('prompt', 'retry through fallback');
-      form.append('image', new Blob(['source-image'], { type: 'image/png' }), 'source.png');
+      form.append('image', testImageBlob('image/png'), 'source.png');
       const response = await multipartRequest('/v1/images/edits', form);
 
       expect(response.status).toBe(200);
@@ -587,7 +597,7 @@ describe('图片生成端点计费', () => {
       form.set('model', modelCode);
       form.set('prompt', 'the upstream will reject this');
       form.set('output_format', 'webp');
-      form.append('image', new Blob(['source-image'], { type: 'image/png' }), 'source.png');
+      form.append('image', testImageBlob('image/png'), 'source.png');
       const response = await multipartRequest('/v1/images/edits', form);
 
       expect(response.status).toBe(400);
@@ -613,7 +623,7 @@ describe('图片生成端点计费', () => {
       form.set('prompt', 'connection will close');
       form.set('output_format', 'webp');
       form.set('output_compression', '60');
-      form.append('image', new Blob(['source-image'], { type: 'image/png' }), 'source.png');
+      form.append('image', testImageBlob('image/png'), 'source.png');
       const response = await multipartRequest('/v1/images/edits', form);
 
       expect(response.status).toBe(504);

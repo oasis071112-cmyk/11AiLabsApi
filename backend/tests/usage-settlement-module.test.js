@@ -121,6 +121,30 @@ describe('UsageSettlement', () => {
     expect(repository.state.logs).toEqual([{ request_id: 'req_settle', status: 'success', total_cost: 2.5 }]);
   });
 
+  it('keeps the reservation for review instead of creating a negative balance when the final charge exceeds billable funds', async () => {
+    const repository = fakeSettlementRepository(
+      { quota_balance: 3, gift_quota: 0, frozen_balance: 2, total_spent: 0 },
+      { req_shortfall: { request_id: 'req_shortfall', user_id: 3, reserved_amount: 2, charged_amount: 0, status: 'reserved', result: {} } },
+    );
+    const settlement = new UsageSettlement({ repository });
+
+    const result = await settlement.settle({
+      userId: 3,
+      reservedAmount: 2,
+      chargeAmount: 4,
+      requestId: 'req_shortfall',
+      successLog: { request_id: 'req_shortfall', status: 'success', total_cost: 4 },
+    });
+
+    expect(result).toMatchObject({ pending: 2, requiredCharge: 4, shortfall: 1 });
+    expect(repository.state.wallet).toEqual({ quota_balance: 3, gift_quota: 0, frozen_balance: 2, total_spent: 0 });
+    expect(repository.state.reservations.req_shortfall).toMatchObject({ status: 'pending_review' });
+    expect(repository.state.logs).toEqual([expect.objectContaining({
+      request_id: 'req_shortfall', status: 'settlement_pending', error_type: 'insufficient_settlement_balance',
+      pending_reserved_amount: 2,
+    })]);
+  });
+
   it('returns the prior result without charging or logging twice when settlement is replayed', async () => {
     const repository = fakeSettlementRepository(
       { quota_balance: 8, gift_quota: 2, frozen_balance: 4, total_spent: 0 },

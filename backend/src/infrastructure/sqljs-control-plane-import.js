@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 
 const CONTROL_PLANE_USER_ROLES = new Set(['admin', 'operator', 'finance']);
 const EXCLUDED_USER_PLANE_TABLES = ['api_keys', 'api_key_permissions', 'wallets', 'wallet_transactions', 'quota_orders', 'api_request_logs'];
+const CUTOVER_DISABLED_CONFIG = new Set(['payment_enabled', 'registration_enabled', 'new_user_gift_enabled']);
 
 function jsonValue(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -126,11 +127,18 @@ function buildControlPlaneImportPlan(snapshot = {}) {
     }));
   }
   const settings = new Map((snapshot.systemConfig || []).map(setting => [setting.config_key, setting]));
-  settings.set('payment_enabled', { config_key: 'payment_enabled', config_value: false, description: 'SQL.js 控制面导入后默认关闭在线支付' });
+  for (const configKey of CUTOVER_DISABLED_CONFIG) {
+    const existing = settings.get(configKey);
+    settings.set(configKey, {
+      config_key: configKey,
+      config_value: false,
+      description: existing?.description || `${configKey} is disabled during control-plane cutover`,
+    });
+  }
   for (const setting of settings.values()) {
     records.push(importRecord('system_config', { configKey: setting.config_key }, {
       configKey: setting.config_key,
-      configValue: setting.config_key === 'payment_enabled' ? false : jsonValue(setting.config_value),
+      configValue: CUTOVER_DISABLED_CONFIG.has(setting.config_key) ? false : jsonValue(setting.config_value),
       description: setting.description || '',
     }));
   }
@@ -397,6 +405,14 @@ function createPostgresControlPlaneSink(client) {
       throw new Error(`${label} 导入核对失败: expected=${expectedJson} actual=${actualJson}`);
     }
   };
+  const assertImportedJsonValue = (label, expected, actual) => {
+    const expectedJson = JSON.stringify(canonicalJson(expected));
+    const actualJson = JSON.stringify(canonicalJson(actual));
+    if (expectedJson !== actualJson) throw new Error(`${label} 导入核对失败`);
+  };
+  const assertImportedSecret = (label, expected, actual) => {
+    if (String(expected || '') !== String(actual || '')) throw new Error(`${label} 导入核对失败`);
+  };
   const assertImportedTimestamp = (label, expected, actual) => {
     if (expected === null || expected === undefined || expected === '') {
       assertImportedValue(label, null, actual);
@@ -510,17 +526,21 @@ function createPostgresControlPlaneSink(client) {
       // A PostgreSQL transaction client is a single connection. Running these
       // verification reads concurrently is deprecated by pg and can interleave
       // protocol messages, so keep the audit boundary deliberately sequential.
-      const staff = await client.query('SELECT username FROM staff_users ORDER BY username');
-      const models = await client.query(`SELECT model_code,context_length,sort_order,capabilities,official_provider,
+      const staff = await client.query('SELECT username,email,password_hash,role,status FROM staff_users ORDER BY username');
+      const models = await client.query(`SELECT model_code,model_name,provider,model_type,status,metadata,
+        context_length,sort_order,capabilities,official_provider,
         official_currency,official_input_price,official_output_price,official_cached_input_price,official_unit_tokens,
         official_price_updated_at FROM models ORDER BY model_code`);
-      const prices = await client.query('SELECT rule_key FROM pricing_rules ORDER BY rule_key');
-      const configs = await client.query('SELECT config_key,config_value FROM system_config ORDER BY config_key');
-      const accounts = await client.query(`SELECT account_key,api_key_envelope,max_concurrency,rpm_limit,tpm_limit,cooldown_seconds,priority,weight
+      const prices = await client.query('SELECT rule_key,model_code,billing_mode,rule,status FROM pricing_rules ORDER BY rule_key');
+      const configs = await client.query('SELECT config_key,config_value,description FROM system_config ORDER BY config_key');
+      const accounts = await client.query(`SELECT account_key,display_name,base_url,protocol_type,capabilities,status,
+        api_key_envelope,max_concurrency,rpm_limit,tpm_limit,cooldown_seconds,priority,weight
         FROM upstream_accounts ORDER BY account_key`);
-      const mappings = await client.query(`SELECT ua.account_key,am.model_code,am.upstream_model_name,am.supports_image_input,am.status FROM account_models am
+      const mappings = await client.query(`SELECT ua.account_key,am.model_code,am.upstream_model_name,
+        am.supports_image_input,am.configuration,am.status FROM account_models am
         JOIN upstream_accounts ua ON ua.id=am.account_id ORDER BY ua.account_key,am.model_code`);
-      const groups = await client.query(`SELECT rg.group_key,fallback.group_key AS fallback_group_key,rg.description,rg.restrict_models,
+      const groups = await client.query(`SELECT rg.group_key,rg.group_name,rg.protocol_type,rg.status,rg.configuration,
+          fallback.group_key AS fallback_group_key,rg.description,rg.restrict_models,
           rg.billing_multiplier_input,rg.billing_multiplier_output,rg.billing_multiplier_image
         FROM routing_groups rg LEFT JOIN routing_groups fallback ON fallback.id=rg.fallback_group_id ORDER BY rg.group_key`);
       const members = await client.query(`SELECT rg.group_key,ua.account_key,rga.priority,rga.weight,rga.status FROM routing_group_accounts rga
@@ -530,7 +550,8 @@ function createPostgresControlPlaneSink(client) {
           rgm.billing_multiplier_input,rgm.billing_multiplier_output,rgm.billing_multiplier_image
         FROM routing_group_models rgm
         JOIN routing_groups rg ON rg.id=rgm.routing_group_id ORDER BY rg.group_key,rgm.model_code`);
-      const payments = await client.query('SELECT provider_code,secret_envelope,status FROM payment_providers ORDER BY provider_code');
+      const payments = await client.query(`SELECT provider_code,provider_name,provider_type,config,secret_envelope,status
+        FROM payment_providers ORDER BY provider_code`);
       const userPlane = await client.query(`SELECT
           (SELECT COUNT(*) FROM users) AS users,
           (SELECT COUNT(*) FROM wallets) AS wallets,
@@ -541,6 +562,7 @@ function createPostgresControlPlaneSink(client) {
           (SELECT COUNT(*) FROM api_request_logs) AS api_request_logs,
           (SELECT COUNT(*) FROM usage_reservations) AS usage_reservations,
           (SELECT COUNT(*) FROM user_daily_usage) AS user_daily_usage,
+          (SELECT COUNT(*) FROM user_api_key_daily_usage) AS user_api_key_daily_usage,
           (SELECT COUNT(*) FROM platform_daily_usage) AS platform_daily_usage,
           (SELECT COUNT(*) FROM upstream_account_probes) AS upstream_account_probes,
           (SELECT COUNT(*) FROM audit_logs) AS audit_logs`);
@@ -553,9 +575,21 @@ function createPostgresControlPlaneSink(client) {
       assertSetEqual('routing_group_accounts', expected('routing_group_account').map(record => `${record.value.groupKey}:${record.value.accountKey}`), members.rows.map(row => `${row.group_key}:${row.account_key}`));
       assertSetEqual('routing_group_models', expected('routing_group_model').map(record => `${record.value.groupKey}:${record.value.modelCode}`), groupModels.rows.map(row => `${row.group_key}:${row.model_code}`));
       assertSetEqual('payment_providers', expected('payment_provider').map(record => record.value.providerCode), payments.rows.map(row => row.provider_code));
+      const staffByUsername = new Map(staff.rows.map(row => [row.username, row]));
+      for (const record of expected('staff_user')) {
+        const row = staffByUsername.get(record.value.username);
+        for (const [field, column] of [['email', 'email'], ['role', 'role'], ['status', 'status']]) {
+          assertImportedValue(`staff_users.${record.value.username}.${column}`, record.value[field], row?.[column]);
+        }
+        assertImportedSecret(`staff_users.${record.value.username}.password_hash`, record.value.passwordHash, row?.password_hash);
+      }
       const modelByCode = new Map(models.rows.map(row => [row.model_code, row]));
       for (const record of expected('model')) {
         const row = modelByCode.get(record.value.modelCode);
+        for (const [field, column] of [
+          ['modelName', 'model_name'], ['provider', 'provider'], ['modelType', 'model_type'], ['status', 'status'],
+        ]) assertImportedValue(`models.${record.value.modelCode}.${column}`, record.value[field], row?.[column]);
+        assertImportedJson(`models.${record.value.modelCode}.metadata`, record.value.metadata, row?.metadata);
         for (const [field, column] of [
           ['contextLength', 'context_length'], ['sortOrder', 'sort_order'], ['officialProvider', 'official_provider'],
           ['officialCurrency', 'official_currency'], ['officialInputPrice', 'official_input_price'],
@@ -565,9 +599,21 @@ function createPostgresControlPlaneSink(client) {
         assertImportedJson(`models.${record.value.modelCode}.capabilities`, record.value.capabilities, row?.capabilities);
         assertImportedTimestamp(`models.${record.value.modelCode}.official_price_updated_at`, record.value.officialPriceUpdatedAt, row?.official_price_updated_at);
       }
+      const priceByKey = new Map(prices.rows.map(row => [row.rule_key, row]));
+      for (const record of expected('pricing_rule')) {
+        const row = priceByKey.get(record.value.ruleKey);
+        assertImportedValue(`pricing_rules.${record.value.ruleKey}.model_code`, record.value.modelCode, row?.model_code);
+        assertImportedValue(`pricing_rules.${record.value.ruleKey}.billing_mode`, record.value.billingMode, row?.billing_mode);
+        assertImportedValue(`pricing_rules.${record.value.ruleKey}.status`, record.value.status, row?.status);
+        assertImportedJson(`pricing_rules.${record.value.ruleKey}.rule`, record.value.rule, row?.rule);
+      }
       const accountByKey = new Map(accounts.rows.map(row => [row.account_key, row]));
       for (const record of expected('upstream_account')) {
         const row = accountByKey.get(record.value.accountKey);
+        for (const [field, column] of [
+          ['displayName', 'display_name'], ['baseUrl', 'base_url'], ['protocolType', 'protocol_type'], ['status', 'status'],
+        ]) assertImportedValue(`upstream_accounts.${record.value.accountKey}.${column}`, record.value[field], row?.[column]);
+        assertImportedJson(`upstream_accounts.${record.value.accountKey}.capabilities`, record.value.capabilities, row?.capabilities);
         for (const [field, column] of [
           ['maxConcurrency', 'max_concurrency'], ['rpmLimit', 'rpm_limit'], ['tpmLimit', 'tpm_limit'],
           ['cooldownSeconds', 'cooldown_seconds'], ['priority', 'priority'], ['weight', 'weight'],
@@ -579,6 +625,7 @@ function createPostgresControlPlaneSink(client) {
         const row = mappingByKey.get(key);
         assertImportedValue(`account_models.${key}.upstream_model_name`, record.value.upstreamModelName, row?.upstream_model_name);
         assertImportedValue(`account_models.${key}.supports_image_input`, record.value.supportsImageInput, row?.supports_image_input);
+        assertImportedJson(`account_models.${key}.configuration`, record.value.configuration, row?.configuration);
         assertImportedValue(`account_models.${key}.status`, record.value.status, row?.status);
       }
       const fallbackByGroup = new Map(expected('routing_group_fallback')
@@ -586,6 +633,10 @@ function createPostgresControlPlaneSink(client) {
       const groupByKey = new Map(groups.rows.map(row => [row.group_key, row]));
       for (const record of expected('routing_group')) {
         const row = groupByKey.get(record.value.groupKey);
+        for (const [field, column] of [
+          ['groupName', 'group_name'], ['protocolType', 'protocol_type'], ['status', 'status'],
+        ]) assertImportedValue(`routing_groups.${record.value.groupKey}.${column}`, record.value[field], row?.[column]);
+        assertImportedJson(`routing_groups.${record.value.groupKey}.configuration`, record.value.configuration, row?.configuration);
         assertImportedValue(`routing_groups.${record.value.groupKey}.fallback_group_key`, fallbackByGroup.get(record.value.groupKey) || null, row?.fallback_group_key);
         assertImportedValue(`routing_groups.${record.value.groupKey}.description`, record.value.description, row?.description);
         assertImportedValue(`routing_groups.${record.value.groupKey}.restrict_models`, record.value.restrictModels, row?.restrict_models);
@@ -614,9 +665,14 @@ function createPostgresControlPlaneSink(client) {
       const configByKey = new Map(configs.rows.map(row => [row.config_key, row.config_value]));
       for (const record of expected('system_config')) {
         if (!configByKey.has(record.value.configKey)) throw new Error(`system_config 缺少 ${record.value.configKey}`);
+        const row = configs.rows.find(item => item.config_key === record.value.configKey);
+        assertImportedJsonValue(`system_config.${record.value.configKey}.config_value`, record.value.configValue, row?.config_value);
+        assertImportedValue(`system_config.${record.value.configKey}.description`, record.value.description, row?.description);
       }
-      if (configByKey.get('payment_enabled') !== false && configByKey.get('payment_enabled') !== 'false') {
-        throw new Error('控制面导入核对失败: payment_enabled 必须为 false');
+      for (const configKey of CUTOVER_DISABLED_CONFIG) {
+        if (configByKey.get(configKey) !== false && configByKey.get(configKey) !== 'false') {
+          throw new Error(`控制面导入核对失败: ${configKey} 必须为 false`);
+        }
       }
       const counts = userPlane.rows[0] || {};
       for (const [table, count] of Object.entries(counts)) {
@@ -633,6 +689,13 @@ function createPostgresControlPlaneSink(client) {
           const plaintext = secretBox.open(row.secret_envelope, { aad: `payment_providers:${row.provider_code}` });
           if (!plaintext) throw new Error(`支付服务商 ${row.provider_code} 的密文无法核对`);
         }
+      }
+      const paymentByCode = new Map(payments.rows.map(row => [row.provider_code, row]));
+      for (const record of expected('payment_provider')) {
+        const row = paymentByCode.get(record.value.providerCode);
+        assertImportedValue(`payment_providers.${record.value.providerCode}.provider_name`, record.value.providerName, row?.provider_name);
+        assertImportedValue(`payment_providers.${record.value.providerCode}.provider_type`, record.value.providerType, row?.provider_type);
+        assertImportedJson(`payment_providers.${record.value.providerCode}.config`, record.value.config, row?.config);
       }
       return {
         staff_users: staff.rows.length,
