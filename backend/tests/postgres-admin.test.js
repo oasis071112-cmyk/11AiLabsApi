@@ -217,6 +217,7 @@ describe('PostgreSQL management compatibility router', () => {
     expect(channel).toMatchObject({ secret_configured: true });
     const channelInsert = calls.find(call => call.sql.includes('INSERT INTO upstream_accounts'));
     expect(channelInsert.values[8]).toBe(5);
+    expect(channelInsert.values[10]).toBe(0);
     expect(provider).toMatchObject({ secret_configured: true });
     expect(calls.filter(call => call.sql.includes('INSERT INTO audit_logs'))).toHaveLength(2);
     expect(calls.filter(call => call.sql.includes('INSERT INTO audit_logs')).every(call => call.values[2] === 77)).toBe(true);

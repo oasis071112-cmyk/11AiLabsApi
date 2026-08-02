@@ -153,7 +153,7 @@ function buildControlPlaneImportPlan(snapshot = {}) {
       status: channel.status === 'active' ? 'active' : 'inactive',
       maxConcurrency: nonNegativeInteger(channel.max_concurrency, 5),
       rpmLimit: nonNegativeInteger(channel.rpm_limit, 60),
-      tpmLimit: nonNegativeInteger(channel.tpm_limit, 100000),
+      tpmLimit: nonNegativeInteger(channel.tpm_limit, 0),
       cooldownSeconds: nonNegativeInteger(channel.cooldown_seconds, 60),
       priority: nonNegativeInteger(channel.priority, 0),
       weight: positiveNumber(channel.weight, 100),

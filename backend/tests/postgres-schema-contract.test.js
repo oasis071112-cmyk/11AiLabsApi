@@ -39,6 +39,7 @@ describe('PostgreSQL foundation schema seam', () => {
       '004_api_key_daily_usage',
       '005_wallet_nonnegative',
       '006_upstream_concurrency_default',
+      '007_upstream_tpm_unlimited',
     ]);
     expect(foundation).not.toContain('max_concurrency');
     for (const column of [
@@ -101,5 +102,15 @@ describe('PostgreSQL foundation schema seam', () => {
     expect(migration).toContain('UPDATE upstream_accounts SET max_concurrency = 5');
     expect(migration).toContain('ALTER COLUMN max_concurrency SET DEFAULT 5');
     expect(migration).toContain("VALUES ('006_upstream_concurrency_default'");
+  });
+
+  it('removes only the TPM limit for every existing channel and the PostgreSQL default', () => {
+    const migration = fs.readFileSync(path.join(migrationsDirectory, '007_upstream_tpm_unlimited.sql'), 'utf8');
+
+    expect(migration).toContain('UPDATE upstream_accounts SET tpm_limit = 0');
+    expect(migration).toContain('ALTER COLUMN tpm_limit SET DEFAULT 0');
+    expect(migration).toContain("VALUES ('007_upstream_tpm_unlimited'");
+    expect(migration).not.toContain('max_concurrency');
+    expect(migration).not.toContain('rpm_limit');
   });
 });

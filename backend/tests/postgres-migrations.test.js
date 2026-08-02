@@ -122,17 +122,17 @@ describe('PostgreSQL migration runner seam', () => {
     });
 
     expect(result).toEqual({
-      applied: ['001_foundation', '002_runtime_limits_and_billing', '003_public_api_compatibility', '004_api_key_daily_usage', '005_wallet_nonnegative', '006_upstream_concurrency_default'],
+      applied: ['001_foundation', '002_runtime_limits_and_billing', '003_public_api_compatibility', '004_api_key_daily_usage', '005_wallet_nonnegative', '006_upstream_concurrency_default', '007_upstream_tpm_unlimited'],
       skipped: [],
     });
     expect(calls.map(call => call.kind)).toEqual([
-      'bootstrap', 'read-applied', 'migration', 'migration', 'migration', 'migration', 'migration', 'migration',
+      'bootstrap', 'read-applied', 'migration', 'migration', 'migration', 'migration', 'migration', 'migration', 'migration',
     ]);
   });
 
   it('repackages repository migrations without nested outer transactions or placeholder checksums', () => {
     const migrationDirectory = path.resolve(import.meta.dirname, '../migrations/postgres');
-    for (const filename of ['001_foundation.sql', '002_runtime_limits_and_billing.sql', '003_public_api_compatibility.sql', '004_api_key_daily_usage.sql', '005_wallet_nonnegative.sql', '006_upstream_concurrency_default.sql']) {
+    for (const filename of ['001_foundation.sql', '002_runtime_limits_and_billing.sql', '003_public_api_compatibility.sql', '004_api_key_daily_usage.sql', '005_wallet_nonnegative.sql', '006_upstream_concurrency_default.sql', '007_upstream_tpm_unlimited.sql']) {
       const source = fs.readFileSync(path.join(migrationDirectory, filename));
       const version = filename.replace(/\.sql$/, '');
       const sql = buildTransactionalMigrationSql({ version, checksum: sha256(source), source: source.toString('utf8') });
