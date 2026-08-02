@@ -12,6 +12,7 @@
     "test:login-bootstrap": "node scripts/check-login-bootstrap.mjs",
     "test:user-actions": "node scripts/check-user-actions.mjs",
     "test:user-logs": "node scripts/check-user-logs.mjs",
+    "test:admin-logs": "node scripts/check-admin-logs.mjs",
     "test:landing": "node scripts/check-landing-page.mjs",
     "test:performance-slice": "node scripts/check-performance-slice.mjs",
     "test:first-paint-budget": "node scripts/check-first-paint-budget.mjs",

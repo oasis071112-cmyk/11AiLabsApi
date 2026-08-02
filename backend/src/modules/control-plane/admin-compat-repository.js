@@ -5,6 +5,7 @@ const { ACCOUNT_CAPABILITIES, ACCOUNT_PROTOCOLS } = require('./index');
 const { normalizeUpstreamModels, inferModelType } = require('../../utils/model-sync');
 const { inferProvider } = require('../../utils/pricing-sync');
 const { defaultImageDisplayPricing } = require('../../utils/pricing-engine');
+const { deriveUserDeductionUsd } = require('../../utils/admin-user-deduction');
 
 class AdminCompatError extends Error {
   constructor(status, code, message) {
@@ -544,7 +545,13 @@ class PostgresAdminCompatRepository {
       [...values, limit, (page - 1) * limit]),
       this.pool.query(`SELECT COUNT(*) AS count FROM api_request_logs arl ${where}`, values),
     ]);
-    return { data: logs.rows, pagination: { page, limit, total: Number(total.rows[0]?.count || 0) } };
+    return {
+      data: logs.rows.map(log => {
+        const normalized = numericFields(log, ['total_cost']);
+        return { ...normalized, user_deduction_usd: deriveUserDeductionUsd(normalized) };
+      }),
+      pagination: { page, limit, total: Number(total.rows[0]?.count || 0) },
+    };
   }
 
   async listModels() {

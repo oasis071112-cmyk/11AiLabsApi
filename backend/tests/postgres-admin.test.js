@@ -322,6 +322,29 @@ describe('PostgreSQL management compatibility router', () => {
     });
   });
 
+  it('returns the settled user deduction in USD from PostgreSQL request-log snapshots', async () => {
+    const pool = {
+      connect: vi.fn(),
+      query: vi.fn(async sql => sql.includes('COUNT(*)')
+        ? { rows: [{ count: '1' }] }
+        : { rows: [{
+          request_id: 'req-usd-1', user_id: '2', model_code: 'gpt-test', status: 'success',
+          total_cost: '14.000000', billing_snapshot: { charge: { mode: 'token', currency: 'USD', usd_cny_rate: 7 } },
+        }] }),
+    };
+    const data = new PostgresAdminCompatRepository({
+      pool, secretBox: { activeVersion: 'v1', seal: () => 'unused' },
+    });
+
+    const result = await data.listLogs({
+      page: 2, limit: 50, userId: '2', model: 'gpt-test', status: 'success',
+    });
+
+    expect(result).toMatchObject({ pagination: { page: 2, limit: 50, total: 1 } });
+    expect(result.data[0]).toMatchObject({ total_cost: 14, user_deduction_usd: 2 });
+    expect(pool.query.mock.calls[0][1]).toEqual(['2', 'gpt-test', 'success', 50, 50]);
+  });
+
   it('serves account availability and sanitized probe history from the monitoring read model', async () => {
     const queries = [];
     const pool = {

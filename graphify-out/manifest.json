@@ -45,8 +45,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/admin.js": {
-    "mtime": 1785605511.9081743,
-    "ast_hash": "5e21a8add95652a0e6b1688fd9905c9b",
+    "mtime": 1785649932.302819,
+    "ast_hash": "eb144a7837cf852f7d48afb1848a9911",
     "semantic_hash": ""
   },
   "backend/src/routes/auth.js": {
@@ -155,9 +155,9 @@
     "semantic_hash": "e084fa5a8564725149944e558da31f24"
   },
   "backend/tests/admin-finance.test.js": {
-    "mtime": 1784360438.0049443,
-    "ast_hash": "7eaba1916150c4f364e11470171ea8d8",
-    "semantic_hash": "7eaba1916150c4f364e11470171ea8d8"
+    "mtime": 1785649913.9074745,
+    "ast_hash": "82019ccf5b8818811337371d2cb5bf42",
+    "semantic_hash": ""
   },
   "backend/tests/auth.test.js": {
     "mtime": 1784901477.1698947,
@@ -260,7 +260,7 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1785606471.8792121,
+    "mtime": 1785650418.1783178,
     "ast_hash": "6b8d14708b6271bee11c056cc10bca38",
     "semantic_hash": "6b8d14708b6271bee11c056cc10bca38"
   },
@@ -270,8 +270,8 @@
     "semantic_hash": ""
   },
   "frontend/package.json": {
-    "mtime": 1785531471.7633462,
-    "ast_hash": "bc3e851733772eecc6a1a36edb007485",
+    "mtime": 1785650003.5727534,
+    "ast_hash": "537ac74311648729bc5ac4886ee22ff3",
     "semantic_hash": ""
   },
   "frontend/scripts/check-login-error-ui.mjs": {
@@ -375,8 +375,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/admin/Logs.vue": {
-    "mtime": 1785578772.0441022,
-    "ast_hash": "9cef78e8fe5ee59f4f8d1d7156cd986b",
+    "mtime": 1785650041.3100183,
+    "ast_hash": "6cf9b70279fd7b773ff75be2299fdd0a",
     "semantic_hash": ""
   },
   "frontend/src/views/admin/Models.vue": {
@@ -875,8 +875,8 @@
     "semantic_hash": ""
   },
   "backend/src/modules/control-plane/admin-compat-repository.js": {
-    "mtime": 1785604908.2436123,
-    "ast_hash": "c685be9855aeaa395e2ecf3a9434b3f1",
+    "mtime": 1785650096.4244494,
+    "ast_hash": "1353052265459c29f24f82aacdb15713",
     "semantic_hash": ""
   },
   "backend/src/modules/identity/index.js": {
@@ -905,8 +905,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-admin.test.js": {
-    "mtime": 1785604884.3927312,
-    "ast_hash": "036369f328d19222edd60fc3ab7e90fb",
+    "mtime": 1785650279.4111662,
+    "ast_hash": "e0a564c5e9fdec5f8c3f68e3774371a4",
     "semantic_hash": ""
   },
   "backend/tests/postgres-auth-user-routes.test.js": {
@@ -1157,6 +1157,26 @@
   "backend/tests/postgres-concurrency-migration-integration.test.js": {
     "mtime": 1785605984.3446944,
     "ast_hash": "5ded50d04b1d2106e2464ce9e62464cd",
+    "semantic_hash": ""
+  },
+  "backend/src/utils/admin-user-deduction.js": {
+    "mtime": 1785650530.4889169,
+    "ast_hash": "101e829a49881f3c0e418182d49ddb35",
+    "semantic_hash": ""
+  },
+  "backend/tests/admin-user-deduction.test.js": {
+    "mtime": 1785650279.4081514,
+    "ast_hash": "ba78aeeeb367b7bc31b38e93c3916bef",
+    "semantic_hash": ""
+  },
+  "frontend/scripts/check-admin-logs.mjs": {
+    "mtime": 1785650003.570494,
+    "ast_hash": "a0b6f5cce1ee70b577738a8b7be03c71",
+    "semantic_hash": ""
+  },
+  "frontend/src/utils/billing.js": {
+    "mtime": 1785650041.3069434,
+    "ast_hash": "fce3eb1a2ddcfa43e403cabad04fe1ee",
     "semantic_hash": ""
   }
 }

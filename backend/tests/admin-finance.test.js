@@ -63,6 +63,23 @@ describe('管理端余额与订单安全边界', () => {
       .run(`TEST-${suffix}`, userId, amount, status).lastInsertRowid;
   }
 
+  it('returns the settled user deduction in USD from legacy request-log snapshots', async () => {
+    const requestId = `USD-LOG-${Date.now()}-${Math.random()}`;
+    getDatabase().prepare(`INSERT INTO api_request_logs
+      (request_id,user_id,model_code,total_cost,status,official_currency,usd_cny_rate)
+      VALUES (?,?,'gpt-test',14,'success','USD',7)`).run(requestId, userId);
+
+    const response = await request(`/api/admin/logs?user_id=${userId}&model=gpt-test&status=success&page=1`);
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.pagination).toMatchObject({ page: 1, limit: 50 });
+    expect(payload.data.find((log) => log.request_id === requestId)).toMatchObject({
+      total_cost: 14,
+      user_deduction_usd: 2,
+    });
+  });
+
   it('存在待处理订单时，不允许无来源说明地手工增加额度', async () => {
     const db = getDatabase();
     const orderId = createOrder('pending', 10);

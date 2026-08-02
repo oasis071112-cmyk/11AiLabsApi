@@ -12,6 +12,7 @@ const { normalizedBaseUrl, supportedPaymentMethods } = require('../utils/easypay
 const { grantQuotaOrder } = require('../utils/quota-orders');
 const { positiveMultiplier } = require('../utils/multiplier-policy');
 const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
+const { deriveUserDeductionUsd } = require('../utils/admin-user-deduction');
 const {
   reconcileModelStatus,
   routedModelCodesForChannels,
@@ -643,7 +644,8 @@ router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) =
   if (user_id) { where += ' AND arl.user_id=?'; p.push(user_id); }
   if (model) { where += ' AND arl.model_code=?'; p.push(model); }
   if (status) { where += ' AND arl.status=?'; p.push(status); }
-  const logs = db.prepare(`SELECT arl.*,u.username FROM api_request_logs arl LEFT JOIN users u ON arl.user_id=u.id ${where} ORDER BY arl.created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset);
+  const logs = db.prepare(`SELECT arl.*,u.username FROM api_request_logs arl LEFT JOIN users u ON arl.user_id=u.id ${where} ORDER BY arl.created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset)
+    .map(log => ({ ...log, user_deduction_usd: deriveUserDeductionUsd(log) }));
   const total = db.prepare(`SELECT COUNT(*) as count FROM api_request_logs arl ${where}`).get(...p);
   res.json({ data: logs, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
 });

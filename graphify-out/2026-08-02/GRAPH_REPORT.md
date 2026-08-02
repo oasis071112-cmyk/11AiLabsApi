@@ -1,16 +1,16 @@
 # Graph Report - ai-api-proxy  (2026-08-02)
 
 ## Corpus Check
-- 226 files · ~141,250 words
+- 227 files · ~141,476 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2220 nodes · 3619 edges · 168 communities (140 shown, 28 thin omitted)
+- 2221 nodes · 3619 edges · 170 communities (142 shown, 28 thin omitted)
 - Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 270 edges (avg confidence: 0.53)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `dbb5aa9c`
+- Built from commit: `e28093aa`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -167,6 +167,7 @@
 - 性能与压测验证
 - cors
 - worker-runtime.test.js
+- echarts
 - request-limits.js
 - bcryptjs
 - express-rate-limit
@@ -200,7 +201,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (168 total, 28 thin omitted)
+## Communities (170 total, 28 thin omitted)
 
 ### Community 0 - "proxy.js"
 Cohesion: 0.06
@@ -222,7 +223,7 @@ Nodes (36): allLogs, analyticsRequest, autoRefresh, billingBreakdown, billingDia
 
 ### Community 3 - "dependencies"
 Cohesion: 0.10
-Nodes (21): chart.js, dayjs, echarts, @element-plus/icons-vue, dependencies, axios, chart.js, dayjs (+13 more)
+Nodes (21): chart.js, dayjs, @element-plus/icons-vue, dependencies, axios, chart.js, dayjs, @element-plus/icons-vue (+13 more)
 
 ### Community 4 - "ApiKeys.vue"
 Cohesion: 0.06
@@ -230,7 +231,7 @@ Nodes (32): activeCode, activeTab, channelLoading, channels, copiedKeyId, copyin
 
 ### Community 5 - "dependencies"
 Cohesion: 0.12
-Nodes (17): dependencies, axios, dotenv, express, form-data, helmet, jsonwebtoken, pg (+9 more)
+Nodes (17): dependencies, cors, dotenv, express, form-data, helmet, jsonwebtoken, pg (+9 more)
 
 ### Community 6 - "admin/Models.vue"
 Cohesion: 0.08
@@ -501,8 +502,8 @@ Cohesion: 0.10
 Nodes (18): aggregatePhase, appStore, authStore, backgroundAuthIndex, currentDir, dashboard, fallbackPhase, fallbackStart (+10 more)
 
 ### Community 92 - "billing-detail.js"
-Cohesion: 0.12
-Nodes (20): asObject(), configBoolean(), createPostgresPaymentService(), crypto, moneyFromConfig(), normalizedBaseUrl(), parseMoney(), parseStoredOrderMoney() (+12 more)
+Cohesion: 0.15
+Nodes (16): asObject(), configBoolean(), crypto, moneyFromConfig(), normalizedBaseUrl(), parseMoney(), parseStoredOrderMoney(), paymentTypeFor() (+8 more)
 
 ### Community 93 - "public.js"
 Cohesion: 0.40
@@ -695,6 +696,10 @@ Nodes (5): { buildChannelProtocolDocs, createPostgresUserRouter, effectiveModelC
 Cohesion: 0.27
 Nodes (7): configBoolean(), configMap(), createPostgresPublicRouter(), express, { createPostgresPublicRouter }, require, servers
 
+### Community 150 - "estimatedChatInputTokens"
+Cohesion: 0.40
+Nodes (4): createPostgresPaymentService(), { createPostgresPaymentService, signEasyPay }, { createSecretBox }, require
+
 ### Community 151 - "PostgreSQL/Redis 隔离演练与发布准备记录"
 Cohesion: 0.22
 Nodes (8): PostgreSQL/Redis 隔离演练与发布准备记录, SQL.js 备份与控制面导入, 上线前门禁与回滚, 测试与性能, 渠道、图片与计费证据, 演练中修复的问题, 迁移核对, 隔离运行环境
@@ -743,8 +748,6 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.031) - this node is a cross-community bridge._
 - **Why does `withTransaction()` connect `control-plane/postgres-repository.js` to `cors`, `worker-runtime.test.js`, `routing-group-models.js`, `pricing-sync.js`, `handleImageBilledRequest`, `postgres-tasks.js`, `withTransaction`, `runtime-services.test.js`, `channel-selector.js`, `billing-detail.js`?**
   _High betweenness centrality (0.024) - this node is a cross-community bridge._
-- **Why does `getDatabase()` connect `getDatabase` to `proxy.js`, `dotenv`, `admin.js`, `vue-chartjs`, `dashboard-read-model/legacy-repository.js`, `src/index.js`, `Proposed Changes`, `model-capabilities.test.js`, `runtime-router.test.js`, `billing-detail.js`, `createTransformationBody`, `cors`, `admin-finance.test.js`, `image-generations.test.js`, `registration.test.js`, `billing.test.js`, `anthropic-protocol.test.js`, `user-model-multipliers.test.js`, `easypay-payment.test.js`, `payment.js`?**
-  _High betweenness centrality (0.020) - this node is a cross-community bridge._
 - **What connects `backup.sh script`, `{ requestHeaders }`, `SCENARIOS` to the rest of the system?**
   _942 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `proxy.js` be split into smaller, more focused modules?**
@@ -753,3 +756,5 @@ _Questions this graph is uniquely positioned to answer:_
   _Cohesion score 0.05714285714285714 - nodes in this community are weakly interconnected._
 - **Should `user/Logs.vue` be split into smaller, more focused modules?**
   _Cohesion score 0.0425531914893617 - nodes in this community are weakly interconnected._
+- **Should `dependencies` be split into smaller, more focused modules?**
+  _Cohesion score 0.09523809523809523 - nodes in this community are weakly interconnected._
