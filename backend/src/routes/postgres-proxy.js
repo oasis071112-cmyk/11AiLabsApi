@@ -1,6 +1,6 @@
 const express = require('express');
 const { randomUUID } = require('node:crypto');
-const { extractUsage } = require('../utils/pricing-engine');
+const { extractUsage, mergeUsage } = require('../utils/pricing-engine');
 const { countGeneratedImages } = require('../utils/image-billing');
 const {
   ImageRequestExecutor,
@@ -33,7 +33,7 @@ function identityFromRequest(req) {
 function responseMetrics(snapshot, operation) {
   const document = jsonFromSnapshot(snapshot);
   const events = document === null ? jsonEventsFromSnapshot(snapshot) : [document];
-  const usage = extractUsage({});
+  let usage = extractUsage({});
   let usageFound = false;
   let imageCount = 0;
   for (const event of events) {
@@ -43,8 +43,9 @@ function responseMetrics(snapshot, operation) {
       : payload?.usage || event?.usage || event?.message?.usage || event?.delta?.usage;
     if (rawUsage) {
       usageFound = true;
-      const current = extractUsage(rawUsage);
-      for (const key of Object.keys(usage)) usage[key] = Math.max(usage[key], current[key]);
+      usage = mergeUsage(usage, rawUsage, {
+        cacheTokensAreAdditional: operation === 'anthropic_messages',
+      });
     }
     imageCount = Math.max(imageCount, countGeneratedImages(payload || {}));
   }

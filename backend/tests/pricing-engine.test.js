@@ -4,6 +4,7 @@ import {
   calculateImagePricing,
   calculatePricing,
   extractUsage,
+  mergeUsage,
   resolveImageUnitPrice,
 } from '../src/utils/pricing-engine.js';
 
@@ -235,6 +236,59 @@ describe('官方定价换算与用户扣费', () => {
       cacheCreationTokens: 200,
       cacheCreation5mTokens: 120,
       cacheCreation1hTokens: 80,
+    });
+  });
+
+  it('Anthropic 原生 usage 将普通输入与缓存读写合并为计费总输入', () => {
+    expect(extractUsage({
+      input_tokens: 491,
+      output_tokens: 101,
+      cache_read_input_tokens: 25_186,
+      cache_creation_input_tokens: 11_155,
+    }, { cacheTokensAreAdditional: true })).toMatchObject({
+      inputTokens: 36_832,
+      outputTokens: 101,
+      cachedInputTokens: 25_186,
+      cacheCreationTokens: 11_155,
+    });
+  });
+
+  it('Anthropic 流式 usage 按每一维最新累计值合并', () => {
+    const started = mergeUsage({}, {
+      input_tokens: 491,
+      cache_read_input_tokens: 25_000,
+      cache_creation_input_tokens: 11_155,
+      cache_creation_5m_input_tokens: 11_155,
+      output_tokens: 0,
+    }, { cacheTokensAreAdditional: true });
+    const completed = mergeUsage(started, {
+      input_tokens: null,
+      cache_read_input_tokens: 25_186,
+      cache_creation_input_tokens: null,
+      output_tokens: 101,
+    }, { cacheTokensAreAdditional: true });
+
+    expect(completed).toMatchObject({
+      inputTokens: 36_832,
+      cachedInputTokens: 25_186,
+      cacheCreationTokens: 11_155,
+      cacheCreation5mTokens: 11_155,
+      outputTokens: 101,
+    });
+  });
+
+  it('OpenAI 流式 usage 保持总输入语义并保留缓存子集', () => {
+    const started = mergeUsage({}, {
+      input_tokens: 11_813,
+      input_tokens_details: { cached_tokens: 10_752 },
+      output_tokens: 0,
+    });
+    const completed = mergeUsage(started, { output_tokens: 1_483 });
+
+    expect(completed).toMatchObject({
+      inputTokens: 11_813,
+      cachedInputTokens: 10_752,
+      outputTokens: 1_483,
     });
   });
 

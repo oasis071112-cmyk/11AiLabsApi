@@ -277,8 +277,8 @@ function defaultImageDisplayPricing() {
   return { unitPrice: resolveImageUnitPrice({ sizeTier: '2K' }), currency: 'USD' };
 }
 
-function extractUsage(usage = {}) {
-  const inputTokens = number(usage.input_tokens ?? usage.prompt_tokens);
+function extractUsage(usage = {}, { cacheTokensAreAdditional = false } = {}) {
+  const reportedInputTokens = number(usage.input_tokens ?? usage.prompt_tokens);
   const outputTokens = number(usage.output_tokens ?? usage.completion_tokens);
   const details = usage.input_tokens_details || usage.prompt_tokens_details || {};
   const cachedInputTokens = number(
@@ -320,6 +320,9 @@ function extractUsage(usage = {}) {
     ?? usage.image_output_tokens
     ?? usage.output_image_tokens,
   );
+  const inputTokens = cacheTokensAreAdditional
+    ? reportedInputTokens + cachedInputTokens + cacheCreationTokens
+    : reportedInputTokens;
   return {
     inputTokens,
     outputTokens,
@@ -332,6 +335,67 @@ function extractUsage(usage = {}) {
   };
 }
 
+function present(value) {
+  return value !== null && value !== undefined;
+}
+
+function mergeUsage(current = {}, rawUsage = {}, { cacheTokensAreAdditional = false } = {}) {
+  if (!rawUsage || typeof rawUsage !== 'object') return current;
+  const parsed = extractUsage(rawUsage);
+  const next = { ...extractUsage({}), ...current };
+  const inputDetails = rawUsage.input_tokens_details || rawUsage.prompt_tokens_details || {};
+  const outputDetails = rawUsage.output_tokens_details || rawUsage.completion_tokens_details || {};
+  const hasInput = present(rawUsage.input_tokens) || present(rawUsage.prompt_tokens);
+  const hasCachedInput = present(inputDetails.cached_tokens)
+    || present(rawUsage.cached_input_tokens)
+    || present(rawUsage.cache_read_input_tokens)
+    || present(rawUsage.prompt_cache_hit_tokens);
+  const hasCacheCreationTotal = present(inputDetails.cache_write_tokens)
+    || present(inputDetails.cache_creation_tokens)
+    || present(rawUsage.cache_write_tokens)
+    || present(rawUsage.cache_write_input_tokens)
+    || present(rawUsage.cache_creation_input_tokens)
+    || present(rawUsage.cache_creation_tokens)
+    || present(inputDetails.cache_creation_input_tokens);
+  const hasCacheCreation5m = present(rawUsage.cache_creation_5m_input_tokens)
+    || present(rawUsage.cache_creation?.ephemeral_5m_input_tokens)
+    || present(inputDetails.cache_creation_5m_tokens);
+  const hasCacheCreation1h = present(rawUsage.cache_creation_1h_input_tokens)
+    || present(rawUsage.cache_creation?.ephemeral_1h_input_tokens)
+    || present(inputDetails.cache_creation_1h_tokens);
+  const hasOutput = present(rawUsage.output_tokens) || present(rawUsage.completion_tokens);
+  const hasImageInput = present(inputDetails.image_tokens)
+    || present(rawUsage.image_input_tokens)
+    || present(rawUsage.input_image_tokens);
+  const hasImageOutput = present(outputDetails.image_tokens)
+    || present(rawUsage.image_output_tokens)
+    || present(rawUsage.output_image_tokens);
+
+  let ordinaryInputTokens = cacheTokensAreAdditional
+    ? Math.max(number(next.inputTokens) - number(next.cachedInputTokens) - number(next.cacheCreationTokens), 0)
+    : 0;
+  if (hasInput) {
+    if (cacheTokensAreAdditional) ordinaryInputTokens = parsed.inputTokens;
+    else next.inputTokens = parsed.inputTokens;
+  }
+  if (hasCachedInput) next.cachedInputTokens = parsed.cachedInputTokens;
+  if (hasCacheCreation5m) next.cacheCreation5mTokens = parsed.cacheCreation5mTokens;
+  if (hasCacheCreation1h) next.cacheCreation1hTokens = parsed.cacheCreation1hTokens;
+  if (hasCacheCreationTotal) next.cacheCreationTokens = parsed.cacheCreationTokens;
+  else if (hasCacheCreation5m || hasCacheCreation1h) {
+    next.cacheCreationTokens = number(next.cacheCreation5mTokens) + number(next.cacheCreation1hTokens);
+  }
+  if (hasOutput) next.outputTokens = parsed.outputTokens;
+  if (hasImageInput) next.imageInputTokens = parsed.imageInputTokens;
+  if (hasImageOutput) next.imageOutputTokens = parsed.imageOutputTokens;
+  if (cacheTokensAreAdditional) {
+    next.inputTokens = ordinaryInputTokens
+      + number(next.cachedInputTokens)
+      + number(next.cacheCreationTokens);
+  }
+  return next;
+}
+
 module.exports = {
   DEFAULT_IMAGE_UNIT_PRICE_USD,
   calculateImagePricing,
@@ -339,6 +403,7 @@ module.exports = {
   configuredImageUnitPrice,
   defaultImageDisplayPricing,
   extractUsage,
+  mergeUsage,
   normalizeCurrency,
   resolveImageUnitPrice,
   toCny,

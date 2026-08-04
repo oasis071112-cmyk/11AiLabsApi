@@ -11,6 +11,7 @@ const {
   calculatePricing,
   configuredImageUnitPrice,
   extractUsage,
+  mergeUsage,
   resolveImageUnitPrice,
 } = require('../utils/pricing-engine');
 const {
@@ -813,61 +814,11 @@ function insertCountTokensSuccessLog(db, {
 }
 
 function extractAnthropicUsage(rawUsage = {}) {
-  const usage = extractUsage(rawUsage);
-  return {
-    ...usage,
-    inputTokens: usage.inputTokens + usage.cachedInputTokens + usage.cacheCreationTokens,
-  };
+  return extractUsage(rawUsage, { cacheTokensAreAdditional: true });
 }
 
 function mergeAnthropicStreamUsage(current, rawUsage, upstreamModel = '') {
-  if (!rawUsage || typeof rawUsage !== 'object') return current;
-  const parsed = extractUsage(rawUsage);
-  const next = { ...current };
-  let ordinaryInputTokens = Math.max(
-    Number(next.inputTokens || 0)
-      - Number(next.cachedInputTokens || 0)
-      - Number(next.cacheCreationTokens || 0),
-    0,
-  );
-  if (rawUsage.input_tokens !== null && rawUsage.input_tokens !== undefined) {
-    ordinaryInputTokens = parsed.inputTokens;
-  }
-  if (rawUsage.cache_read_input_tokens !== null && rawUsage.cache_read_input_tokens !== undefined) {
-    next.cachedInputTokens = parsed.cachedInputTokens;
-  }
-  if (rawUsage.cache_creation_input_tokens !== null
-      && rawUsage.cache_creation_input_tokens !== undefined) {
-    next.cacheCreationTokens = parsed.cacheCreationTokens;
-  }
-  if (rawUsage.cache_creation && typeof rawUsage.cache_creation === 'object') {
-    next.cacheCreationTokens = parsed.cacheCreationTokens;
-    next.cacheCreation5mTokens = parsed.cacheCreation5mTokens;
-    next.cacheCreation1hTokens = parsed.cacheCreation1hTokens;
-  } else {
-    const hasFlat5m = rawUsage.cache_creation_5m_input_tokens !== null
-      && rawUsage.cache_creation_5m_input_tokens !== undefined;
-    const hasFlat1h = rawUsage.cache_creation_1h_input_tokens !== null
-      && rawUsage.cache_creation_1h_input_tokens !== undefined;
-    if (hasFlat5m) {
-      next.cacheCreation5mTokens = parsed.cacheCreation5mTokens;
-    }
-    if (hasFlat1h) {
-      next.cacheCreation1hTokens = parsed.cacheCreation1hTokens;
-    }
-    if ((rawUsage.cache_creation_input_tokens === null
-        || rawUsage.cache_creation_input_tokens === undefined)
-        && (hasFlat5m || hasFlat1h)) {
-      next.cacheCreationTokens = Number(next.cacheCreation5mTokens || 0)
-        + Number(next.cacheCreation1hTokens || 0);
-    }
-  }
-  next.inputTokens = ordinaryInputTokens
-    + Number(next.cachedInputTokens || 0)
-    + Number(next.cacheCreationTokens || 0);
-  if (rawUsage.output_tokens !== null && rawUsage.output_tokens !== undefined) {
-    next.outputTokens = parsed.outputTokens;
-  }
+  const next = mergeUsage(current, rawUsage, { cacheTokensAreAdditional: true });
   if (upstreamModel) next.upstreamModel = upstreamModel;
   return next;
 }
