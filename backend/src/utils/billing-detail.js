@@ -21,6 +21,7 @@ function perMillionPrice(price, sourceUnitTokens) {
 
 function buildBillingDetail({
   modelCode = '', inputTokens = 0, cachedInputTokens = 0, cacheCreationTokens = 0,
+  cacheCreation5mTokens = 0, cacheCreation1hTokens = 0,
   imageInputTokens = 0, outputTokens = 0, imageOutputTokens = 0, totalCost = 0,
   billingMode = 'token', image = {}, official = {}, legacy = {}, multipliers = {}, usdCnyRate = 1,
   serviceTier = '',
@@ -114,6 +115,8 @@ function buildBillingDetail({
       inputTokens: input,
       cachedInputTokens: cached,
       cacheCreationTokens,
+      cacheCreation5mTokens,
+      cacheCreation1hTokens,
       imageInputTokens,
       outputTokens: output,
       imageOutputTokens,
@@ -126,7 +129,7 @@ function buildBillingDetail({
     if (calculated.textInputTokens > 0) dimensions.push({ label: '普通输入 Token', usage: calculated.textInputTokens, unitTokens, unitPrice: perMillionPrice(official.input, sourceUnitTokens), multiplier: inputMultiplier, fxRate, amount: rounded(calculated.inputCost) });
     if (calculated.imageInputTokens > 0) dimensions.push({ label: '图片输入 Token', usage: calculated.imageInputTokens, unitTokens, unitPrice: perMillionPrice(official.imageInput ?? official.input, sourceUnitTokens), multiplier: inputMultiplier, fxRate, amount: rounded(calculated.imageInputCost) });
     if (calculated.cachedInputTokens > 0) dimensions.push({ label: '缓存输入 Token', usage: calculated.cachedInputTokens, unitTokens, unitPrice: perMillionPrice(official.cachedInput ?? official.input, sourceUnitTokens), multiplier: inputMultiplier, fxRate, amount: rounded(calculated.cachedInputCost) });
-    if (calculated.cacheCreationTokens > 0) dimensions.push({ label: '缓存写入 Token', usage: calculated.cacheCreationTokens, unitTokens, unitPrice: perMillionPrice(official.cacheCreation ?? official.input, sourceUnitTokens), multiplier: inputMultiplier, fxRate, amount: rounded(calculated.cacheCreationCost) });
+    if (calculated.cacheCreationTokens > 0) dimensions.push({ label: '缓存写入 Token', usage: calculated.cacheCreationTokens, unitTokens, unitPrice: perMillionPrice(calculated.cacheCreationEffectivePrice, sourceUnitTokens), multiplier: inputMultiplier, fxRate, amount: rounded(calculated.cacheCreationCost) });
     if (calculated.textOutputTokens > 0) dimensions.push({ label: '输出 Token', usage: calculated.textOutputTokens, unitTokens, unitPrice: perMillionPrice(official.output, sourceUnitTokens), multiplier: outputMultiplier, fxRate, amount: rounded(calculated.outputCost) });
     if (calculated.imageOutputTokens > 0) dimensions.push({ label: '图片输出 Token', usage: calculated.imageOutputTokens, unitTokens, unitPrice: perMillionPrice(official.imageOutput ?? official.output, sourceUnitTokens), multiplier: outputMultiplier, fxRate, amount: rounded(calculated.imageOutputCost) });
     const priceCalculationTotal = rounded(dimensions.reduce((sum, item) => sum + item.amount, 0));
@@ -268,22 +271,49 @@ function buildBillingDetailFromSnapshot(row = {}) {
     });
   }
 
-  const inputTokens = number(row.input_tokens);
-  const outputTokens = number(row.output_tokens);
+  const snapshotUsage = object(charge.usage);
+  const hasSnapshotUsage = Object.keys(snapshotUsage).length > 0;
+  const inputTokens = hasSnapshotUsage ? number(snapshotUsage.input_tokens) : number(row.input_tokens);
+  const cachedInputTokens = hasSnapshotUsage ? number(snapshotUsage.cached_input_tokens) : 0;
+  const cacheCreationTokens = hasSnapshotUsage ? number(snapshotUsage.cache_creation_tokens) : 0;
+  const cacheCreation5mTokens = hasSnapshotUsage ? number(snapshotUsage.cache_creation_5m_tokens) : 0;
+  const cacheCreation1hTokens = hasSnapshotUsage ? number(snapshotUsage.cache_creation_1h_tokens) : 0;
+  const imageInputTokens = hasSnapshotUsage ? number(snapshotUsage.image_input_tokens) : 0;
+  const outputTokens = hasSnapshotUsage ? number(snapshotUsage.output_tokens) : number(row.output_tokens);
+  const imageOutputTokens = hasSnapshotUsage ? number(snapshotUsage.image_output_tokens) : 0;
   const unitTokens = Math.max(number(charge.unit_tokens, 1), 1);
   const inputPrice = Math.max(number(charge.input_price), 0);
   const outputPrice = Math.max(number(charge.output_price), 0);
+  const cachedInputPrice = Math.max(number(charge.cached_input_price, inputPrice), 0);
+  const cacheCreationPrice = Math.max(number(charge.cache_creation_price, inputPrice), 0);
+  const cacheCreation5mPrice = Math.max(number(charge.cache_creation_5m_price, cacheCreationPrice), 0);
+  const cacheCreation1hPrice = Math.max(number(charge.cache_creation_1h_price, cacheCreationPrice), 0);
   const inputMultiplier = number(charge.input_multiplier, 1);
   const outputMultiplier = number(charge.output_multiplier, 1);
-  const baseTotal = inputTokens / unitTokens * inputPrice * inputMultiplier
-    + outputTokens / unitTokens * outputPrice * outputMultiplier;
+  const snapshotPrices = {
+    currency: 'CNY', unitTokens, input: inputPrice, output: outputPrice,
+    cachedInput: cachedInputPrice, cacheCreation: cacheCreationPrice,
+    cacheCreation5m: cacheCreation5mPrice, cacheCreation1h: cacheCreation1hPrice,
+  };
+  const baseTotal = hasSnapshotUsage
+    ? calculatePricing({
+      modelCode: row.model_code, inputTokens, cachedInputTokens, cacheCreationTokens,
+      cacheCreation5mTokens, cacheCreation1hTokens, imageInputTokens, outputTokens, imageOutputTokens,
+      official: snapshotPrices, multipliers: { input: inputMultiplier, output: outputMultiplier },
+      usdCnyRate: 1, serviceTier: charge.service_tier,
+    }).userCostPoints
+    : inputTokens / unitTokens * inputPrice * inputMultiplier
+      + outputTokens / unitTokens * outputPrice * outputMultiplier;
   const fxRate = derivedFxRate({
     currency, actualTotal: totalCost, baseTotal, snapshotRate: charge.usd_cny_rate,
   });
   return buildBillingDetail({
-    modelCode: row.model_code, inputTokens, outputTokens, totalCost,
-    official: { currency, input: inputPrice, output: outputPrice, unitTokens },
+    modelCode: row.model_code, inputTokens, cachedInputTokens, cacheCreationTokens,
+    cacheCreation5mTokens, cacheCreation1hTokens, imageInputTokens, outputTokens, imageOutputTokens,
+    totalCost,
+    official: { ...snapshotPrices, currency },
     multipliers: { input: inputMultiplier, output: outputMultiplier }, usdCnyRate: fxRate,
+    serviceTier: charge.service_tier,
   });
 }
 
