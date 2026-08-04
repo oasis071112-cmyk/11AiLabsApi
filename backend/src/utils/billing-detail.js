@@ -272,7 +272,8 @@ function buildBillingDetailFromSnapshot(row = {}) {
   }
 
   const snapshotUsage = object(charge.usage);
-  const hasSnapshotUsage = Object.keys(snapshotUsage).length > 0;
+  const hasSnapshotUsage = number(charge.snapshot_version) >= 2
+    && Object.keys(snapshotUsage).length > 0;
   const inputTokens = hasSnapshotUsage ? number(snapshotUsage.input_tokens) : number(row.input_tokens);
   const cachedInputTokens = hasSnapshotUsage ? number(snapshotUsage.cached_input_tokens) : 0;
   const cacheCreationTokens = hasSnapshotUsage ? number(snapshotUsage.cache_creation_tokens) : 0;

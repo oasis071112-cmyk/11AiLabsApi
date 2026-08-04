@@ -224,7 +224,7 @@ describe('用户计费明细', () => {
       billing_mode: 'token',
       billing_snapshot: {
         charge: {
-          mode: 'token', currency: 'USD', unit_tokens: 1,
+          mode: 'token', snapshot_version: 2, currency: 'USD', unit_tokens: 1,
           input_price: 0.000005, cached_input_price: 0.0000005, output_price: 0.00003,
           input_multiplier: 0.2, output_multiplier: 0.2, usd_cny_rate: 6.7513,
           usage: {
@@ -257,7 +257,7 @@ describe('用户计费明细', () => {
       billing_mode: 'token',
       billing_snapshot: {
         charge: {
-          mode: 'token', currency: 'USD', unit_tokens: 1,
+          mode: 'token', snapshot_version: 2, currency: 'USD', unit_tokens: 1,
           input_price: 0.000005, cached_input_price: 0.0000005,
           cache_creation_price: 0.00000625, cache_creation_5m_price: 0.00000625,
           cache_creation_1h_price: 0.00001, output_price: 0.000025,
@@ -307,6 +307,31 @@ describe('用户计费明细', () => {
       label: '实际结算差额', amount: -0.06533097984, isAdjustment: true,
     }));
     expect(detail.actualTotal).toBe(0.07449519446);
+    expect(detail.reconciled).toBe(true);
+  });
+
+  it('未标版本的部分 usage 快照仍按旧账单字段还原', () => {
+    const detail = buildBillingDetailFromSnapshot({
+      model_code: 'legacy-model',
+      input_tokens: '100',
+      output_tokens: '20',
+      total_cost: '0.00018',
+      billing_mode: 'token',
+      billing_snapshot: {
+        charge: {
+          mode: 'token', currency: 'CNY', unit_tokens: 1,
+          input_price: 0.000001, output_price: 0.000004,
+          input_multiplier: 1, output_multiplier: 1,
+          usage: { cached_input_tokens: 25 },
+        },
+      },
+    });
+
+    expect(detail.dimensions).toEqual([
+      expect.objectContaining({ label: '普通输入 Token', usage: 100, amount: 0.0001 }),
+      expect.objectContaining({ label: '输出 Token', usage: 20, amount: 0.00008 }),
+    ]);
+    expect(detail.dimensions.some(item => item.label === '缓存输入 Token')).toBe(false);
     expect(detail.reconciled).toBe(true);
   });
 });

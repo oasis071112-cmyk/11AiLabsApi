@@ -7,7 +7,7 @@ const {
   generatedImageOutputSizes,
   resolveImageBillingSize,
 } = require('../../utils/image-billing');
-const { withProviderCachePricing } = require('../../utils/billing-policy');
+const { resolveCachePrices } = require('../../utils/billing-policy');
 
 function jsonObject(value) {
   if (!value) return {};
@@ -391,7 +391,7 @@ class PostgresProxyBillingPolicy {
       amount: result.userCostPoints,
       billingMode: 'token',
       snapshot: {
-        mode: 'token', currency: policy.currency, unit_tokens: policy.unitTokens,
+        mode: 'token', snapshot_version: 2, currency: policy.currency, unit_tokens: policy.unitTokens,
         input_price: policy.prices.input, output_price: policy.prices.output,
         cached_input_price: policy.prices.cachedInput,
         cache_creation_price: result.official.cacheCreationEffectivePrice,
@@ -505,38 +505,19 @@ class PostgresProxyBillingPolicy {
     };
     const input = price(mapped.input_price, officialPerTokenUsd(policy.prices.input));
     const output = price(mapped.output_price, officialPerTokenUsd(policy.prices.output));
-    const officialCacheCreation = officialPerTokenUsd(policy.prices.cacheCreation);
-    const officialCachePrices = {
-      input: officialPerTokenUsd(policy.prices.input),
-      cachedInput: officialPerTokenUsd(policy.prices.cachedInput),
-      ...(officialCacheCreation > 0 ? { cacheCreation: officialCacheCreation } : {}),
-      ...(officialPerTokenUsd(policy.prices.cacheCreation5m) > 0
-        ? { cacheCreation5m: officialPerTokenUsd(policy.prices.cacheCreation5m) }
-        : {}),
-      ...(officialPerTokenUsd(policy.prices.cacheCreation1h) > 0
-        ? { cacheCreation1h: officialPerTokenUsd(policy.prices.cacheCreation1h) }
-        : {}),
-    };
-    const providerCachePrices = withProviderCachePricing(
-      officialCachePrices,
-      { official_provider: policy.officialProvider },
-      {
-        explicitCacheWrite: officialCacheCreation > 0,
-        nativeAnthropic: context.operation === 'anthropic_messages',
-      },
-    );
-    const hasOfficialCacheCreation = Number(providerCachePrices.cacheCreation) > 0;
-    const useDerivedGptCacheCreation = String(policy.model || '').toLowerCase()
-      .replace(/^openai\//, '').startsWith('gpt-5.6');
-    const derivedGptCacheCreation = useDerivedGptCacheCreation
-      && Number(officialCachePrices.input) > 0
-      ? Number(officialCachePrices.input) * 1.25
-      : 0;
-    const cacheCreation = hasOfficialCacheCreation
-      ? providerCachePrices.cacheCreation
-      : derivedGptCacheCreation > 0
-        ? derivedGptCacheCreation
-        : price(mapped.cache_write_price, input);
+    const cachePrices = resolveCachePrices({
+      modelCode: policy.model,
+      officialProvider: policy.officialProvider,
+      officialInput: officialPerTokenUsd(policy.prices.input),
+      officialCachedInput: officialPerTokenUsd(policy.prices.cachedInput),
+      officialCacheCreation: officialPerTokenUsd(policy.prices.cacheCreation),
+      officialCacheCreation5m: officialPerTokenUsd(policy.prices.cacheCreation5m),
+      officialCacheCreation1h: officialPerTokenUsd(policy.prices.cacheCreation1h),
+      channelCachedInput: mapped.cache_read_price,
+      channelCacheCreation: mapped.cache_write_price,
+      fallbackInput: input,
+      nativeAnthropic: context.operation === 'anthropic_messages',
+    });
     const effectivePolicy = {
       ...policy,
       currency: 'USD',
@@ -544,14 +525,7 @@ class PostgresProxyBillingPolicy {
       prices: {
         input,
         output,
-        cachedInput: price(providerCachePrices.cachedInput, mapped.cache_read_price, input),
-        cacheCreation,
-        ...(Number(providerCachePrices.cacheCreation5m) > 0
-          ? { cacheCreation5m: providerCachePrices.cacheCreation5m }
-          : {}),
-        ...(Number(providerCachePrices.cacheCreation1h) > 0
-          ? { cacheCreation1h: providerCachePrices.cacheCreation1h }
-          : {}),
+        ...cachePrices,
         imageInput: price(mapped.image_input_price, input),
         imageOutput: price(mapped.image_output_price, output),
       },

@@ -168,5 +168,10 @@
   "166": "multer",
   "167": "winston",
   "168": "postgres-concurrency-migration-integration.test.js",
-  "169": "live-admin-dashboard.spec.mjs"
+  "169": "live-admin-dashboard.spec.mjs",
+  "170": "channel-docs.js",
+  "171": "postgres-admin-integration.test.js",
+  "172": "postgres-admin.test.js",
+  "173": "postgres-payment.js",
+  "174": "gsap"
 }

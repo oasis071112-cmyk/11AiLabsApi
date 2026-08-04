@@ -277,117 +277,116 @@ function defaultImageDisplayPricing() {
   return { unitPrice: resolveImageUnitPrice({ sizeTier: '2K' }), currency: 'USD' };
 }
 
-function extractUsage(usage = {}, { cacheTokensAreAdditional = false } = {}) {
-  const reportedInputTokens = number(usage.input_tokens ?? usage.prompt_tokens);
-  const outputTokens = number(usage.output_tokens ?? usage.completion_tokens);
-  const details = usage.input_tokens_details || usage.prompt_tokens_details || {};
-  const cachedInputTokens = number(
-    details.cached_tokens
-    ?? usage.cached_input_tokens
-    ?? usage.cache_read_input_tokens
-    ?? usage.prompt_cache_hit_tokens,
-  );
-  const cacheCreation5mTokens = number(
-    usage.cache_creation_5m_input_tokens
-    ?? usage.cache_creation?.ephemeral_5m_input_tokens
-    ?? details.cache_creation_5m_tokens,
-  );
-  const cacheCreation1hTokens = number(
-    usage.cache_creation_1h_input_tokens
-    ?? usage.cache_creation?.ephemeral_1h_input_tokens
-    ?? details.cache_creation_1h_tokens,
-  );
-  const nestedCacheWriteField = ['cache_write_tokens', 'cache_creation_tokens']
-    .find(field => Object.prototype.hasOwnProperty.call(details, field));
-  const cacheCreationTokens = nestedCacheWriteField
-    ? number(details[nestedCacheWriteField])
-    : number(
-      usage.cache_write_tokens
-      ?? usage.cache_write_input_tokens
-      ?? usage.cache_creation_input_tokens
-      ?? usage.cache_creation_tokens
-      ?? details.cache_creation_input_tokens,
-      cacheCreation5mTokens + cacheCreation1hTokens,
-    );
-  const outputDetails = usage.output_tokens_details || usage.completion_tokens_details || {};
-  const imageInputTokens = number(
-    details.image_tokens
-    ?? usage.image_input_tokens
-    ?? usage.input_image_tokens,
-  );
-  const imageOutputTokens = number(
-    outputDetails.image_tokens
-    ?? usage.image_output_tokens
-    ?? usage.output_image_tokens,
-  );
-  const inputTokens = cacheTokensAreAdditional
-    ? reportedInputTokens + cachedInputTokens + cacheCreationTokens
-    : reportedInputTokens;
-  return {
-    inputTokens,
-    outputTokens,
-    cachedInputTokens,
-    cacheCreationTokens,
-    cacheCreation5mTokens,
-    cacheCreation1hTokens,
-    imageInputTokens,
-    imageOutputTokens,
-  };
-}
-
 function present(value) {
   return value !== null && value !== undefined;
 }
 
+function usageDimension(...values) {
+  const rawValue = values.find(present);
+  return { value: number(rawValue), present: present(rawValue) };
+}
+
+function parseUsageDimensions(usage = {}) {
+  const details = usage.input_tokens_details || usage.prompt_tokens_details || {};
+  const outputDetails = usage.output_tokens_details || usage.completion_tokens_details || {};
+  const input = usageDimension(usage.input_tokens, usage.prompt_tokens);
+  const output = usageDimension(usage.output_tokens, usage.completion_tokens);
+  const cachedInput = usageDimension(
+    details.cached_tokens,
+    usage.cached_input_tokens,
+    usage.cache_read_input_tokens,
+    usage.prompt_cache_hit_tokens,
+  );
+  const cacheCreation5m = usageDimension(
+    usage.cache_creation_5m_input_tokens,
+    usage.cache_creation?.ephemeral_5m_input_tokens,
+    details.cache_creation_5m_tokens,
+  );
+  const cacheCreation1h = usageDimension(
+    usage.cache_creation_1h_input_tokens,
+    usage.cache_creation?.ephemeral_1h_input_tokens,
+    details.cache_creation_1h_tokens,
+  );
+  const directCacheCreation = usageDimension(
+    details.cache_write_tokens,
+    details.cache_creation_tokens,
+    usage.cache_write_tokens,
+    usage.cache_write_input_tokens,
+    usage.cache_creation_input_tokens,
+    usage.cache_creation_tokens,
+    details.cache_creation_input_tokens,
+  );
+  const cacheCreation = directCacheCreation.present
+    ? directCacheCreation
+    : {
+      value: cacheCreation5m.value + cacheCreation1h.value,
+      present: cacheCreation5m.present || cacheCreation1h.present,
+    };
+  const imageInput = usageDimension(
+    details.image_tokens,
+    usage.image_input_tokens,
+    usage.input_image_tokens,
+  );
+  const imageOutput = usageDimension(
+    outputDetails.image_tokens,
+    usage.image_output_tokens,
+    usage.output_image_tokens,
+  );
+  return {
+    values: {
+      inputTokens: input.value,
+      outputTokens: output.value,
+      cachedInputTokens: cachedInput.value,
+      cacheCreationTokens: cacheCreation.value,
+      cacheCreation5mTokens: cacheCreation5m.value,
+      cacheCreation1hTokens: cacheCreation1h.value,
+      imageInputTokens: imageInput.value,
+      imageOutputTokens: imageOutput.value,
+    },
+    presence: {
+      inputTokens: input.present,
+      outputTokens: output.present,
+      cachedInputTokens: cachedInput.present,
+      cacheCreationTokens: cacheCreation.present,
+      cacheCreationTotalDirect: directCacheCreation.present,
+      cacheCreation5mTokens: cacheCreation5m.present,
+      cacheCreation1hTokens: cacheCreation1h.present,
+      imageInputTokens: imageInput.present,
+      imageOutputTokens: imageOutput.present,
+    },
+  };
+}
+
+function extractUsage(usage = {}, { cacheTokensAreAdditional = false } = {}) {
+  const parsed = parseUsageDimensions(usage).values;
+  if (cacheTokensAreAdditional) {
+    parsed.inputTokens += parsed.cachedInputTokens + parsed.cacheCreationTokens;
+  }
+  return parsed;
+}
+
 function mergeUsage(current = {}, rawUsage = {}, { cacheTokensAreAdditional = false } = {}) {
   if (!rawUsage || typeof rawUsage !== 'object') return current;
-  const parsed = extractUsage(rawUsage);
+  const { values: parsed, presence } = parseUsageDimensions(rawUsage);
   const next = { ...extractUsage({}), ...current };
-  const inputDetails = rawUsage.input_tokens_details || rawUsage.prompt_tokens_details || {};
-  const outputDetails = rawUsage.output_tokens_details || rawUsage.completion_tokens_details || {};
-  const hasInput = present(rawUsage.input_tokens) || present(rawUsage.prompt_tokens);
-  const hasCachedInput = present(inputDetails.cached_tokens)
-    || present(rawUsage.cached_input_tokens)
-    || present(rawUsage.cache_read_input_tokens)
-    || present(rawUsage.prompt_cache_hit_tokens);
-  const hasCacheCreationTotal = present(inputDetails.cache_write_tokens)
-    || present(inputDetails.cache_creation_tokens)
-    || present(rawUsage.cache_write_tokens)
-    || present(rawUsage.cache_write_input_tokens)
-    || present(rawUsage.cache_creation_input_tokens)
-    || present(rawUsage.cache_creation_tokens)
-    || present(inputDetails.cache_creation_input_tokens);
-  const hasCacheCreation5m = present(rawUsage.cache_creation_5m_input_tokens)
-    || present(rawUsage.cache_creation?.ephemeral_5m_input_tokens)
-    || present(inputDetails.cache_creation_5m_tokens);
-  const hasCacheCreation1h = present(rawUsage.cache_creation_1h_input_tokens)
-    || present(rawUsage.cache_creation?.ephemeral_1h_input_tokens)
-    || present(inputDetails.cache_creation_1h_tokens);
-  const hasOutput = present(rawUsage.output_tokens) || present(rawUsage.completion_tokens);
-  const hasImageInput = present(inputDetails.image_tokens)
-    || present(rawUsage.image_input_tokens)
-    || present(rawUsage.input_image_tokens);
-  const hasImageOutput = present(outputDetails.image_tokens)
-    || present(rawUsage.image_output_tokens)
-    || present(rawUsage.output_image_tokens);
-
   let ordinaryInputTokens = cacheTokensAreAdditional
     ? Math.max(number(next.inputTokens) - number(next.cachedInputTokens) - number(next.cacheCreationTokens), 0)
     : 0;
-  if (hasInput) {
+  if (presence.inputTokens) {
     if (cacheTokensAreAdditional) ordinaryInputTokens = parsed.inputTokens;
     else next.inputTokens = parsed.inputTokens;
   }
-  if (hasCachedInput) next.cachedInputTokens = parsed.cachedInputTokens;
-  if (hasCacheCreation5m) next.cacheCreation5mTokens = parsed.cacheCreation5mTokens;
-  if (hasCacheCreation1h) next.cacheCreation1hTokens = parsed.cacheCreation1hTokens;
-  if (hasCacheCreationTotal) next.cacheCreationTokens = parsed.cacheCreationTokens;
-  else if (hasCacheCreation5m || hasCacheCreation1h) {
-    next.cacheCreationTokens = number(next.cacheCreation5mTokens) + number(next.cacheCreation1hTokens);
+  for (const key of [
+    'cachedInputTokens', 'cacheCreation5mTokens', 'cacheCreation1hTokens',
+    'outputTokens', 'imageInputTokens', 'imageOutputTokens',
+  ]) {
+    if (presence[key]) next[key] = parsed[key];
   }
-  if (hasOutput) next.outputTokens = parsed.outputTokens;
-  if (hasImageInput) next.imageInputTokens = parsed.imageInputTokens;
-  if (hasImageOutput) next.imageOutputTokens = parsed.imageOutputTokens;
+  if (presence.cacheCreationTokens) {
+    next.cacheCreationTokens = presence.cacheCreationTotalDirect
+      ? parsed.cacheCreationTokens
+      : number(next.cacheCreation5mTokens) + number(next.cacheCreation1hTokens);
+  }
   if (cacheTokensAreAdditional) {
     next.inputTokens = ordinaryInputTokens
       + number(next.cachedInputTokens)

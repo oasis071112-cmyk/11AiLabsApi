@@ -60,8 +60,8 @@
     "semantic_hash": "84b6ec069e2a06ec97029413d7e9ad29"
   },
   "backend/src/routes/proxy.js": {
-    "mtime": 1785516378.0080442,
-    "ast_hash": "78d6f9b3261c3a60db6ca8d7dbeb1b31",
+    "mtime": 1785854430.9677591,
+    "ast_hash": "1655317227e59fd93a298332069bac9a",
     "semantic_hash": ""
   },
   "backend/src/routes/public.js": {
@@ -75,13 +75,13 @@
     "semantic_hash": ""
   },
   "backend/src/utils/billing-detail.js": {
-    "mtime": 1785586096.5014477,
-    "ast_hash": "4a3e348cb8be47b219c5afc0fe0f5167",
+    "mtime": 1785854276.7071302,
+    "ast_hash": "067284c904e79031e0863fce1f6c165f",
     "semantic_hash": ""
   },
   "backend/src/utils/billing-policy.js": {
-    "mtime": 1785075230.2478976,
-    "ast_hash": "972bf08cfa2530fdf0ea881ea80e434e",
+    "mtime": 1785854698.5766268,
+    "ast_hash": "da0b657f1cf456d34a1888cc64e41f5e",
     "semantic_hash": ""
   },
   "backend/src/utils/channel-capabilities.js": {
@@ -125,8 +125,8 @@
     "semantic_hash": "b174111a11c7185639ee4aa7edeffb16"
   },
   "backend/src/utils/pricing-engine.js": {
-    "mtime": 1785077251.987238,
-    "ast_hash": "bbfa1088a690037d286c47dfce906b5e",
+    "mtime": 1785854413.440027,
+    "ast_hash": "8aab83e2863e8df431d32d87b31aa088",
     "semantic_hash": ""
   },
   "backend/src/utils/pricing-sync.js": {
@@ -165,14 +165,14 @@
     "semantic_hash": ""
   },
   "backend/tests/billing-detail.test.js": {
-    "mtime": 1785586005.8429303,
-    "ast_hash": "bf4a596d3fd41965ded10c8f7e7349cc",
+    "mtime": 1785854485.5872276,
+    "ast_hash": "6c0f927a65191cbab347041786fce44b",
     "semantic_hash": ""
   },
   "backend/tests/billing-policy.test.js": {
-    "mtime": 1784824578.225485,
-    "ast_hash": "33e1cb49aeefbfd14c311a7ea84c4c02",
-    "semantic_hash": "33e1cb49aeefbfd14c311a7ea84c4c02"
+    "mtime": 1785854686.8517673,
+    "ast_hash": "6904f6145074faf4de9dabf96d15d7fd",
+    "semantic_hash": ""
   },
   "backend/tests/billing.test.js": {
     "mtime": 1783941767.7573762,
@@ -220,8 +220,8 @@
     "semantic_hash": "f454a492e0a7062fb5503e218a548e82"
   },
   "backend/tests/pricing-engine.test.js": {
-    "mtime": 1785075670.2065415,
-    "ast_hash": "2c5c798f825647b8292f22baefea0353",
+    "mtime": 1785854387.1929564,
+    "ast_hash": "dbfd81a9bee738f707f5d7db6dabec9d",
     "semantic_hash": ""
   },
   "backend/tests/pricing-sync.test.js": {
@@ -260,12 +260,12 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1785650418.1783178,
+    "mtime": 1785848071.0654516,
     "ast_hash": "6b8d14708b6271bee11c056cc10bca38",
     "semantic_hash": "6b8d14708b6271bee11c056cc10bca38"
   },
   "frontend/components.d.ts": {
-    "mtime": 1785606472.4635837,
+    "mtime": 1785848072.0493543,
     "ast_hash": "48c43a11b7ee94629b6b8a4e21cc87b8",
     "semantic_hash": ""
   },
@@ -285,8 +285,8 @@
     "semantic_hash": ""
   },
   "frontend/src/App.vue": {
-    "mtime": 1785220638.5597188,
-    "ast_hash": "c499f059a1458aa47bb7afa4feaf481d",
+    "mtime": 1785847645.4405208,
+    "ast_hash": "dc2552b18f580a43ed84ea39ef2ca284",
     "semantic_hash": ""
   },
   "frontend/src/api/index.js": {
@@ -300,8 +300,8 @@
     "semantic_hash": "8999793463e33a6980fe17516e1f9155"
   },
   "frontend/src/components/DashboardCharts.vue": {
-    "mtime": 1785519747.5876865,
-    "ast_hash": "7acb0049cb7950ed6aa6ae3a1d8af155",
+    "mtime": 1785847960.2568588,
+    "ast_hash": "eb6f1ac0fb4b4b8c92435b324eb2b3b6",
     "semantic_hash": ""
   },
   "frontend/src/components/logs/UsageCharts.vue": {
@@ -330,8 +330,8 @@
     "semantic_hash": ""
   },
   "frontend/src/main.js": {
-    "mtime": 1785320822.2002094,
-    "ast_hash": "bce0191d5c0b28caac504fd46a8fc6d6",
+    "mtime": 1785847645.4369407,
+    "ast_hash": "8bda8e522ea7b69ee43ab5d430c466b9",
     "semantic_hash": ""
   },
   "frontend/src/router/index.js": {
@@ -455,8 +455,8 @@
     "semantic_hash": ""
   },
   "frontend/vite.config.js": {
-    "mtime": 1785560648.1064172,
-    "ast_hash": "24d2b76d939a6baeee12b80889dbb40f",
+    "mtime": 1785847693.0493913,
+    "ast_hash": "514e59012393e83c158f63f3508be065",
     "semantic_hash": ""
   },
   "test.sh": {
@@ -660,8 +660,8 @@
     "semantic_hash": ""
   },
   "backend/src/infrastructure/sqljs-control-plane-import.js": {
-    "mtime": 1785604908.247309,
-    "ast_hash": "de08f7bc7f323de06d1dd0c97fbd6b95",
+    "mtime": 1785681240.0292256,
+    "ast_hash": "c969e2419d01bfa35badc18bbe685bc5",
     "semantic_hash": ""
   },
   "backend/src/infrastructure/versioned-secret.js": {
@@ -705,18 +705,18 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-migrations.test.js": {
-    "mtime": 1785604884.3975022,
-    "ast_hash": "da2a509a3dc66a998afde63bd882d4dc",
+    "mtime": 1785681197.3376386,
+    "ast_hash": "ed60fa39b80fd73af48ebef2dbd1802d",
     "semantic_hash": ""
   },
   "backend/tests/postgres-schema-contract.test.js": {
-    "mtime": 1785604884.3947427,
-    "ast_hash": "40dcd147e46b3f41f17ddfb1b9684eae",
+    "mtime": 1785681197.339738,
+    "ast_hash": "cf0bb55c931460588a5401019b69318b",
     "semantic_hash": ""
   },
   "backend/tests/sqljs-control-plane-import.test.js": {
-    "mtime": 1785604884.389684,
-    "ast_hash": "49b2911a7d5610ff4465854777502ddf",
+    "mtime": 1785681224.1484551,
+    "ast_hash": "ec7e3f03ce23eb1d177e7aed7e57537c",
     "semantic_hash": ""
   },
   "backend/tests/sqljs-import-cli.test.js": {
@@ -875,8 +875,8 @@
     "semantic_hash": ""
   },
   "backend/src/modules/control-plane/admin-compat-repository.js": {
-    "mtime": 1785650096.4244494,
-    "ast_hash": "1353052265459c29f24f82aacdb15713",
+    "mtime": 1785681035.1372654,
+    "ast_hash": "a51b0e9eebcf603ff64c17f0f236d724",
     "semantic_hash": ""
   },
   "backend/src/modules/identity/index.js": {
@@ -895,8 +895,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-proxy.js": {
-    "mtime": 1785606022.262326,
-    "ast_hash": "51382c396f3787ff89070673ce39662e",
+    "mtime": 1785854430.9647648,
+    "ast_hash": "535879d12f84346aba04e46c8a8edbbd",
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-user.js": {
@@ -905,8 +905,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-admin.test.js": {
-    "mtime": 1785650279.4111662,
-    "ast_hash": "e0a564c5e9fdec5f8c3f68e3774371a4",
+    "mtime": 1785681022.4609697,
+    "ast_hash": "a2620ac83617a51136426bb42560e496",
     "semantic_hash": ""
   },
   "backend/tests/postgres-auth-user-routes.test.js": {
@@ -915,8 +915,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-proxy.test.js": {
-    "mtime": 1785605984.3384688,
-    "ast_hash": "bc1da52b6d79b89c39d98f90bd254f61",
+    "mtime": 1785854450.280604,
+    "ast_hash": "7fdc58162e0b857ef1d464db2c0ec1e8",
     "semantic_hash": ""
   },
   "backend/load/autocannon-scenarios.js": {
@@ -950,8 +950,8 @@
     "semantic_hash": ""
   },
   "backend/src/modules/postgres-proxy/postgres-adapters.js": {
-    "mtime": 1785586096.5177565,
-    "ast_hash": "f6e950213c131c5a9665f257f6003011",
+    "mtime": 1785854610.6696298,
+    "ast_hash": "80794a39f73ee9fe923eb32e990f4543",
     "semantic_hash": ""
   },
   "backend/src/modules/postgres-proxy/upstream.js": {
@@ -995,8 +995,8 @@
     "semantic_hash": ""
   },
   "frontend/scripts/check-first-paint-budget.mjs": {
-    "mtime": 1785524960.6553519,
-    "ast_hash": "9353c7dfff46ed8a9a8243e73710f882",
+    "mtime": 1785847960.2594113,
+    "ast_hash": "73d88601f1ecdb962d4b573eab7d8274",
     "semantic_hash": ""
   },
   "docs/performance-validation.md": {
@@ -1025,8 +1025,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-proxy-adapters.test.js": {
-    "mtime": 1785579093.1166275,
-    "ast_hash": "27643ceef0c35effb651049f4b50ba19",
+    "mtime": 1785854597.5640037,
+    "ast_hash": "91764a2f5e3c3f2d40c7517d9a0c3400",
     "semantic_hash": ""
   },
   "backend/tests/sqljs-control-plane-backup.test.js": {
@@ -1045,8 +1045,8 @@
     "semantic_hash": ""
   },
   "frontend/perf/dashboards.performance.spec.mjs": {
-    "mtime": 1785604973.2369952,
-    "ast_hash": "5cf8ef06e1c4480c065445ad6cca6855",
+    "mtime": 1785848063.9855893,
+    "ast_hash": "6c776e3443b158936e496c158c2657d9",
     "semantic_hash": ""
   },
   "frontend/perf/logs-latest-response.spec.mjs": {
@@ -1177,6 +1177,16 @@
   "frontend/src/utils/billing.js": {
     "mtime": 1785650041.3069434,
     "ast_hash": "fce3eb1a2ddcfa43e403cabad04fe1ee",
+    "semantic_hash": ""
+  },
+  "backend/migrations/postgres/007_upstream_tpm_unlimited.sql": {
+    "mtime": 1785681212.1606987,
+    "ast_hash": "460ec2354b0367da4934fba3c4f417bd",
+    "semantic_hash": ""
+  },
+  "backend/tests/postgres-tpm-migration-integration.test.js": {
+    "mtime": 1785681626.3015883,
+    "ast_hash": "8bb92399205e493815b1bcb0c9104c87",
     "semantic_hash": ""
   }
 }

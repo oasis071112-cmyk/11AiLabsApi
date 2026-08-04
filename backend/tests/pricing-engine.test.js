@@ -292,6 +292,22 @@ describe('官方定价换算与用户扣费', () => {
     });
   });
 
+  it('流式缓存写入总量显式提供时不被 TTL 子桶覆盖', () => {
+    const usage = mergeUsage({}, {
+      input_tokens: 10,
+      cache_creation_input_tokens: 100,
+      cache_creation_5m_input_tokens: 60,
+      cache_creation_1h_input_tokens: 20,
+    }, { cacheTokensAreAdditional: true });
+
+    expect(usage).toMatchObject({
+      inputTokens: 110,
+      cacheCreationTokens: 100,
+      cacheCreation5mTokens: 60,
+      cacheCreation1hTokens: 20,
+    });
+  });
+
   it('嵌套 cache_write_tokens 包括显式 0 都优先于顶层兼容字段', () => {
     expect(extractUsage({
       input_tokens: 20,

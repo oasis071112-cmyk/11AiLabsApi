@@ -242,6 +242,7 @@ describe('PostgreSQL public proxy adapters', () => {
 
     expect(charge.amount).toBeCloseTo(0.07449519446, 12);
     expect(charge.snapshot).toMatchObject({
+      snapshot_version: 2,
       input_price: 0.000005,
       cached_input_price: 0.0000005,
       output_price: 0.00003,
@@ -290,6 +291,44 @@ describe('PostgreSQL public proxy adapters', () => {
     expect(charge.amount).toBeCloseTo(0.0008439125, 12);
   });
 
+  it('falls back to PostgreSQL channel cache prices when official cache prices are missing', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{
+          model_code: 'fallback-cache', model_type: 'llm', context_length: 128_000,
+          official_provider: 'openai', metadata: {},
+          official_currency: 'USD', official_input_price: 5, official_output_price: 30,
+          official_cached_input_price: 0, official_unit_tokens: 1_000_000,
+          input_multiplier: 1, output_multiplier: 1, image_multiplier: 1,
+          billing_mode: 'token', rule: {}, usd_cny_rate: 7,
+        }],
+      }),
+    };
+    const policy = new PostgresProxyBillingPolicy(pool);
+
+    const charge = await policy.quoteCharge({
+      identity: { routingGroupId: 7 },
+      operation: 'chat_completions',
+      model: 'fallback-cache',
+      request: {},
+      usage: { inputTokens: 200, cachedInputTokens: 100, cacheCreationTokens: 100 },
+      selection: {
+        account: {
+          modelMappings: [{
+            model: 'fallback-cache',
+            configuration: { cache_read_price: 0.000001, cache_write_price: 0.000007 },
+          }],
+        },
+      },
+    });
+
+    expect(charge.snapshot).toMatchObject({
+      cached_input_price: 0.000001,
+      cache_creation_price: 0.000007,
+    });
+    expect(charge.amount).toBeCloseTo(0.0056, 12);
+  });
+
   it('uses official Anthropic cache-write pricing and snapshots every cache bucket', async () => {
     const pool = {
       query: vi.fn().mockResolvedValue({
@@ -329,6 +368,7 @@ describe('PostgreSQL public proxy adapters', () => {
 
     expect(charge.amount).toBeCloseTo(0.088399918766, 12);
     expect(charge.snapshot).toMatchObject({
+      snapshot_version: 2,
       cached_input_price: 0.0000005,
       cache_creation_5m_price: 0.00000625,
       cache_creation_1h_price: 0.00001,

@@ -36,6 +36,40 @@ function withProviderCachePricing(official, model, {
   return prices;
 }
 
+function resolveCachePrices({
+  modelCode = '', officialProvider = '', officialInput = 0, officialCachedInput = 0,
+  officialCacheCreation = 0, officialCacheCreation5m = 0, officialCacheCreation1h = 0,
+  channelCachedInput, channelCacheCreation, fallbackInput = 0, nativeAnthropic = false,
+} = {}) {
+  const hasOfficialCacheCreation = Number(officialCacheCreation) > 0;
+  const official = withProviderCachePricing({
+    input: officialInput,
+    ...(Number(officialCachedInput) > 0 ? { cachedInput: officialCachedInput } : {}),
+    ...(hasOfficialCacheCreation ? { cacheCreation: officialCacheCreation } : {}),
+    ...(Number(officialCacheCreation5m) > 0 ? { cacheCreation5m: officialCacheCreation5m } : {}),
+    ...(Number(officialCacheCreation1h) > 0 ? { cacheCreation1h: officialCacheCreation1h } : {}),
+  }, { official_provider: officialProvider }, {
+    explicitCacheWrite: hasOfficialCacheCreation,
+    nativeAnthropic,
+  });
+  const derivesGptCacheCreation = String(modelCode || '').toLowerCase()
+    .replace(/^openai\//, '').startsWith('gpt-5.6')
+    && Number(officialInput) > 0
+    && !hasOfficialCacheCreation;
+  if (derivesGptCacheCreation) official.cacheCreation = Number(officialInput) * 1.25;
+
+  return {
+    cachedInput: Number(official.cachedInput) > 0
+      ? official.cachedInput
+      : finitePrice(channelCachedInput) ?? fallbackInput,
+    cacheCreation: Number(official.cacheCreation) > 0
+      ? official.cacheCreation
+      : finitePrice(channelCacheCreation) ?? fallbackInput,
+    ...(Number(official.cacheCreation5m) > 0 ? { cacheCreation5m: official.cacheCreation5m } : {}),
+    ...(Number(official.cacheCreation1h) > 0 ? { cacheCreation1h: official.cacheCreation1h } : {}),
+  };
+}
+
 function channelTokenOfficial(model, channel = {}, usdCnyRate = 7) {
   const officialInput = modelPricePerToken(model, 'official_input_price', '', usdCnyRate);
   const officialCachedInput = modelPricePerToken(model, 'official_cached_input_price', '', usdCnyRate);
@@ -44,42 +78,24 @@ function channelTokenOfficial(model, channel = {}, usdCnyRate = 7) {
     ?? officialInput;
   const output = finitePrice(channel.output_price)
     ?? modelPricePerToken(model, 'official_output_price', '', usdCnyRate);
-  const officialCachePrices = withProviderCachePricing({
-    input: officialInput,
-    ...(officialCachedInput > 0 ? { cachedInput: officialCachedInput } : {}),
-    ...(officialCacheCreation > 0 ? { cacheCreation: officialCacheCreation } : {}),
-  }, model, {
-    explicitCacheWrite: officialCacheCreation > 0,
+  const cachePrices = resolveCachePrices({
+    modelCode: model?.model_code,
+    officialProvider: model?.official_provider,
+    officialInput,
+    officialCachedInput,
+    officialCacheCreation,
+    channelCachedInput: channel.cache_read_price,
+    channelCacheCreation: channel.cache_write_price,
+    fallbackInput: input,
     nativeAnthropic: channel.protocol_type === 'anthropic',
   });
-  const derivesGptCacheCreation = String(model?.model_code || '').toLowerCase()
-    .replace(/^openai\//, '').startsWith('gpt-5.6')
-    && officialInput > 0
-    && !(officialCacheCreation > 0);
-  if (derivesGptCacheCreation) officialCachePrices.cacheCreation = officialInput * 1.25;
-  const resolvedOfficialCacheCreation = Number(officialCachePrices.cacheCreation) > 0
-    ? officialCachePrices.cacheCreation
-    : null;
 
   return {
     currency: 'USD',
     unitTokens: 1,
     input,
     output,
-    cachedInput: finitePrice(officialCachePrices.cachedInput)
-      ?? finitePrice(channel.cache_read_price)
-      ?? input,
-    ...(resolvedOfficialCacheCreation !== null
-      ? { cacheCreation: resolvedOfficialCacheCreation }
-      : finitePrice(channel.cache_write_price) !== null
-        ? { cacheCreation: finitePrice(channel.cache_write_price) }
-        : { cacheCreation: input }),
-    ...(Number(officialCachePrices.cacheCreation5m) > 0
-      ? { cacheCreation5m: officialCachePrices.cacheCreation5m }
-      : {}),
-    ...(Number(officialCachePrices.cacheCreation1h) > 0
-      ? { cacheCreation1h: officialCachePrices.cacheCreation1h }
-      : {}),
+    ...cachePrices,
     imageInput: finitePrice(channel.image_input_price) ?? input,
     imageOutput: finitePrice(channel.image_output_price) ?? output,
   };
@@ -112,6 +128,7 @@ module.exports = {
   billingModeForRequest,
   channelTokenOfficial,
   resolveBillingModel,
+  resolveCachePrices,
   resolveFixedUnitPrice,
   withProviderCachePricing,
 };

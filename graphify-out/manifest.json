@@ -75,13 +75,13 @@
     "semantic_hash": ""
   },
   "backend/src/utils/billing-detail.js": {
-    "mtime": 1785854276.7071302,
-    "ast_hash": "067284c904e79031e0863fce1f6c165f",
+    "mtime": 1785854949.862873,
+    "ast_hash": "3c5e3e1a725b2b46f6afbfad07671a11",
     "semantic_hash": ""
   },
   "backend/src/utils/billing-policy.js": {
-    "mtime": 1785854698.5766268,
-    "ast_hash": "da0b657f1cf456d34a1888cc64e41f5e",
+    "mtime": 1785855051.0628753,
+    "ast_hash": "e026d612905cf7a81c1995e723689e52",
     "semantic_hash": ""
   },
   "backend/src/utils/channel-capabilities.js": {
@@ -125,8 +125,8 @@
     "semantic_hash": "b174111a11c7185639ee4aa7edeffb16"
   },
   "backend/src/utils/pricing-engine.js": {
-    "mtime": 1785854413.440027,
-    "ast_hash": "8aab83e2863e8df431d32d87b31aa088",
+    "mtime": 1785855104.3663235,
+    "ast_hash": "0d0e3b1d7dca9bcf3ebc7587c31b87c4",
     "semantic_hash": ""
   },
   "backend/src/utils/pricing-sync.js": {
@@ -165,8 +165,8 @@
     "semantic_hash": ""
   },
   "backend/tests/billing-detail.test.js": {
-    "mtime": 1785854485.5872276,
-    "ast_hash": "6c0f927a65191cbab347041786fce44b",
+    "mtime": 1785854967.3772044,
+    "ast_hash": "da10ac4450721ece9316cb82091806b0",
     "semantic_hash": ""
   },
   "backend/tests/billing-policy.test.js": {
@@ -220,8 +220,8 @@
     "semantic_hash": "f454a492e0a7062fb5503e218a548e82"
   },
   "backend/tests/pricing-engine.test.js": {
-    "mtime": 1785854387.1929564,
-    "ast_hash": "dbfd81a9bee738f707f5d7db6dabec9d",
+    "mtime": 1785855091.7525148,
+    "ast_hash": "1ccc6b978312c38903a487bd8a7f8d4e",
     "semantic_hash": ""
   },
   "backend/tests/pricing-sync.test.js": {
@@ -950,8 +950,8 @@
     "semantic_hash": ""
   },
   "backend/src/modules/postgres-proxy/postgres-adapters.js": {
-    "mtime": 1785854610.6696298,
-    "ast_hash": "80794a39f73ee9fe923eb32e990f4543",
+    "mtime": 1785855051.0661085,
+    "ast_hash": "a75846873f7a2b733a72107dadd1de9f",
     "semantic_hash": ""
   },
   "backend/src/modules/postgres-proxy/upstream.js": {
@@ -1025,8 +1025,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-proxy-adapters.test.js": {
-    "mtime": 1785854597.5640037,
-    "ast_hash": "91764a2f5e3c3f2d40c7517d9a0c3400",
+    "mtime": 1785855063.3714938,
+    "ast_hash": "8de636f9c71a7be87394c47d9543b539",
     "semantic_hash": ""
   },
   "backend/tests/sqljs-control-plane-backup.test.js": {
