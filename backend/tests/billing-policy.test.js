@@ -25,7 +25,7 @@ describe('Sub2API 请求计费策略', () => {
     expect(billingModeForRequest({ billing_mode: 'token' }, true)).toBe('token');
   });
 
-  it('渠道 token 单价以每 token 美元覆盖模型官方价，并保留缺省回退', () => {
+  it('普通 token 使用渠道价，但缓存读取优先使用模型官方价', () => {
     expect(channelTokenOfficial(model, {
       input_price: 0.000003,
       cache_read_price: 0.0000002,
@@ -35,11 +35,17 @@ describe('Sub2API 请求计费策略', () => {
       unitTokens: 1,
       input: 0.000003,
       output: 0.000008,
-      cachedInput: 0.0000002,
+      cachedInput: 0.0000005,
       cacheCreation: 0.000003,
       imageInput: 0.000003,
       imageOutput: 0.00001,
     });
+  });
+
+  it('模型官方缓存读取价缺失时才回退渠道缓存价', () => {
+    expect(channelTokenOfficial({ ...model, official_cached_input_price: null }, {
+      cache_read_price: 0.0000002,
+    }).cachedInput).toBe(0.0000002);
   });
 
   it('按配置来源解析账单模型名', () => {
@@ -49,11 +55,48 @@ describe('Sub2API 请求计费策略', () => {
     expect(resolveBillingModel('upstream', values)).toBe('actual');
   });
 
-  it('GPT-5.6 渠道未配置缓存写入价时保留缺省，以触发 1.25 倍规则', () => {
+  it('GPT-5.6 缓存写入使用官方输入价的 1.25 倍推导规则', () => {
     const official = channelTokenOfficial({ ...model, model_code: 'gpt-5.6' }, {
       input_price: 0.000003,
     });
-    expect(official).not.toHaveProperty('cacheCreation');
+    expect(official.cacheCreation).toBeCloseTo(0.0000025, 12);
+  });
+
+  it('Anthropic 官方缓存推导价覆盖渠道缓存读写价', () => {
+    const official = channelTokenOfficial({
+      ...model,
+      official_provider: 'anthropic',
+      official_input_price: 5,
+      official_cached_input_price: 0.5,
+    }, {
+      protocol_type: 'anthropic',
+      input_price: 0.000008,
+      cache_read_price: 0.000009,
+      cache_write_price: 0.000009,
+    });
+
+    expect(official.cachedInput).toBeCloseTo(0.0000005, 12);
+    expect(official.cacheCreation5m).toBeCloseTo(0.00000625, 12);
+    expect(official.cacheCreation1h).toBeCloseTo(0.00001, 12);
+  });
+
+  it('Anthropic 官方输入价缺失时回退渠道缓存读写价', () => {
+    const official = channelTokenOfficial({
+      ...model,
+      official_provider: 'anthropic',
+      official_input_price: 0,
+      official_cached_input_price: null,
+    }, {
+      protocol_type: 'anthropic',
+      input_price: 0.000003,
+      cache_read_price: 0.0000002,
+      cache_write_price: 0.000004,
+    });
+
+    expect(official.cachedInput).toBe(0.0000002);
+    expect(official.cacheCreation).toBe(0.000004);
+    expect(official).not.toHaveProperty('cacheCreation5m');
+    expect(official).not.toHaveProperty('cacheCreation1h');
   });
 
   it('渠道部分美元覆盖不会把人民币模型回退价误当美元', () => {

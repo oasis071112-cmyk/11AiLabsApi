@@ -7,6 +7,7 @@ const {
   generatedImageOutputSizes,
   resolveImageBillingSize,
 } = require('../../utils/image-billing');
+const { withProviderCachePricing } = require('../../utils/billing-policy');
 
 function jsonObject(value) {
   if (!value) return {};
@@ -144,7 +145,7 @@ class PostgresProxyBillingPolicy {
         FROM routing_groups fallback JOIN eligible_groups current ON fallback.id=current.fallback_group_id
         WHERE fallback.status='active'
       )
-      SELECT m.model_code,m.model_type,m.context_length,m.metadata,
+      SELECT m.model_code,m.model_type,m.context_length,m.metadata,m.official_provider,
         m.official_currency,m.official_input_price,m.official_output_price,
         m.official_cached_input_price,m.official_unit_tokens,
         COALESCE(rgm.billing_multiplier_input,rgm.billing_multiplier,rg.billing_multiplier_input) AS input_multiplier,
@@ -213,6 +214,7 @@ class PostgresProxyBillingPolicy {
     const outputPrice = price(row.official_output_price, metadata.official_output_price, rule.output_price);
     return {
       model,
+      officialProvider: row.official_provider || metadata.official_provider || '',
       modelType: row.model_type || metadata.model_type || 'llm',
       contextLength: positive(row.context_length, positive(metadata.context_length, 0)),
       billingMode: row.user_billing_mode || row.platform_billing_mode || row.billing_mode || rule.billing_mode || 'token',
@@ -226,8 +228,10 @@ class PostgresProxyBillingPolicy {
           row.official_cached_input_price,
           metadata.official_cached_input_price,
           rule.cached_input_price,
-          inputPrice,
         ),
+        cacheCreation: price(metadata.official_cache_creation_price, rule.official_cache_creation_price),
+        cacheCreation5m: price(metadata.official_cache_creation_5m_price, rule.official_cache_creation_5m_price),
+        cacheCreation1h: price(metadata.official_cache_creation_1h_price, rule.official_cache_creation_1h_price),
       },
       imagePrices: metadata.official_image_prices || rule.official_image_prices || rule.image_prices || {},
       perRequestPrice: price(rule.per_request_price),
@@ -389,8 +393,28 @@ class PostgresProxyBillingPolicy {
       snapshot: {
         mode: 'token', currency: policy.currency, unit_tokens: policy.unitTokens,
         input_price: policy.prices.input, output_price: policy.prices.output,
+        cached_input_price: policy.prices.cachedInput,
+        cache_creation_price: result.official.cacheCreationEffectivePrice,
+        cache_creation_5m_price: policy.prices.cacheCreation5m
+          ?? policy.prices.cacheCreation
+          ?? result.official.cacheCreationEffectivePrice,
+        cache_creation_1h_price: policy.prices.cacheCreation1h
+          ?? policy.prices.cacheCreation
+          ?? result.official.cacheCreationEffectivePrice,
         input_multiplier: policy.multipliers.input, output_multiplier: policy.multipliers.output,
         usd_cny_rate: policy.usdCnyRate,
+        service_tier: serviceTier || '',
+        usage: {
+          input_tokens: result.official.inputTokens,
+          uncached_input_tokens: result.official.uncachedInputTokens,
+          cached_input_tokens: result.official.cachedInputTokens,
+          cache_creation_tokens: result.official.cacheCreationTokens,
+          cache_creation_5m_tokens: result.official.cacheCreation5mTokens,
+          cache_creation_1h_tokens: result.official.cacheCreation1hTokens,
+          image_input_tokens: result.official.imageInputTokens,
+          output_tokens: result.official.outputTokens,
+          image_output_tokens: result.official.imageOutputTokens,
+        },
       },
     };
   }
@@ -481,6 +505,38 @@ class PostgresProxyBillingPolicy {
     };
     const input = price(mapped.input_price, officialPerTokenUsd(policy.prices.input));
     const output = price(mapped.output_price, officialPerTokenUsd(policy.prices.output));
+    const officialCacheCreation = officialPerTokenUsd(policy.prices.cacheCreation);
+    const officialCachePrices = {
+      input: officialPerTokenUsd(policy.prices.input),
+      cachedInput: officialPerTokenUsd(policy.prices.cachedInput),
+      ...(officialCacheCreation > 0 ? { cacheCreation: officialCacheCreation } : {}),
+      ...(officialPerTokenUsd(policy.prices.cacheCreation5m) > 0
+        ? { cacheCreation5m: officialPerTokenUsd(policy.prices.cacheCreation5m) }
+        : {}),
+      ...(officialPerTokenUsd(policy.prices.cacheCreation1h) > 0
+        ? { cacheCreation1h: officialPerTokenUsd(policy.prices.cacheCreation1h) }
+        : {}),
+    };
+    const providerCachePrices = withProviderCachePricing(
+      officialCachePrices,
+      { official_provider: policy.officialProvider },
+      {
+        explicitCacheWrite: officialCacheCreation > 0,
+        nativeAnthropic: context.operation === 'anthropic_messages',
+      },
+    );
+    const hasOfficialCacheCreation = Number(providerCachePrices.cacheCreation) > 0;
+    const useDerivedGptCacheCreation = String(policy.model || '').toLowerCase()
+      .replace(/^openai\//, '').startsWith('gpt-5.6');
+    const derivedGptCacheCreation = useDerivedGptCacheCreation
+      && Number(officialCachePrices.input) > 0
+      ? Number(officialCachePrices.input) * 1.25
+      : 0;
+    const cacheCreation = hasOfficialCacheCreation
+      ? providerCachePrices.cacheCreation
+      : derivedGptCacheCreation > 0
+        ? derivedGptCacheCreation
+        : price(mapped.cache_write_price, input);
     const effectivePolicy = {
       ...policy,
       currency: 'USD',
@@ -488,8 +544,14 @@ class PostgresProxyBillingPolicy {
       prices: {
         input,
         output,
-        cachedInput: price(mapped.cache_read_price, officialPerTokenUsd(policy.prices.cachedInput), input),
-        cacheCreation: price(mapped.cache_write_price, input),
+        cachedInput: price(providerCachePrices.cachedInput, mapped.cache_read_price, input),
+        cacheCreation,
+        ...(Number(providerCachePrices.cacheCreation5m) > 0
+          ? { cacheCreation5m: providerCachePrices.cacheCreation5m }
+          : {}),
+        ...(Number(providerCachePrices.cacheCreation1h) > 0
+          ? { cacheCreation1h: providerCachePrices.cacheCreation1h }
+          : {}),
         imageInput: price(mapped.image_input_price, input),
         imageOutput: price(mapped.image_output_price, output),
       },

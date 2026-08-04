@@ -37,30 +37,52 @@ function withProviderCachePricing(official, model, {
 }
 
 function channelTokenOfficial(model, channel = {}, usdCnyRate = 7) {
+  const officialInput = modelPricePerToken(model, 'official_input_price', '', usdCnyRate);
+  const officialCachedInput = modelPricePerToken(model, 'official_cached_input_price', '', usdCnyRate);
+  const officialCacheCreation = modelPricePerToken(model, 'official_cache_creation_price', '', usdCnyRate);
   const input = finitePrice(channel.input_price)
-    ?? modelPricePerToken(model, 'official_input_price', '', usdCnyRate);
+    ?? officialInput;
   const output = finitePrice(channel.output_price)
     ?? modelPricePerToken(model, 'official_output_price', '', usdCnyRate);
-  let official = {
+  const officialCachePrices = withProviderCachePricing({
+    input: officialInput,
+    ...(officialCachedInput > 0 ? { cachedInput: officialCachedInput } : {}),
+    ...(officialCacheCreation > 0 ? { cacheCreation: officialCacheCreation } : {}),
+  }, model, {
+    explicitCacheWrite: officialCacheCreation > 0,
+    nativeAnthropic: channel.protocol_type === 'anthropic',
+  });
+  const derivesGptCacheCreation = String(model?.model_code || '').toLowerCase()
+    .replace(/^openai\//, '').startsWith('gpt-5.6')
+    && officialInput > 0
+    && !(officialCacheCreation > 0);
+  if (derivesGptCacheCreation) officialCachePrices.cacheCreation = officialInput * 1.25;
+  const resolvedOfficialCacheCreation = Number(officialCachePrices.cacheCreation) > 0
+    ? officialCachePrices.cacheCreation
+    : null;
+
+  return {
     currency: 'USD',
     unitTokens: 1,
     input,
     output,
-    cachedInput: finitePrice(channel.cache_read_price)
-      ?? modelPricePerToken(model, 'official_cached_input_price', 'official_input_price', usdCnyRate),
-    cacheCreation: finitePrice(channel.cache_write_price) ?? input,
+    cachedInput: finitePrice(officialCachePrices.cachedInput)
+      ?? finitePrice(channel.cache_read_price)
+      ?? input,
+    ...(resolvedOfficialCacheCreation !== null
+      ? { cacheCreation: resolvedOfficialCacheCreation }
+      : finitePrice(channel.cache_write_price) !== null
+        ? { cacheCreation: finitePrice(channel.cache_write_price) }
+        : { cacheCreation: input }),
+    ...(Number(officialCachePrices.cacheCreation5m) > 0
+      ? { cacheCreation5m: officialCachePrices.cacheCreation5m }
+      : {}),
+    ...(Number(officialCachePrices.cacheCreation1h) > 0
+      ? { cacheCreation1h: officialCachePrices.cacheCreation1h }
+      : {}),
     imageInput: finitePrice(channel.image_input_price) ?? input,
     imageOutput: finitePrice(channel.image_output_price) ?? output,
   };
-  if (finitePrice(channel.cache_write_price) === null
-      && String(model?.model_code || '').toLowerCase().replace(/^openai\//, '').startsWith('gpt-5.6')) {
-    delete official.cacheCreation;
-  }
-  official = withProviderCachePricing(official, model, {
-    explicitCacheWrite: finitePrice(channel.cache_write_price) !== null,
-    nativeAnthropic: channel.protocol_type === 'anthropic',
-  });
-  return official;
 }
 
 function resolveBillingModel(source, {

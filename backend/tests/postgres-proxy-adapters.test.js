@@ -205,6 +205,146 @@ describe('PostgreSQL public proxy adapters', () => {
     expect(charge.amount).toBeCloseTo(0.126, 10);
   });
 
+  it('uses official cache prices and snapshots OpenAI cache usage dimensions', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{
+          model_code: 'gpt-5.6-sol', model_type: 'llm', context_length: 128_000,
+          official_provider: 'openai', metadata: {},
+          official_currency: 'USD', official_input_price: 5, official_output_price: 30,
+          official_cached_input_price: 0.5, official_unit_tokens: 1_000_000,
+          input_multiplier: 0.2, output_multiplier: 0.2, image_multiplier: 1,
+          billing_mode: 'token', rule: {}, usd_cny_rate: 6.7513,
+        }],
+      }),
+    };
+    const policy = new PostgresProxyBillingPolicy(pool);
+
+    const charge = await policy.quoteCharge({
+      identity: { routingGroupId: 7 },
+      operation: 'chat_completions',
+      model: 'gpt-5.6-sol',
+      request: {},
+      usage: { inputTokens: 11_813, cachedInputTokens: 10_752, outputTokens: 1_483 },
+      selection: {
+        account: {
+          modelMappings: [{
+            model: 'gpt-5.6-sol',
+            configuration: {
+              input_price: 0.000005,
+              output_price: 0.00003,
+              cache_read_price: 0.000001,
+            },
+          }],
+        },
+      },
+    });
+
+    expect(charge.amount).toBeCloseTo(0.07449519446, 12);
+    expect(charge.snapshot).toMatchObject({
+      input_price: 0.000005,
+      cached_input_price: 0.0000005,
+      output_price: 0.00003,
+      usage: {
+        input_tokens: 11_813,
+        uncached_input_tokens: 1_061,
+        cached_input_tokens: 10_752,
+        cache_creation_tokens: 0,
+        output_tokens: 1_483,
+      },
+    });
+  });
+
+  it('uses the official GPT-5.6 cache-write derivation before channel cache prices', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{
+          model_code: 'gpt-5.6-sol', model_type: 'llm', context_length: 128_000,
+          official_provider: 'openai', metadata: {},
+          official_currency: 'USD', official_input_price: 5, official_output_price: 30,
+          official_cached_input_price: 0.5, official_unit_tokens: 1_000_000,
+          input_multiplier: 0.2, output_multiplier: 0.2, image_multiplier: 1,
+          billing_mode: 'token', rule: {}, usd_cny_rate: 6.7513,
+        }],
+      }),
+    };
+    const policy = new PostgresProxyBillingPolicy(pool);
+
+    const charge = await policy.quoteCharge({
+      identity: { routingGroupId: 7 },
+      operation: 'chat_completions',
+      model: 'gpt-5.6-sol',
+      request: {},
+      usage: { inputTokens: 100, cacheCreationTokens: 100, outputTokens: 0 },
+      selection: {
+        account: {
+          modelMappings: [{
+            model: 'gpt-5.6-sol',
+            configuration: { input_price: 0.000008, cache_write_price: 0.000009 },
+          }],
+        },
+      },
+    });
+
+    expect(charge.snapshot.cache_creation_price).toBeCloseTo(0.00000625, 12);
+    expect(charge.amount).toBeCloseTo(0.0008439125, 12);
+  });
+
+  it('uses official Anthropic cache-write pricing and snapshots every cache bucket', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{
+          model_code: 'claude-opus-4-8', model_type: 'llm', context_length: 128_000,
+          official_provider: 'anthropic', metadata: {},
+          official_currency: 'USD', official_input_price: 5, official_output_price: 25,
+          official_cached_input_price: 0.5, official_unit_tokens: 1_000_000,
+          input_multiplier: 0.15, output_multiplier: 0.15, image_multiplier: 1,
+          billing_mode: 'token', rule: {}, usd_cny_rate: 6.7513,
+        }],
+      }),
+    };
+    const policy = new PostgresProxyBillingPolicy(pool);
+
+    const charge = await policy.quoteCharge({
+      identity: { routingGroupId: 7 },
+      operation: 'anthropic_messages',
+      model: 'claude-opus-4-8',
+      request: {},
+      usage: {
+        inputTokens: 36_832,
+        cachedInputTokens: 25_186,
+        cacheCreationTokens: 11_155,
+        cacheCreation5mTokens: 11_155,
+        outputTokens: 101,
+      },
+      selection: {
+        account: {
+          modelMappings: [{
+            model: 'claude-opus-4-8',
+            configuration: { cache_read_price: 0.000001, cache_write_price: 0.000005 },
+          }],
+        },
+      },
+    });
+
+    expect(charge.amount).toBeCloseTo(0.088399918766, 12);
+    expect(charge.snapshot).toMatchObject({
+      cached_input_price: 0.0000005,
+      cache_creation_5m_price: 0.00000625,
+      cache_creation_1h_price: 0.00001,
+      usage: {
+        input_tokens: 36_832,
+        uncached_input_tokens: 491,
+        cached_input_tokens: 25_186,
+        cache_creation_tokens: 11_155,
+        cache_creation_5m_tokens: 11_155,
+        cache_creation_1h_tokens: 0,
+        output_tokens: 101,
+      },
+    });
+    expect(charge.snapshot.cache_creation_price).toBeCloseTo(0.00000625, 12);
+  });
+
   it('rejects a token reservation when no positive catalog price exists', async () => {
     const pool = {
       query: vi.fn().mockResolvedValue({
