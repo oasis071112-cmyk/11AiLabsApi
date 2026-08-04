@@ -8,6 +8,12 @@ import { fileURLToPath } from 'url'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const proxyTarget = env.VITE_PROXY_TARGET || 'http://localhost:3300'
+  const manualChunks = id => {
+    const moduleId = id.replace(/\\/g, '/')
+    if (!moduleId.includes('/node_modules/')) return undefined
+    if (/(?:^|\/)(?:vue|vue-router|pinia)(?:\/|$)|\/@vue\/runtime-|\/@vue\/shared\//.test(moduleId)) return 'vendor-vue'
+    return undefined
+  }
 
   return {
     plugins: [
@@ -21,7 +27,8 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       assetsDir: 'assets',
       sourcemap: false,
-      minify: 'terser'
+      minify: 'terser',
+      rollupOptions: { output: { manualChunks } }
     }
   }
 })

@@ -48,11 +48,13 @@ function observeCharts(){
   if(!('IntersectionObserver' in window)){chartsVisible.value=true;return}
   chartObserver=new IntersectionObserver(entries=>{
     if(entries.some(entry=>entry.isIntersecting)){
-      chartsVisible.value=true
+      const show=()=>{chartsVisible.value=true}
+      if('requestIdleCallback' in window)window.requestIdleCallback(show,{timeout:800})
+      else window.setTimeout(show,80)
       chartObserver?.disconnect()
       chartObserver=null
     }
-  },{rootMargin:'160px 0px'})
+  },{rootMargin:'0px'})
   chartObserver.observe(chartRoot.value)
 }
 onMounted(()=>void nextTick(observeCharts))

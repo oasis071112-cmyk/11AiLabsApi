@@ -15,6 +15,14 @@ const adminDashboard = source('../src/views/admin/Dashboard.vue')
 const dashboardCharts = source('../src/components/DashboardCharts.vue')
 const usageCharts = source('../src/components/logs/UsageCharts.vue')
 const logs = source('../src/views/user/Logs.vue')
+const app = source('../src/App.vue')
+const main = source('../src/main.js')
+const viteConfig = source('../vite.config.js')
+
+assert.match(viteConfig, /manualChunks/, '生产构建必须稳定合并首个用户页的核心依赖，避免小 chunk 瀑布')
+assert.match(viteConfig, /vendor-vue/, 'Vue 路由与状态核心依赖必须有稳定 chunk')
+assert.doesNotMatch(app, /onMounted\(\(\)\s*=>\s*authStore\.checkAuth\(\)\)/, '认证校验不能等待根组件挂载后才发起')
+assert.match(main, /void authStore\.checkAuth\(\)/, '已有 token 时必须在挂载前并发发起认证校验')
 
 assert.equal(occurrences(userDashboard, '/api/user/dashboard/bootstrap'), 1, '用户首屏只能有一个 dashboard bootstrap 请求')
 assert.equal(occurrences(adminDashboard, '/api/admin/dashboard/bootstrap'), 1, '管理首屏只能有一个 dashboard bootstrap 请求')
@@ -30,6 +38,8 @@ for (const charts of [dashboardCharts, usageCharts]) {
   assert.match(charts, /v-if="chartsVisible"/, '不可见图表不能触发动态 chunk')
 }
 assert.match(dashboardCharts, /showDesktopEmptyState/, '无数据时用户仪表盘必须直接显示空状态')
+assert.match(dashboardCharts, /requestIdleCallback/, '首屏可见图表必须在核心数据展示后使用空闲时间加载')
+assert.match(dashboardCharts, /rootMargin:'0px'/, '图表必须在实际可见后才开始加载')
 assert.match(usageCharts, /v-else class="empty"/, '无数据时调用分析不能渲染图表')
 
 const coordinator = createRequestCoordinator()
