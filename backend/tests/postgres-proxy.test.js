@@ -270,6 +270,89 @@ describe('PostgreSQL public proxy bridge', () => {
     expect(upstreamCalls).toHaveLength(1);
   });
 
+  it('settles native Anthropic cache reads and writes as additional input usage', async () => {
+    const chargeQuotes = [];
+    const settlements = [];
+    const selection = {
+      account: {
+        id: 'account-anthropic',
+        accountKey: 'anthropic-primary',
+        baseUrl: 'https://anthropic.example/v1',
+        protocol: 'anthropic',
+        credentialEnvelope: 'anthropic.envelope',
+      },
+      upstreamModel: 'claude-opus-4-8',
+      routingGroupId: 'group-1',
+      lease: { id: 'lease-anthropic', accountId: 'account-anthropic' },
+    };
+    const runtime = {
+      mode: 'postgres_redis',
+      gatewayScheduler: {
+        async executeWithFailover(_criteria, invoke) {
+          const value = await invoke(selection);
+          return { value, selection, attempts: 1, postProcessingError: null };
+        },
+      },
+      usageSettlement: {
+        async reserve(value) { return { reserved: value.amount }; },
+        async settle(value) { settlements.push(value); return { charged: value.chargeAmount }; },
+        async release() { throw new Error('unexpected release'); },
+        async markPending() { throw new Error('unexpected pending'); },
+      },
+      secretBox: { open() { return 'upstream-secret'; } },
+    };
+    const billingPolicy = {
+      async quoteReservation() { return { amount: 1, estimatedTokens: 1, snapshot: {} }; },
+      async quoteCharge(context) {
+        chargeQuotes.push(context);
+        return { amount: 0.1, billingMode: 'token', snapshot: {} };
+      },
+    };
+    const fetchImpl = async () => new Response(JSON.stringify({
+      id: 'msg-cache',
+      type: 'message',
+      content: [{ type: 'text', text: 'ok' }],
+      usage: {
+        input_tokens: 491,
+        cache_read_input_tokens: 25_186,
+        cache_creation_input_tokens: 11_155,
+        output_tokens: 101,
+      },
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    const baseUrl = await listen(createPostgresProxyRouter(baseOptions({
+      runtime,
+      billingPolicy,
+      fetchImpl,
+      requestIdFactory: () => 'request-anthropic-cache',
+    })));
+
+    const response = await fetch(`${baseUrl}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer sk-test',
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'public-chat',
+        max_tokens: 128,
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(chargeQuotes[0].usage).toMatchObject({
+      inputTokens: 36_832,
+      cachedInputTokens: 25_186,
+      cacheCreationTokens: 11_155,
+      outputTokens: 101,
+    });
+    expect(settlements[0].successLog).toMatchObject({
+      input_tokens: 36_832,
+      output_tokens: 101,
+    });
+  });
+
   it('releases the reservation and returns an explicit 503 when Redis scheduling is unavailable', async () => {
     const releases = [];
     const runtime = {
@@ -801,13 +884,13 @@ describe('PostgreSQL public proxy bridge', () => {
     const streams = {
       '/chat/completions': [
         'data: {"id":"chat-stream","choices":[]}\n\n',
-        'data: {"id":"chat-stream","choices":[],"usage":{"prompt_tokens":12,"completion_tokens":4}}\n\n',
+        'data: {"id":"chat-stream","choices":[],"usage":{"prompt_tokens":11813,"prompt_tokens_details":{"cached_tokens":10752},"completion_tokens":1483}}\n\n',
         'data: [DONE]\n\n',
       ].join(''),
       '/responses': 'event: response.completed\ndata: {"type":"response.completed","response":{"id":"resp-stream","usage":{"input_tokens":8,"output_tokens":3}}}\n\n',
       '/messages': [
-        'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":7,"output_tokens":0}}}\n\n',
-        'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":5}}\n\n',
+        'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":491,"cache_read_input_tokens":25000,"cache_creation_input_tokens":11155,"cache_creation_5m_input_tokens":11155,"output_tokens":0}}}\n\n',
+        'event: message_delta\ndata: {"type":"message_delta","usage":{"input_tokens":null,"cache_read_input_tokens":25186,"cache_creation_input_tokens":null,"output_tokens":101}}\n\n',
         'event: message_stop\ndata: {"type":"message_stop"}\n\n',
       ].join(''),
     };
@@ -839,9 +922,15 @@ describe('PostgreSQL public proxy bridge', () => {
     expect(schedulerCalls).toHaveLength(3);
     expect(upstreamBodies[0].stream_options).toEqual({ include_usage: true });
     expect(chargeQuotes.map(quote => quote.usage)).toEqual([
-      expect.objectContaining({ inputTokens: 12, outputTokens: 4 }),
+      expect.objectContaining({ inputTokens: 11_813, cachedInputTokens: 10_752, outputTokens: 1_483 }),
       expect.objectContaining({ inputTokens: 8, outputTokens: 3 }),
-      expect.objectContaining({ inputTokens: 7, outputTokens: 5 }),
+      expect.objectContaining({
+        inputTokens: 36_832,
+        cachedInputTokens: 25_186,
+        cacheCreationTokens: 11_155,
+        cacheCreation5mTokens: 11_155,
+        outputTokens: 101,
+      }),
     ]);
   });
 

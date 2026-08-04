@@ -1,16 +1,16 @@
-# Graph Report - ai-api-proxy  (2026-08-04)
+# Graph Report - ai-api-proxy  (2026-08-02)
 
 ## Corpus Check
-- 233 files · ~144,406 words
+- 231 files · ~142,270 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2244 nodes · 3664 edges · 170 communities (142 shown, 28 thin omitted)
-- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 272 edges (avg confidence: 0.53)
+- 2236 nodes · 3644 edges · 170 communities (140 shown, 30 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 271 edges (avg confidence: 0.53)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `50928131`
+- Built from commit: `9909bd9f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -133,6 +133,7 @@
 - channel-docs.js
 - model-sync.js
 - axios
+- postgres-admin.test.js
 - cors
 - dotenv
 - express
@@ -192,25 +193,25 @@
   backend/src/routes/postgres-user.js → frontend/src/views/admin/Settings.vue
 - `resolveEffectiveMultiplierPolicy()` --indirect_call--> `source()`  [INFERRED]
   backend/src/utils/multiplier-policy.js → frontend/scripts/check-first-paint-budget.mjs
-- `createPostgresIdentity()` --indirect_call--> `openApiKey()`  [INFERRED]
-  backend/src/modules/identity/index.js → backend/tests/postgres-payment-routes.test.js
-- `createPostgresIdentity()` --indirect_call--> `sealApiKey()`  [INFERRED]
-  backend/src/modules/identity/index.js → backend/tests/postgres-payment-routes.test.js
+- `query()` --indirect_call--> `params()`  [INFERRED]
+  backend/tests/postgres-worker-tasks.test.js → backend/load/k6-scenarios.js
+- `shutdown()` --calls--> `saveDatabase()`  [EXTRACTED]
+  backend/src/index.js → backend/src/database/init.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (170 total, 28 thin omitted)
+## Communities (170 total, 30 thin omitted)
 
 ### Community 0 - "proxy.js"
 Cohesion: 0.06
-Nodes (37): ANTHROPIC_LOG_CONTEXT, ANTHROPIC_RESPONSE_HEADERS, { apiKeyCanUseModel, listModelsForApiKey }, assertSupportedBillableInput(), { authenticateApiKey }, axios, billableTextProjection(), {
+Nodes (39): ANTHROPIC_LOG_CONTEXT, ANTHROPIC_RESPONSE_HEADERS, { apiKeyCanUseModel, listModelsForApiKey }, assertSupportedBillableInput(), { authenticateApiKey }, axios, billableTextProjection(), {
   billingModeForRequest,
   channelTokenOfficial,
   resolveBillingModel,
   resolveFixedUnitPrice,
   withProviderCachePricing,
-} (+29 more)
+} (+31 more)
 
 ### Community 1 - "src/views/admin/Channels.vue"
 Cohesion: 0.06
@@ -254,30 +255,30 @@ Nodes (13): anthropicUpstreamHeaders(), CHANNEL_PROTOCOLS, isSupportedChannelPro
 
 ### Community 11 - "routing-group-models.js"
 Cohesion: 0.11
-Nodes (21): ensureApiRequestLogPartitions(), createGatewayScheduler(), {
+Nodes (22): ensureApiRequestLogPartitions(), resolveDatabaseUrl(), createGatewayScheduler(), {
   assertPostgresSchemaCurrent,
   checkPostgres,
   checkPostgresSchema,
   createPostgresPool,
   ensureApiRequestLogPartitions,
   resolveDatabaseUrl,
-}, connectRedis(), { ControlPlane }, createApplicationRuntime(), { createGatewayScheduler, PostgresAccountRepository }, { createPostgresIdentity } (+13 more)
+}, connectRedis(), { ControlPlane }, createApplicationRuntime(), { createGatewayScheduler, PostgresAccountRepository } (+14 more)
 
 ### Community 12 - "pricing-sync.js"
-Cohesion: 0.12
-Nodes (25): axios, configScalar(), PostgresPricingSyncService, { PROVIDER_PAGES, inferProvider, parseOfficialPrices }, { withTransaction }, anthropicAnchors(), anthropicIdentity(), axios (+17 more)
+Cohesion: 0.09
+Nodes (30): axios, configScalar(), PostgresPricingSyncService, { PROVIDER_PAGES, inferProvider, parseOfficialPrices }, { withTransaction }, fs, logDir, logger (+22 more)
 
 ### Community 13 - "middleware/auth.js"
 Cohesion: 0.06
-Nodes (29): adminDashboard, app, coordinator, dashboardCharts, first, latest, logs, main (+21 more)
+Nodes (35): routingGroupMultiplierPayload(), requestMultipliers(), activeRule(), multiplierFields, multiplierPolicyContext(), positiveMultiplier(), resolveEffectiveMultiplierPolicy(), resolveModelMultiplierPolicy() (+27 more)
 
 ### Community 14 - "src/index.js"
 Cohesion: 0.06
 Nodes (33): adminRoutes, app, { authenticate, requireAdmin }, authRoutes, bootstrapAuthenticate, cors, { createApplicationRuntime }, { createBootstrapRouter, createRuntimeBootstrapAuthenticate } (+25 more)
 
 ### Community 15 - "init.js"
-Cohesion: 0.22
-Nodes (19): buildChannelImagePricing(), buildImagePricing(), buildPricing(), buildRequestPricing(), capChatRequestToReservedBalance(), channelHasTokenPricing(), getUsdCnyRate(), insertSuccessLog() (+11 more)
+Cohesion: 0.25
+Nodes (17): buildPricing(), buildRequestPricing(), capChatRequestToReservedBalance(), channelHasTokenPricing(), getUsdCnyRate(), insertSuccessLog(), positiveOrOne(), pricingModelForChannel() (+9 more)
 
 ### Community 16 - "src/views/admin/Keys.vue"
 Cohesion: 0.12
@@ -292,8 +293,8 @@ Cohesion: 0.13
 Nodes (17): baseConfigs, booleanConfigKeys, configs, enabled(), freshProvider(), load(), openProvider(), paymentConfigs (+9 more)
 
 ### Community 19 - "easypay-payment.test.js"
-Cohesion: 0.23
-Nodes (8): activeMapping(), GatewaySchedulerError, IMAGE_INPUT_CAPABILITIES, includesGroup(), isEligible(), orderedByPriorityAndWeight(), { PostgresAccountRepository }, { randomUUID }
+Cohesion: 0.18
+Nodes (12): activeMapping(), asNumber(), GatewayScheduler, GatewaySchedulerError, IMAGE_INPUT_CAPABILITIES, includesGroup(), isEligible(), isRetryableUpstreamFailure() (+4 more)
 
 ### Community 20 - "user/Models.vue"
 Cohesion: 0.20
@@ -360,8 +361,8 @@ Cohesion: 0.29
 Nodes (5): adminRoutes, createOrder(), { generateToken }, { initDatabase, getDatabase }, require
 
 ### Community 36 - "main.js"
-Cohesion: 0.24
-Nodes (6): app, authStore, pinia, router, routes, useAuthStore
+Cohesion: 0.33
+Nodes (4): authStore, app, router, routes
 
 ### Community 37 - "admin/Logs.vue"
 Cohesion: 0.25
@@ -384,8 +385,8 @@ Cohesion: 0.15
 Nodes (9): AdminTrendChart, dashboardError, dashboardLoading, data, hasTrendData, isMobile, metrics, trendRoot (+1 more)
 
 ### Community 43 - "pricing-engine.js"
-Cohesion: 0.27
-Nodes (9): routingGroupMultiplierPayload(), requestMultipliers(), activeRule(), multiplierFields, multiplierPolicyContext(), positiveMultiplier(), resolveEffectiveMultiplierPolicy(), resolveModelMultiplierPolicy() (+1 more)
+Cohesion: 0.19
+Nodes (20): buildChannelImagePricing(), buildImagePricing(), extractAnthropicUsage(), calculateDimensions(), calculateImagePricing(), calculatePricing(), configuredImageUnitPrice(), defaultImageDisplayPricing() (+12 more)
 
 ### Community 44 - "registration.test.js"
 Cohesion: 0.50
@@ -398,10 +399,6 @@ Nodes (3): ComponentCustomProperties, GlobalComponents, vue
 ### Community 49 - "time.js"
 Cohesion: 0.26
 Nodes (9): first, latest, logs, second, createLatestRequest(), beijingParts(), formatBeijingDate(), formatBeijingTime() (+1 more)
-
-### Community 55 - "stores/auth.js"
-Cohesion: 0.43
-Nodes (4): asNumber(), GatewayScheduler, isRetryableUpstreamFailure(), upstreamStatus()
 
 ### Community 62 - "六、目前比较明显的问题和风险"
 Cohesion: 0.07
@@ -456,8 +453,8 @@ Cohesion: 0.13
 Nodes (13): allModels, currentDir, fadeContent, frontendRoot, landing, landingCss, login, modelGroups (+5 more)
 
 ### Community 76 - "handleImageBilledRequest"
-Cohesion: 0.13
-Nodes (8): RedisSnapshotCache, firstSetting(), LOG_FIELDS, PostgresSettlementRepository, { randomUUID }, WALLET_FIELDS, { withTransaction }, anthropicReservationUsage()
+Cohesion: 0.11
+Nodes (9): RedisSnapshotCache, firstSetting(), LOG_FIELDS, PostgresSettlementRepository, { randomUUID }, WALLET_FIELDS, { withTransaction }, anthropicReservationUsage() (+1 more)
 
 ### Community 77 - "billing.test.js"
 Cohesion: 0.60
@@ -492,8 +489,8 @@ Cohesion: 0.22
 Nodes (8): callbackFields(), { encrypt }, { generateToken }, { initDatabase, getDatabase }, paymentRoutes, require, signEasyPay(), userRoutes
 
 ### Community 87 - "channel-selector.js"
-Cohesion: 0.07
-Nodes (29): { ACCOUNT_CAPABILITIES, ACCOUNT_PROTOCOLS }, asArray(), asObject(), axios, { defaultImageDisplayPricing }, { deriveUserDeductionUsd }, generatedKey(), { inferProvider } (+21 more)
+Cohesion: 0.14
+Nodes (3): PostgresAdminCompatRepository, publicModel(), publicRoutingGroup()
 
 ### Community 88 - "channel-docs.js"
 Cohesion: 0.11
@@ -533,30 +530,30 @@ Nodes (5): express, authenticateApiKey(), baseOptions(), listen(), servers
 
 ### Community 98 - "migrate-postgres.js"
 Cohesion: 0.12
-Nodes (21): assertChecksum(), buildSchemaMigrationsBootstrapSql(), buildTransactionalMigrationSql(), crypto, discoverMigrations(), fs, loadMigration(), parseAppliedMigrations() (+13 more)
+Nodes (22): assertChecksum(), buildSchemaMigrationsBootstrapSql(), buildTransactionalMigrationSql(), crypto, discoverMigrations(), fs, loadMigration(), main() (+14 more)
 
 ### Community 99 - "vue-chartjs"
 Cohesion: 0.33
 Nodes (3): LegacyControlPlaneRepository, parseCapabilities(), { randomUUID }
 
 ### Community 100 - "vue-router"
-Cohesion: 0.06
-Nodes (43): { buildBillingDetailFromSnapshot }, numberValues(), pgLogFilters(), PostgresDashboardRepository, publicLog(), {
+Cohesion: 0.20
+Nodes (8): {
   calculateImagePricing,
   calculatePricing,
   resolveImageUnitPrice,
 }, {
   generatedImageOutputSizes,
   resolveImageBillingSize,
-}, jsonObject() (+35 more)
+}, jsonObject(), numeric(), positive(), PostgresProxyBillingPolicy, PostgresProxyRepository, price()
 
 ### Community 101 - "DashboardReadModel"
 Cohesion: 0.27
 Nodes (4): cacheValue(), DashboardReadModel, normalizeLogQuery(), positiveInteger()
 
 ### Community 102 - "UsageSettlement"
-Cohesion: 0.32
-Nodes (8): amount(), assertReservation(), balances(), ledger(), quantizeAmount(), requireRequestId(), reservationAmount(), UsageSettlement
+Cohesion: 0.11
+Nodes (21): { buildBillingDetailFromSnapshot }, numberValues(), pgLogFilters(), PostgresDashboardRepository, publicLog(), amount(), assertReservation(), balances() (+13 more)
 
 ### Community 103 - "基础设施健康契约"
 Cohesion: 0.50
@@ -583,8 +580,8 @@ Cohesion: 0.67
 Nodes (3): ensureModels(), openGroup(), openMappings()
 
 ### Community 112 - "postgres-tasks.js"
-Cohesion: 0.17
-Nodes (18): accountHeaders(), aggregateUsage(), axios, createPostgresWorkerTasks(), dateInBeijing(), { extendRedisCooldown }, isIsoDate(), maintainPartitions() (+10 more)
+Cohesion: 0.16
+Nodes (19): accountHeaders(), aggregateUsage(), axios, createPostgresWorkerTasks(), dateInBeijing(), { extendRedisCooldown }, isIsoDate(), maintainPartitions() (+11 more)
 
 ### Community 113 - "withTransaction"
 Cohesion: 0.12
@@ -603,18 +600,18 @@ Cohesion: 0.15
 Nodes (13): scripts, backup:sqljs, create-initial-admin, dev, import:control-plane, load:autocannon, load:mock, migrate:postgres (+5 more)
 
 ### Community 117 - "runtime-services.test.js"
-Cohesion: 0.29
-Nodes (3): migrationDirectory, { readPostgresMigrationManifest }, require
+Cohesion: 0.16
+Nodes (11): asArray(), generatedKey(), normalizedUrl(), optionalNumber(), optionalTimestamp(), positiveInteger(), positiveMultiplier(), positiveWeight() (+3 more)
 
 ### Community 119 - "usage-settlement/index.js"
-Cohesion: 0.18
-Nodes (15): checkPostgres(), checkRedis(), createRedisClient(), resolveRedis(), secretBoxFromEnvironment(), {
+Cohesion: 0.14
+Nodes (17): checkPostgres(), checkRedis(), createRedisClient(), resolveRedis(), {
   assertPostgresSchemaCurrent,
   checkPostgres,
   createPostgresPool,
   ensureApiRequestLogPartitions,
   resolveDatabaseUrl,
-}, { BackgroundWorker }, { createPostgresWorkerTasks, validateRetentionDays } (+7 more)
+}, { BackgroundWorker }, { createPostgresWorkerTasks, validateRetentionDays }, { createRedisClient, checkRedis } (+9 more)
 
 ### Community 120 - "dashboard-read-model/legacy-repository.js"
 Cohesion: 0.31
@@ -629,8 +626,8 @@ Cohesion: 0.18
 Nodes (5): isLoopback, loopbackHosts, metricBudgets, target, thresholds
 
 ### Community 123 - "crypto.js"
-Cohesion: 0.33
-Nodes (5): fs, logDir, logger, path, winston
+Cohesion: 0.14
+Nodes (12): { ACCOUNT_CAPABILITIES, ACCOUNT_PROTOCOLS }, axios, { defaultImageDisplayPricing }, { deriveUserDeductionUsd }, { inferProvider }, { normalizeUpstreamModels, inferModelType }, numericFields(), publicUser() (+4 more)
 
 ### Community 124 - "channel-docs.js"
 Cohesion: 0.23
@@ -645,8 +642,8 @@ Cohesion: 0.10
 Nodes (25): availableScenarioNames(), boundedPositive(), createAutocannonScenario(), { requestHeaders }, SCENARIOS, createMockUpstreamServer(), http, isChatPath() (+17 more)
 
 ### Community 128 - "cors"
-Cohesion: 0.33
-Nodes (9): applyReleaseControlPlaneOverrides(), assertVerified(), { createPostgresPool, withTransaction }, main(), path, { randomUUID }, readTarget(), releaseOverridePlan() (+1 more)
+Cohesion: 0.26
+Nodes (12): applyReleaseControlPlaneOverrides(), assertVerified(), { createPostgresPool, withTransaction }, main(), path, { randomUUID }, readTarget(), releaseOverridePlan() (+4 more)
 
 ### Community 129 - "dotenv"
 Cohesion: 0.27
@@ -673,28 +670,28 @@ Cohesion: 0.11
 Nodes (20): start(), requireAdmin(), AdminCompatError, actorFromRequest(), asyncRoute(), { authenticate: defaultAuthenticate, requireAdmin: defaultRequireAdmin }, BOOLEAN_CONFIG_KEYS, boundedInteger() (+12 more)
 
 ### Community 139 - ".key"
-Cohesion: 0.19
-Nodes (9): createSecretBox(), crypto, fromBase64Url(), normalizeKey(), normalizeKeyring(), parseEnvelope(), SecretIntegrityError, { createSecretBox } (+1 more)
+Cohesion: 0.16
+Nodes (11): secretBoxFromEnvironment(), createSecretBox(), crypto, fromBase64Url(), normalizeKey(), normalizeKeyring(), parseEnvelope(), SecretIntegrityError (+3 more)
 
 ### Community 140 - "billing-detail.js"
-Cohesion: 0.11
-Nodes (16): apiKeyAad(), bcryptjs, createPostgresIdentity(), desensitizeKey(), jwtLibrary, { createPostgresAdminRouter }, { createPostgresIdentity }, { createPostgresUserRouter } (+8 more)
+Cohesion: 0.10
+Nodes (18): apiKeyAad(), bcryptjs, createPostgresIdentity(), desensitizeKey(), jwtLibrary, { createPostgresAdminRouter }, { createPostgresIdentity }, { createPostgresUserRouter } (+10 more)
 
 ### Community 141 - "channel-capabilities.js"
 Cohesion: 0.23
 Nodes (13): appendMultipartValue(), authorizationHeaders(), executeJsonUpstream(), executeMultipartUpstream(), multipartBody(), retryAfterMilliseconds(), SAFE_RESPONSE_HEADERS, safeResponseHeaders() (+5 more)
 
 ### Community 142 - "channel-docs.js"
-Cohesion: 0.27
-Nodes (10): capacity(), chat(), isLocalTarget, options, params(), post(), rateLimitFailover(), target (+2 more)
+Cohesion: 0.31
+Nodes (9): capacity(), chat(), isLocalTarget, options, params(), post(), rateLimitFailover(), target (+1 more)
 
 ### Community 145 - "control-plane/postgres-repository.js"
-Cohesion: 0.21
-Nodes (7): main(), secretBoxFromEnvironment(), withTransaction(), accountKey(), PostgresControlPlaneRepository, { randomUUID }, { withTransaction }
+Cohesion: 0.27
+Nodes (4): accountKey(), PostgresControlPlaneRepository, { randomUUID }, { withTransaction }
 
 ### Community 146 - "postgres-proxy.js"
 Cohesion: 0.16
-Nodes (13): jsonEventsFromSnapshot(), jsonFromSnapshot(), writeSnapshot(), { countGeneratedImages }, createPostgresProxyRouter(), { extractUsage, mergeUsage }, finishSnapshotResponse(), identityFromRequest() (+5 more)
+Nodes (13): jsonEventsFromSnapshot(), jsonFromSnapshot(), writeSnapshot(), { countGeneratedImages }, createPostgresProxyRouter(), { extractUsage }, finishSnapshotResponse(), identityFromRequest() (+5 more)
 
 ### Community 148 - "withTransaction"
 Cohesion: 0.15
@@ -713,8 +710,8 @@ Cohesion: 0.22
 Nodes (8): PostgreSQL/Redis 隔离演练与发布准备记录, SQL.js 备份与控制面导入, 上线前门禁与回滚, 测试与性能, 渠道、图片与计费证据, 演练中修复的问题, 迁移核对, 隔离运行环境
 
 ### Community 152 - "mock-upstream.js"
-Cohesion: 0.13
-Nodes (9): createPostgresPaymentRouter(), express, { createPostgresPaymentRouter }, { createPostgresPaymentService }, { createPostgresUserRouter }, openApiKey(), PaymentOptionsPool, require (+1 more)
+Cohesion: 0.22
+Nodes (6): createPostgresPaymentRouter(), express, { createPostgresPaymentRouter }, { createPostgresPaymentService }, { createPostgresUserRouter }, require
 
 ### Community 153 - "runtime-router.test.js"
 Cohesion: 0.29
@@ -737,32 +734,32 @@ Cohesion: 0.33
 Nodes (4): { generateToken }, { initDatabase, getDatabase }, require, userRoutes
 
 ### Community 161 - "worker-runtime.test.js"
-Cohesion: 0.18
-Nodes (15): main(), assertPostgresSchemaCurrent(), checkPostgresSchema(), createPostgresPool(), crypto, fs, inspectCurrentRequestLogPartition(), inspectPostgresSchema() (+7 more)
+Cohesion: 0.15
+Nodes (12): assertPostgresSchemaCurrent(), checkPostgresSchema(), crypto, fs, inspectCurrentRequestLogPartition(), inspectPostgresSchema(), path, readPostgresMigrationManifest() (+4 more)
 
 ### Community 163 - "request-limits.js"
 Cohesion: 0.60
 Nodes (3): positiveInteger(), PROVIDER_OUTPUT_LIMITS, resolveChatOutputLimit()
 
 ## Knowledge Gaps
-- **952 isolated node(s):** `backup.sh script`, `{ requestHeaders }`, `SCENARIOS`, `target`, `isLocalTarget` (+947 more)
+- **948 isolated node(s):** `backup.sh script`, `{ requestHeaders }`, `SCENARIOS`, `target`, `isLocalTarget` (+943 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **28 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **30 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `PostgresAdminCompatRepository` connect `channel-selector.js` to `dashboard-read-model/legacy-repository.js`, `billing-detail.js`?**
+- **Why does `PostgresAdminCompatRepository` connect `channel-selector.js` to `dashboard-read-model/legacy-repository.js`, `billing-detail.js`, `runtime-services.test.js`, `crypto.js`, `postgres-admin.test.js`?**
   _High betweenness centrality (0.034) - this node is a cross-community bridge._
-- **Why does `source()` connect `pricing-engine.js` to `middleware/auth.js`?**
-  _High betweenness centrality (0.027) - this node is a cross-community bridge._
 - **What connects `backup.sh script`, `{ requestHeaders }`, `SCENARIOS` to the rest of the system?**
-  _952 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _948 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `proxy.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.06423034330011074 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06060606060606061 - nodes in this community are weakly interconnected._
 - **Should `src/views/admin/Channels.vue` be split into smaller, more focused modules?**
   _Cohesion score 0.05714285714285714 - nodes in this community are weakly interconnected._
 - **Should `user/Logs.vue` be split into smaller, more focused modules?**
   _Cohesion score 0.0425531914893617 - nodes in this community are weakly interconnected._
 - **Should `dependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.09523809523809523 - nodes in this community are weakly interconnected._
+- **Should `ApiKeys.vue` be split into smaller, more focused modules?**
+  _Cohesion score 0.06006006006006006 - nodes in this community are weakly interconnected._
