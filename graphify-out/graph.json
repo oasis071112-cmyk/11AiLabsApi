@@ -2394,8 +2394,8 @@
       "source_location": "L162",
       "_origin": "ast",
       "id": "backend_src_index_start",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 138,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "start()"
     },
     {
@@ -2482,8 +2482,8 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "backend_src_infrastructure_postgres_resolvedatabaseurl",
-      "community": 11,
-      "community_name": "routing-group-models.js",
+      "community": 161,
+      "community_name": "worker-runtime.test.js",
       "norm_label": "resolvedatabaseurl()"
     },
     {
@@ -2537,8 +2537,8 @@
       "source_location": "L83",
       "_origin": "ast",
       "id": "backend_src_infrastructure_postgres_ensureapirequestlogpartitions",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 11,
+      "community_name": "routing-group-models.js",
       "norm_label": "ensureapirequestlogpartitions()"
     },
     {
@@ -2581,8 +2581,8 @@
       "source_location": "L157",
       "_origin": "ast",
       "id": "backend_src_infrastructure_postgres_checkpostgres",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "checkpostgres()"
     },
     {
@@ -3197,8 +3197,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_requireadmin",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 138,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "requireadmin()"
     },
     {
@@ -5628,8 +5628,8 @@
       "source_location": "L507",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_creategatewayscheduler",
-      "community": 11,
-      "community_name": "routing-group-models.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "creategatewayscheduler()"
     },
     {
@@ -6079,8 +6079,8 @@
       "source_location": "L132",
       "_origin": "ast",
       "id": "backend_src_modules_postgres_payment_index_createpostgrespaymentservice",
-      "community": 92,
-      "community_name": "billing-detail.js",
+      "community": 113,
+      "community_name": "withTransaction",
       "norm_label": "createpostgrespaymentservice()"
     },
     {
@@ -7201,8 +7201,8 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "backend_src_routes_admin_supported_providers",
-      "community": 8,
-      "community_name": "admin.js",
+      "community": 108,
+      "community_name": "channel-selector.js",
       "norm_label": "supported_providers"
     },
     {
@@ -7212,8 +7212,8 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "backend_src_routes_admin_supportedprovider",
-      "community": 8,
-      "community_name": "admin.js",
+      "community": 108,
+      "community_name": "channel-selector.js",
       "norm_label": "supportedprovider()"
     },
     {
@@ -7234,8 +7234,8 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "backend_src_routes_admin_routinggroupmultiplierpayload",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "routinggroupmultiplierpayload()"
     },
     {
@@ -7245,8 +7245,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "backend_src_routes_admin_nonnegativeprice",
-      "community": 8,
-      "community_name": "admin.js",
+      "community": 108,
+      "community_name": "channel-selector.js",
       "norm_label": "nonnegativeprice()"
     },
     {
@@ -7311,8 +7311,8 @@
       "source_location": "L101",
       "_origin": "ast",
       "id": "backend_src_routes_admin_imagepricespayload",
-      "community": 8,
-      "community_name": "admin.js",
+      "community": 108,
+      "community_name": "channel-selector.js",
       "norm_label": "imagepricespayload()"
     },
     {
@@ -7322,8 +7322,8 @@
       "source_location": "L139",
       "_origin": "ast",
       "id": "backend_src_routes_admin_pricingpayload",
-      "community": 8,
-      "community_name": "admin.js",
+      "community": 108,
+      "community_name": "channel-selector.js",
       "norm_label": "pricingpayload()"
     },
     {
@@ -7388,8 +7388,8 @@
       "source_location": "L1117",
       "_origin": "ast",
       "id": "backend_src_routes_admin_publicpaymentprovider",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "publicpaymentprovider()"
     },
     {
@@ -7399,8 +7399,8 @@
       "source_location": "L1126",
       "_origin": "ast",
       "id": "backend_src_routes_admin_paymentproviderpayload",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "paymentproviderpayload()"
     },
     {
@@ -8543,8 +8543,8 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_requestmultipliers",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "requestmultipliers()"
     },
     {
@@ -8609,8 +8609,8 @@
       "source_location": "L122",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_buildimagepricing",
-      "community": 119,
-      "community_name": "usage-settlement/index.js",
+      "community": 15,
+      "community_name": "init.js",
       "norm_label": "buildimagepricing()"
     },
     {
@@ -8620,8 +8620,8 @@
       "source_location": "L143",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_buildchannelimagepricing",
-      "community": 119,
-      "community_name": "usage-settlement/index.js",
+      "community": 15,
+      "community_name": "init.js",
       "norm_label": "buildchannelimagepricing()"
     },
     {
@@ -8719,8 +8719,8 @@
       "source_location": "L385",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_listmodels",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 136,
+      "community_name": "vue-chartjs",
       "norm_label": "listmodels()"
     },
     {
@@ -9126,8 +9126,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_public",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 22,
+      "community_name": "model-capabilities.test.js",
       "norm_label": "public.js"
     },
     {
@@ -9137,8 +9137,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_public_express",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 22,
+      "community_name": "model-capabilities.test.js",
       "norm_label": "express"
     },
     {
@@ -9148,8 +9148,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_routes_public_router",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 22,
+      "community_name": "model-capabilities.test.js",
       "norm_label": "router"
     },
     {
@@ -9159,8 +9159,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_routes_public_getdatabase",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 22,
+      "community_name": "model-capabilities.test.js",
       "norm_label": "{ getdatabase }"
     },
     {
@@ -9170,8 +9170,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_routes_public_listsystemmodelcapabilities",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 22,
+      "community_name": "model-capabilities.test.js",
       "norm_label": "{ listsystemmodelcapabilities }"
     },
     {
@@ -9181,8 +9181,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_runtime_router",
-      "community": 130,
-      "community_name": "express",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "runtime-router.js"
     },
     {
@@ -9192,8 +9192,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_runtime_router_createruntimerouter",
-      "community": 130,
-      "community_name": "express",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "createruntimerouter()"
     },
     {
@@ -9709,8 +9709,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_admin_user_deduction",
-      "community": 87,
-      "community_name": "channel-selector.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "admin-user-deduction.js"
     },
     {
@@ -9720,8 +9720,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_utils_admin_user_deduction_parsebillingsnapshot",
-      "community": 87,
-      "community_name": "channel-selector.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "parsebillingsnapshot()"
     },
     {
@@ -9731,8 +9731,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "backend_src_utils_admin_user_deduction_currencycode",
-      "community": 87,
-      "community_name": "channel-selector.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "currencycode()"
     },
     {
@@ -9742,8 +9742,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_utils_admin_user_deduction_isusdsnapshot",
-      "community": 87,
-      "community_name": "channel-selector.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "isusdsnapshot()"
     },
     {
@@ -9753,8 +9753,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "backend_src_utils_admin_user_deduction_deriveuserdeductionusd",
-      "community": 87,
-      "community_name": "channel-selector.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "deriveuserdeductionusd()"
     },
     {
@@ -10369,8 +10369,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": "crypto.js"
     },
     {
@@ -10380,8 +10380,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_crypto",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": "crypto"
     },
     {
@@ -10391,8 +10391,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_getkey",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": "getkey()"
     },
     {
@@ -10402,8 +10402,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_encrypt",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": "encrypt()"
     },
     {
@@ -10413,8 +10413,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_decrypt",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "decrypt()"
     },
     {
@@ -10424,8 +10424,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_desensitize",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": "desensitize()"
     },
     {
@@ -10435,8 +10435,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_easypay",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "easypay.js"
     },
     {
@@ -10446,8 +10446,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_crypto",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "crypto"
     },
     {
@@ -10457,8 +10457,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_decrypt",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "{ decrypt }"
     },
     {
@@ -10468,8 +10468,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_normalizedbaseurl",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "normalizedbaseurl()"
     },
     {
@@ -10479,8 +10479,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_signedfields",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "signedfields()"
     },
     {
@@ -10490,8 +10490,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_signeasypay",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "signeasypay()"
     },
     {
@@ -10501,8 +10501,8 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_signaturesmatch",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "signaturesmatch()"
     },
     {
@@ -10512,8 +10512,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_supportedpaymentmethods",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "supportedpaymentmethods()"
     },
     {
@@ -10523,8 +10523,8 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_paymenttypefor",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "paymenttypefor()"
     },
     {
@@ -10534,8 +10534,8 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_buildeasypayrequest",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "buildeasypayrequest()"
     },
     {
@@ -10545,8 +10545,8 @@
       "source_location": "L64",
       "_origin": "ast",
       "id": "backend_src_utils_easypay_verifyeasypaycallback",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 107,
+      "community_name": "easypay.js",
       "norm_label": "verifyeasypaycallback()"
     },
     {
@@ -11029,8 +11029,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_logger",
-      "community": 81,
-      "community_name": "fetchAll",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "logger.js"
     },
     {
@@ -11040,8 +11040,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_logger_winston",
-      "community": 81,
-      "community_name": "fetchAll",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "winston"
     },
     {
@@ -11051,8 +11051,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_utils_logger_path",
-      "community": 81,
-      "community_name": "fetchAll",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "path"
     },
     {
@@ -11062,8 +11062,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_utils_logger_fs",
-      "community": 81,
-      "community_name": "fetchAll",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "fs"
     },
     {
@@ -11073,8 +11073,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_logger_logdir",
-      "community": 81,
-      "community_name": "fetchAll",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "logdir"
     },
     {
@@ -11084,8 +11084,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "backend_src_utils_logger_logger",
-      "community": 81,
-      "community_name": "fetchAll",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "logger"
     },
     {
@@ -11128,8 +11128,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "multiplier-policy.js"
     },
     {
@@ -11139,8 +11139,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_positivemultiplier",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "positivemultiplier()"
     },
     {
@@ -11150,8 +11150,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_multiplierfields",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "multiplierfields"
     },
     {
@@ -11161,8 +11161,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_resolveeffectivemultiplierpolicy",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "resolveeffectivemultiplierpolicy()"
     },
     {
@@ -11172,8 +11172,8 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_activerule",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "activerule()"
     },
     {
@@ -11183,8 +11183,8 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_multiplierpolicycontext",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "multiplierpolicycontext()"
     },
     {
@@ -11194,8 +11194,8 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_resolvemodelmultiplierpolicy",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "resolvemodelmultiplierpolicy()"
     },
     {
@@ -11689,8 +11689,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits",
-      "community": 163,
-      "community_name": "request-limits.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "request-limits.js"
     },
     {
@@ -11700,8 +11700,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits_provider_output_limits",
-      "community": 163,
-      "community_name": "request-limits.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "provider_output_limits"
     },
     {
@@ -11711,8 +11711,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits_positiveinteger",
-      "community": 163,
-      "community_name": "request-limits.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "positiveinteger()"
     },
     {
@@ -11722,8 +11722,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits_resolvechatoutputlimit",
-      "community": 163,
-      "community_name": "request-limits.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "resolvechatoutputlimit()"
     },
     {
@@ -12239,8 +12239,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_admin_user_deduction_test",
-      "community": 87,
-      "community_name": "channel-selector.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "admin-user-deduction.test.js"
     },
     {
@@ -12250,8 +12250,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_tests_admin_user_deduction_test_require",
-      "community": 87,
-      "community_name": "channel-selector.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "require"
     },
     {
@@ -12261,8 +12261,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_tests_admin_user_deduction_test_deriveuserdeductionusd",
-      "community": 87,
-      "community_name": "channel-selector.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "{ deriveuserdeductionusd }"
     },
     {
@@ -12481,8 +12481,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_channel_billing_config_test",
-      "community": 80,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 163,
+      "community_name": "request-limits.js",
       "norm_label": "channel-billing-config.test.js"
     },
     {
@@ -12492,8 +12492,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_channel_billing_config_test_require",
-      "community": 80,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 163,
+      "community_name": "request-limits.js",
       "norm_label": "require"
     },
     {
@@ -12503,8 +12503,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_channel_billing_config_test_initdatabase_getdatabase",
-      "community": 80,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 163,
+      "community_name": "request-limits.js",
       "norm_label": "{ initdatabase, getdatabase }"
     },
     {
@@ -12514,8 +12514,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_channel_billing_config_test_generatetoken",
-      "community": 80,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 163,
+      "community_name": "request-limits.js",
       "norm_label": "{ generatetoken }"
     },
     {
@@ -12525,8 +12525,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_channel_billing_config_test_adminroutes",
-      "community": 80,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 163,
+      "community_name": "request-limits.js",
       "norm_label": "adminroutes"
     },
     {
@@ -12536,8 +12536,8 @@
       "source_location": "L50",
       "_origin": "ast",
       "id": "backend_tests_channel_billing_config_test_request",
-      "community": 80,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 163,
+      "community_name": "request-limits.js",
       "norm_label": "request()"
     },
     {
@@ -13350,8 +13350,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_multiplier_policy_test",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "multiplier-policy.test.js"
     },
     {
@@ -14494,8 +14494,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_request_limits_test",
-      "community": 163,
-      "community_name": "request-limits.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "request-limits.test.js"
     },
     {
@@ -14516,8 +14516,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_runtime_router_test",
-      "community": 130,
-      "community_name": "express",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "runtime-router.test.js"
     },
     {
@@ -14527,8 +14527,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_tests_runtime_router_test_require",
-      "community": 130,
-      "community_name": "express",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "require"
     },
     {
@@ -14538,8 +14538,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_runtime_router_test_createruntimerouter",
-      "community": 130,
-      "community_name": "express",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "{ createruntimerouter }"
     },
     {
@@ -14549,8 +14549,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_runtime_router_test_servers",
-      "community": 130,
-      "community_name": "express",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "servers"
     },
     {
@@ -14560,8 +14560,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "backend_tests_runtime_router_test_serve",
-      "community": 130,
-      "community_name": "express",
+      "community": 14,
+      "community_name": "src/index.js",
       "norm_label": "serve()"
     },
     {
@@ -15000,7 +15000,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test",
-      "community": 80,
+      "community": 170,
       "community_name": "user-model-multipliers.test.js",
       "norm_label": "user-model-multipliers.test.js"
     },
@@ -15011,7 +15011,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test_require",
-      "community": 80,
+      "community": 170,
       "community_name": "user-model-multipliers.test.js",
       "norm_label": "require"
     },
@@ -15022,7 +15022,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test_initdatabase_getdatabase",
-      "community": 80,
+      "community": 170,
       "community_name": "user-model-multipliers.test.js",
       "norm_label": "{ initdatabase, getdatabase }"
     },
@@ -15033,7 +15033,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test_generatetoken",
-      "community": 80,
+      "community": 170,
       "community_name": "user-model-multipliers.test.js",
       "norm_label": "{ generatetoken }"
     },
@@ -15044,7 +15044,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test_userroutes",
-      "community": 80,
+      "community": 170,
       "community_name": "user-model-multipliers.test.js",
       "norm_label": "userroutes"
     },
@@ -15055,7 +15055,7 @@
       "source_location": "L68",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test_listmodels",
-      "community": 80,
+      "community": 170,
       "community_name": "user-model-multipliers.test.js",
       "norm_label": "listmodels()"
     },
@@ -15190,6 +15190,36 @@
       "community": 58,
       "community_name": "vitest.config.mjs",
       "norm_label": "vitest.config.mjs"
+    },
+    {
+      "label": "check-nginx-tls-policy.sh",
+      "file_type": "code",
+      "source_file": "check-nginx-tls-policy.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "check_nginx_tls_policy",
+      "community": 174,
+      "community_name": "check-nginx-tls-policy.sh",
+      "norm_label": "check-nginx-tls-policy.sh"
+    },
+    {
+      "label": "check-nginx-tls-policy.sh script",
+      "file_type": "code",
+      "source_file": "check-nginx-tls-policy.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "check_nginx_tls_policy_sh__entry",
+      "community": 174,
+      "community_name": "check-nginx-tls-policy.sh",
+      "norm_label": "check-nginx-tls-policy.sh script"
     },
     {
       "label": "deploy.sh",
@@ -15646,8 +15676,8 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "frontend_package_dependencies_echarts",
-      "community": 105,
-      "community_name": "dayjs",
+      "community": 3,
+      "community_name": "dependencies",
       "norm_label": "echarts"
     },
     {
@@ -15657,8 +15687,8 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "echarts",
-      "community": 105,
-      "community_name": "dayjs",
+      "community": 3,
+      "community_name": "dependencies",
       "norm_label": "echarts"
     },
     {
@@ -15690,8 +15720,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "frontend_package_dependencies_gsap",
-      "community": 3,
-      "community_name": "dependencies",
+      "community": 120,
+      "community_name": "k6-scenarios.js",
       "norm_label": "gsap"
     },
     {
@@ -15701,8 +15731,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "gsap",
-      "community": 3,
-      "community_name": "dependencies",
+      "community": 120,
+      "community_name": "k6-scenarios.js",
       "norm_label": "gsap"
     },
     {
@@ -16372,8 +16402,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "frontend_scripts_check_first_paint_budget_source",
-      "community": 13,
-      "community_name": "middleware/auth.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "source()"
     },
     {
@@ -57320,6 +57350,17 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "check-nginx-tls-policy.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "check_nginx_tls_policy",
+      "target": "check_nginx_tls_policy_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "deploy.sh",
       "source_location": "L1",
       "weight": 1.0,
@@ -67872,5 +67913,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "24c53e19f67ed2c18c7b7c7a14194e5d0d83e44e"
+  "built_at_commit": "680be117da4fccd9a80eab901595afc33ee2ecfd"
 }

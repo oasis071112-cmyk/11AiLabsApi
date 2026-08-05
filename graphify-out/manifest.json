@@ -1218,5 +1218,10 @@
     "mtime": 1785918244.0026612,
     "ast_hash": "618e676d618c511caf2fb076a0420ff9",
     "semantic_hash": ""
+  },
+  "check-nginx-tls-policy.sh": {
+    "mtime": 1785920053.799688,
+    "ast_hash": "654b46ecf6ae6d4a609296c25ceb125b",
+    "semantic_hash": ""
   }
 }
