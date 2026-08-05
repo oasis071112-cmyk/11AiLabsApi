@@ -9,6 +9,52 @@
   <style>
     .app-boot{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#f8fafc;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.app-boot__logo{display:grid;width:52px;height:52px;place-items:center;border-radius:14px;background:#111827;color:#fff;font-size:20px;font-weight:800;box-shadow:0 8px 24px rgba(15,23,42,.15)}.app-boot strong{font-size:20px;letter-spacing:1px}.app-boot p{margin:0;color:#64748b;font-size:14px}.app-boot__spinner{width:22px;height:22px;margin-top:4px;border:3px solid #dbe4ee;border-top-color:#64748b;border-radius:50%;animation:app-boot-spin .8s linear infinite}@keyframes app-boot-spin{to{transform:rotate(360deg)}}
   </style>
+  <script>
+    (()=>{
+      const token=localStorage.getItem('token')
+      if(!token)return
+      const requests=new Map()
+      const start=(key,url)=>{
+        const controller=new AbortController()
+        const timeoutId=setTimeout(()=>controller.abort(),30000)
+        const promise=fetch(url,{headers:{Accept:'application/json',Authorization:`Bearer ${token}`},credentials:'same-origin',signal:controller.signal}).then(async response=>{
+          const text=await response.text()
+          let data=null
+          try{data=text?JSON.parse(text):null}catch{data=text}
+          if(!response.ok){
+            if(response.status===401&&localStorage.getItem('token')===token){localStorage.removeItem('token');localStorage.removeItem('userRole');if(location.pathname!=='/login')location.replace('/login')}
+            const error=new Error(data?.error||`请求失败 (${response.status})`);error.response={status:response.status,data};throw error
+          }
+          return {data,status:response.status,headers:Object.fromEntries(response.headers.entries())}
+        }).finally(()=>clearTimeout(timeoutId))
+        promise.catch(()=>{})
+        requests.set(key,{promise,token})
+      }
+      const beijingDate=date=>{
+        const parts=Object.fromEntries(new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date).map(part=>[part.type,part.value]))
+        return `${parts.year}-${parts.month}-${parts.day}`
+      }
+      window.__IONAILABS_COLD_START__={requests}
+      start('auth:me','/api/auth/me')
+      const path=location.pathname.replace(/\/+$/,'')||'/'
+      if(path==='/console')start('user:dashboard','/api/user/dashboard/bootstrap')
+      if(path==='/wallet'||path==='/subscribe'){
+        start('wallet:payment-options','/api/user/payment-options')
+        start('wallet:balance','/api/user/wallet')
+        start('wallet:transactions','/api/user/transactions?page=1')
+        start('wallet:orders','/api/user/recharge-orders?page=1')
+      }
+      if(path==='/keys')start('user:keys','/api/user/keys')
+      if(path==='/models')start('user:models','/api/user/models')
+      if(path==='/logs'){
+        const end=new Date()
+        const startDate=new Date(end.getTime()-6*86400000)
+        const params=new URLSearchParams({limit:'10',start_date:beijingDate(startDate),end_date:beijingDate(end)})
+        start('logs:models','/api/user/models')
+        start('logs:overview',`/api/user/logs/overview?${params}`)
+      }
+    })()
+  </script>
 </head>
 <body>
   <div id="app">

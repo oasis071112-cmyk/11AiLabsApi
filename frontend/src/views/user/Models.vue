@@ -71,6 +71,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api'
 import { ElMessage } from 'element-plus'
+import { coldStartKeys, takeColdStartRequest } from '@/utils/cold-start-prefetch'
 
 const router=useRouter()
 const groups=ref([]),loading=ref(false),hasApiKeys=ref(false)
@@ -79,7 +80,7 @@ const modelCount=computed(()=>groups.value.reduce((total,group)=>total+(group.mo
 onMounted(async()=>{
   loading.value=true
   try{
-    const response=(await api.get('/api/user/models')).data
+    const response=(await takeColdStartRequest(coldStartKeys.models,()=>api.get('/api/user/models'))).data
     groups.value=response.groups||[]
     hasApiKeys.value=Boolean(response.has_api_keys)
   }catch(e){ElMessage.error(e.response?.data?.error||'模型与价格加载失败，请重试')}finally{

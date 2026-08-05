@@ -72,14 +72,14 @@
         </div>
       </section>
 
-      <section id="models" class="landing-section landing-models" aria-labelledby="models-title">
+      <section id="models" class="landing-section landing-models landing-deferred-section" data-deferred-key="models" aria-labelledby="models-title">
         <div class="landing-container">
           <header class="landing-section-heading">
             <h2 id="models-title">该站支持的模型</h2>
             <p>依据专属分组文档整理，重复模型只展示一次，共 {{ uniqueModelCount }} 个。</p>
           </header>
 
-          <div class="model-browser">
+          <div v-if="deferredReady.models" class="model-browser">
             <div class="model-tabs" role="tablist" aria-label="模型分类">
               <button
                 v-for="group in modelGroups"
@@ -124,14 +124,14 @@
         </div>
       </section>
 
-      <section id="first-key" class="landing-section landing-onboarding" aria-labelledby="first-key-title">
+      <section id="first-key" class="landing-section landing-onboarding landing-deferred-section" data-deferred-key="onboarding" aria-labelledby="first-key-title">
         <div class="landing-container">
           <header class="landing-section-heading landing-section-heading--narrow">
             <h2 id="first-key-title">首次创建 API Key</h2>
             <p>从登录到完成第一次调用，只需要四步。</p>
           </header>
 
-          <ol class="onboarding-steps">
+          <ol v-if="deferredReady.onboarding" class="onboarding-steps">
             <li>
               <span class="onboarding-step__number">01</span>
               <h3>进入控制台</h3>
@@ -156,8 +156,8 @@
         </div>
       </section>
 
-      <section id="api-guide" class="landing-section landing-guide" aria-labelledby="api-guide-title">
-        <div class="landing-container landing-guide__grid">
+      <section id="api-guide" class="landing-section landing-guide landing-deferred-section" data-deferred-key="guide" aria-labelledby="api-guide-title">
+        <div v-if="deferredReady.guide" class="landing-container landing-guide__grid">
           <div class="landing-guide__intro">
             <header class="landing-section-heading">
               <h2 id="api-guide-title">API Key 使用说明</h2>
@@ -228,8 +228,8 @@
         </div>
       </section>
 
-      <section id="contact" class="landing-contact" aria-labelledby="contact-title">
-        <div class="landing-container">
+      <section id="contact" class="landing-contact landing-deferred-section" data-deferred-key="contact" aria-labelledby="contact-title">
+        <div v-if="deferredReady.contact" class="landing-container">
           <a
             v-if="customerServiceUrl"
             class="contact-row"
@@ -261,8 +261,8 @@
       </section>
     </main>
 
-    <footer class="landing-footer">
-      <div class="landing-container">
+    <footer class="landing-footer landing-deferred-section" data-deferred-key="footer">
+      <div v-if="deferredReady.footer" class="landing-container">
         <div class="landing-footer__brand">
           <span class="landing-logo-mark landing-logo-mark--footer" aria-hidden="true">
             <img src="/logo-icon.svg?v=ionailabs-20260726" alt="">
@@ -276,23 +276,25 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, Check, Copy, Terminal, UsersRound } from '@lucide/vue'
 import FadeContent from '@/components/public/FadeContent.vue'
 import modelGroups from '@/data/landing-models.json'
 import { useAppStore } from '@/stores/app'
-import { useAuthStore } from '@/stores/auth'
 import '@/styles/landing.css'
 
 const router = useRouter()
 const appStore = useAppStore()
-const authStore = useAuthStore()
 const activeModelGroup = ref(modelGroups[0].id)
 const activeProtocol = ref('openai')
 const copied = ref(false)
+const deferredReady = reactive({ models: false, onboarding: false, guide: false, contact: false, footer: false })
 let copiedTimer = null
 let previousTitle = ''
+let revealIdleHandle = null
+let revealFallback = null
+let revealFrame = null
 
 const protocols = [
   { id: 'openai', label: 'OpenAI', description: 'Chat Completions' },
@@ -331,12 +333,11 @@ const customerServiceUrl = computed(() => appStore.platformInfo.customer_service
 const isExternalCustomerServiceUrl = computed(() => /^https?:\/\//i.test(customerServiceUrl.value))
 
 function goToConsole() {
-  if (!authStore.token) {
+  if (!localStorage.getItem('token')) {
     router.push('/login')
     return
   }
-  const role = authStore.user?.role || localStorage.getItem('userRole')
-  router.push(role && role !== 'user' ? '/admin' : '/console')
+  router.push('/console')
 }
 
 function focusTab(prefix, id) {
@@ -402,14 +403,41 @@ async function copyCode() {
   }, 1800)
 }
 
+function revealDeferredSections() {
+  const sections = [...document.querySelectorAll('.landing-deferred-section')]
+  const schedule = callback => {
+    if ('requestIdleCallback' in window) {
+      revealIdleHandle = window.requestIdleCallback(callback, { timeout: 250 })
+    } else {
+      revealFallback = window.setTimeout(callback, 32)
+    }
+  }
+
+  const revealNext = () => {
+    const section = sections.shift()
+    if (!section) return
+    deferredReady[section.dataset.deferredKey] = true
+    void nextTick(() => {
+      section.classList.add('landing-section-ready')
+      revealFrame = window.requestAnimationFrame(() => schedule(revealNext))
+    })
+  }
+
+  revealFrame = window.requestAnimationFrame(() => schedule(revealNext))
+}
+
 onMounted(() => {
   previousTitle = document.title
   document.title = 'IonAiLabs | 拥抱 AI，开启未来'
   appStore.fetchPlatformInfo()
+  revealDeferredSections()
 })
 
 onBeforeUnmount(() => {
   window.clearTimeout(copiedTimer)
+  if (revealIdleHandle !== null) window.cancelIdleCallback(revealIdleHandle)
+  if (revealFallback !== null) window.clearTimeout(revealFallback)
+  if (revealFrame !== null) window.cancelAnimationFrame(revealFrame)
   document.title = previousTitle || 'IonAiLabs'
 })
 </script>

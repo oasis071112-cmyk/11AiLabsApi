@@ -8,12 +8,9 @@ import { fileURLToPath } from 'url'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const proxyTarget = env.VITE_PROXY_TARGET || 'http://localhost:3300'
-  const manualChunks = id => {
-    const moduleId = id.replace(/\\/g, '/')
-    if (!moduleId.includes('/node_modules/')) return undefined
-    if (/(?:^|\/)(?:vue|vue-router|pinia)(?:\/|$)|\/@vue\/runtime-|\/@vue\/shared\//.test(moduleId)) return 'vendor-vue'
-    return undefined
-  }
+  const vendorVueModules = /[\\/]node_modules[\\/](?:(?:vue|vue-router|pinia)[\\/]|@vue[\\/])/
+  const vendorIconModules = /[\\/]node_modules[\\/]@lucide[\\/]vue[\\/]/
+  const vendorElementModules = /[\\/]node_modules[\\/](?:(?:element-plus|async-validator|lodash-es|lodash-unified|memoize-one|normalize-wheel-es)[\\/]|@(?:element-plus|ctrl[\\/]tinycolor|floating-ui|sxzz[\\/]popperjs-es|vueuse)[\\/])/
 
   return {
     plugins: [
@@ -28,7 +25,18 @@ export default defineConfig(({ mode }) => {
       assetsDir: 'assets',
       sourcemap: false,
       minify: 'terser',
-      rollupOptions: { output: { manualChunks } }
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            includeDependenciesRecursively: false,
+            groups: [
+              { name: 'vendor-vue', test: vendorVueModules, priority: 20 },
+              { name: 'vendor-icons', test: vendorIconModules, priority: 15 },
+              { name: 'vendor-element', test: vendorElementModules, priority: 10 },
+            ],
+          },
+        },
+      },
     }
   }
 })

@@ -1,4 +1,5 @@
 <template>
+<el-config-provider :locale="zhCn">
 <div class="app-shell admin-shell">
   <header class="mobile-topbar admin-mobile-topbar">
     <button ref="triggerRef" class="mobile-menu-button" type="button" aria-label="打开管理菜单" @click="openDrawer"><Menu :size="22"/></button>
@@ -31,6 +32,7 @@
     <main class="app-main"><router-view/></main>
   </div>
 </div>
+</el-config-provider>
 </template>
 
 <script setup>
@@ -40,8 +42,10 @@ import { useAuthStore } from '@/stores/auth'
 import { useMobileDrawer } from '@/composables/useMobileDrawer'
 import { useMobile } from '@/composables/useMobile'
 import { LayoutDashboard, Users, ShoppingCart, Cpu, Percent, Key, ScrollText, Share2, Settings, Lock, Menu, X } from '@lucide/vue'
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
 const route=useRoute(),router=useRouter(),authStore=useAuthStore()
+if(authStore.token)void authStore.checkAuth()
 const { isMobile, drawerOpen, drawerRef, triggerRef, openDrawer, closeDrawer }=useMobileDrawer()
 const narrowScreen=useMobile(1180)
 const isCompactDesktop=computed(()=>narrowScreen.value&&!isMobile.value)

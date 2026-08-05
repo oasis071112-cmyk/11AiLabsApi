@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { syncStoredRoleFromColdStart } from '@/utils/cold-start-prefetch'
 const routes=[
   {path:'/login',name:'Login',component:()=>import('@/views/auth/Login.vue'),meta:{guest:true}},
   {path:'/register',name:'Register',component:()=>import('@/views/auth/Register.vue'),meta:{guest:true}},
@@ -27,8 +28,12 @@ const routes=[
   {path:'/:pathMatch(.*)*',redirect:'/'}
 ]
 const router=createRouter({history:createWebHistory(),routes})
-router.beforeEach((to,from,next)=>{
-  const token=localStorage.getItem('token'),role=localStorage.getItem('userRole')
+router.beforeEach(async(to,from,next)=>{
+  let token=localStorage.getItem('token')
+  const needsAuthoritativeRole=to.meta.requiresAuth||to.meta.guest
+  if(token&&needsAuthoritativeRole)await syncStoredRoleFromColdStart(750)
+  token=localStorage.getItem('token')
+  const role=localStorage.getItem('userRole')
   const isAdmin=role&&role!=='user'
   if(to.meta.requiresAuth&&!token)return next('/login')
   if(to.meta.guest&&token)return next(isAdmin?'/admin':'/console')

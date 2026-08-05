@@ -1,4 +1,5 @@
 <template>
+<el-config-provider :locale="zhCn">
 <div class="auth-page"><section class="auth-shell">
 <aside class="auth-brand-panel"><img src="/logo-icon.svg?v=ionailabs-20260726" alt="IonAiLabs"/><div><strong>IonAiLabs</strong><span>API 服务管理平台</span></div><p>统一管理模型、密钥、调用与额度。</p></aside>
 <div class="auth-card">
@@ -11,12 +12,14 @@
 <el-alert v-if="loginError" :title="loginError" type="error" show-icon :closable="false" class="login-error" role="alert" aria-live="polite"/>
 <div class="auth-switch" style="text-align:center;color:#909399">没有账号？<el-link type="primary" @click="$router.push('/register')">立即注册</el-link></div>
 </div></section></div>
+</el-config-provider>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -38,7 +41,6 @@ async function handleLogin() {
   try {
     await authStore.login(form.username, form.password)
     await router.push(authStore.isAdmin ? '/admin' : '/console')
-    void authStore.checkAuth()
   } catch (e) {
     loginError.value = e.response?.data?.error || e.message || '登录失败，请稍后重试'
   } finally {

@@ -32,6 +32,7 @@
 
 <script setup>
 import { computed, defineAsyncComponent, onMounted, ref } from 'vue';import { useAppStore } from '@/stores/app';import { useAuthStore } from '@/stores/auth';import api from '@/api'
+import { coldStartKeys, takeColdStartRequest } from '@/utils/cold-start-prefetch'
 import { DollarSign, Wallet, Gift, Activity, ShoppingCart, Key, BookOpen, Cpu, RefreshCw } from '@lucide/vue'
 import { useMobile } from '@/composables/useMobile'
 
@@ -53,7 +54,7 @@ async function fetchStats(){
   chartLoading.value=true
   modelsLoading.value=true
   try{
-    const response=await api.get('/api/user/dashboard/bootstrap')
+    const response=await takeColdStartRequest(coldStartKeys.dashboard,()=>api.get('/api/user/dashboard/bootstrap'))
     const snapshot=response.data||{}
     stats.value=snapshot.stats||{}
     models.value=snapshot.models||[]

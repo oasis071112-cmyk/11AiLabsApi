@@ -10,6 +10,7 @@ const read = relativePath => fs.readFileSync(path.join(frontendRoot, relativePat
 const authStore = read('src/stores/auth.js')
 const appStore = read('src/stores/app.js')
 const login = read('src/views/auth/Login.vue')
+const userLayout = read('src/layouts/UserLayout.vue')
 const dashboard = read('src/views/user/Dashboard.vue')
 
 const loginStoreStart = authStore.indexOf('async function login(')
@@ -19,9 +20,9 @@ const loginStoreBody = authStore.slice(loginStoreStart, loginStoreEnd)
 assert.doesNotMatch(loginStoreBody, /checkAuth/, 'Login action must not wait for /api/auth/me before navigation')
 
 const routePushIndex = login.indexOf('await router.push(')
-const backgroundAuthIndex = login.indexOf('void authStore.checkAuth()')
 assert.ok(routePushIndex >= 0, 'Successful login must await the route change')
-assert.ok(backgroundAuthIndex > routePushIndex, 'Background /me validation must start after the console route is visible')
+assert.doesNotMatch(login, /authStore\.checkAuth\(\)/, '登录页不能与已进入的用户布局重复发起 /api/auth/me')
+assert.match(userLayout, /void authStore\.checkAuth\(\)/, '用户布局可见后必须在后台验证 /api/auth/me')
 
 assert.match(authStore, /response\?\.status\s*===\s*401/, 'Only an explicit 401 from /me may clear the authenticated session')
 assert.match(authStore, /authError=ref\(''\)/, 'Auth store must expose background account loading failures')

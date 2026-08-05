@@ -60,74 +60,8 @@
     </div>
   </div>
 
-  <!-- 全部日志弹窗 -->
-  <el-dialog v-model="showAllLogs" title="全部调用记录" width="90%" top="3vh" destroy-on-close class="all-logs-dialog user-theme-dialog">
-    <div class="log-filter-bar">
-      <el-select v-model="logFilter.model" clearable placeholder="模型" size="small" @change="onLogFilterChange"><el-option v-for="m in modelList" :key="m.model_code" :label="m.model_code" :value="m.model_code"/></el-select>
-      <el-date-picker v-if="!isMobile" v-model="logFilter.dateRange" type="daterange" value-format="YYYY-MM-DD" range-separator="~" start-placeholder="开始" end-placeholder="结束" size="small" @change="onLogFilterChange"/>
-      <div v-else class="mobile-date-range"><input v-model="logFilter.dateRange[0]" class="mobile-date-input" type="date" aria-label="开始日期" @change="onLogFilterChange"/><input v-model="logFilter.dateRange[1]" class="mobile-date-input" type="date" aria-label="结束日期" @change="onLogFilterChange"/></div>
-      <el-button size="small" @click="onLogFilterChange">查询</el-button>
-      <el-button size="small" type="primary" :loading="exportLoading" :disabled="!logRangeValid" @click="exportLogs">导出 CSV</el-button>
-    </div>
-    <el-table v-if="!isMobile" :data="allLogs" stripe size="small" v-loading="logLoading" max-height="60vh">
-      <el-table-column label="时间" width="170"><template #default="{row}">{{ formatBeijingTime(row.created_at) }}</template></el-table-column>
-      <el-table-column prop="request_id" label="请求ID" width="180" show-overflow-tooltip/>
-      <el-table-column prop="model_code" label="模型" width="130"/>
-      <el-table-column label="计费方式" width="110"><template #default="{row}"><el-tag :type="billingModeType(row.billing_mode)" size="small">{{ billingModeLabel(row) }}</el-tag></template></el-table-column>
-      <el-table-column label="输入Token" width="100" align="right"><template #default="{row}">{{ row.input_tokens?.toLocaleString()||'-' }}</template></el-table-column>
-      <el-table-column label="输出Token" width="100" align="right"><template #default="{row}">{{ row.output_tokens?.toLocaleString()||'-' }}</template></el-table-column>
-      <el-table-column label="费用" width="110" align="right"><template #default="{row}">{{ point(row.total_cost) }} 点</template></el-table-column>
-      <el-table-column label="计费明细" width="130"><template #default="{row}"><el-button v-if="hasBillingDetail(row)" class="billing-detail-button" type="primary" size="small" @click="openBilling(row)">查看计算过程</el-button><span v-else class="no-detail">历史记录无快照</span></template></el-table-column>
-      <el-table-column label="状态" width="80" align="center"><template #default="{row}"><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
-      <el-table-column prop="error_message" label="错误信息" min-width="160" show-overflow-tooltip/>
-    </el-table>
-    <div v-else class="all-logs-mobile-list" v-loading="logLoading">
-      <article v-for="row in allLogs" :key="row.request_id" class="mobile-log-card">
-        <div class="mobile-log-head"><div><el-tag size="small" effect="plain">{{ row.model_code }}</el-tag><el-tag size="small" :type="billingModeType(row.billing_mode)">{{ billingModeLabel(row) }}</el-tag></div><el-tag :type="row.status==='success'?'success':row.status==='blocked'?'warning':'danger'" size="small" effect="dark">{{ statusLabel(row.status) }}</el-tag></div>
-        <div class="mobile-log-time">{{ formatBeijingTime(row.created_at) }}</div>
-        <div class="mobile-log-request">{{ row.request_id }}</div>
-        <div class="mobile-log-usage"><span>输入 <strong>{{ number(row.input_tokens) }}</strong></span><span>输出 <strong>{{ number(row.output_tokens) }}</strong></span><span>扣费 <strong>{{ point(row.total_cost) }} 点</strong></span></div>
-        <div v-if="row.error_message" class="mobile-log-error">{{ row.error_message }}</div>
-        <el-button v-if="hasBillingDetail(row)" class="billing-detail-button" type="primary" size="small" @click="openBilling(row)">查看扣费计算过程</el-button>
-        <span v-else class="no-detail">历史记录无快照</span>
-      </article>
-      <el-empty v-if="!logLoading&&!allLogs.length" description="暂无调用记录" :image-size="50"/>
-    </div>
-    <el-pagination v-model:current-page="logPage" :page-size="20" :total="logTotal" layout="prev,pager,next" @current-change="fetchLogs" style="margin-top:16px;justify-content:center" small/>
-  </el-dialog>
-
-  <el-dialog v-model="billingDialog" title="计费明细" width="680px" top="8vh" class="billing-dialog-modal user-theme-dialog">
-    <div v-if="selectedBilling" class="billing-dialog">
-      <div class="billing-summary">
-        <div><span>模型</span><strong>{{ selectedBilling.model_code }}</strong></div>
-        <div v-if="selectedBilling.image_operation"><span>图片操作</span><strong>{{ imageOperationLabel(selectedBilling.image_operation) }}</strong></div>
-        <div><span>请求时间</span><strong>{{ formatBeijingTime(selectedBilling.created_at) }}</strong></div>
-        <div class="billing-total"><span>本次实际扣费</span><strong>{{ point(selectedBilling.total_cost) }} 点</strong></div>
-      </div>
-      <el-alert v-if="!hasBillingDetail(selectedBilling)" title="这条记录暂时没有可展示的计费数据" type="warning" :closable="false"/>
-      <template v-else>
-        <el-alert v-if="selectedBilling.billing_detail.mode==='legacy_zero'" title="本次历史调用实际扣费为 0 点，不会按当前价格追溯补扣" type="warning" :closable="false" show-icon class="legacy-alert"/>
-        <div class="snapshot-title">{{ billingTitle }}</div>
-        <div class="snapshot-grid">
-          <div><span>计费版本</span><strong>{{ billingVersion }}</strong></div>
-          <div><span>计费币种</span><strong>{{ selectedBilling.billing_detail.currency||'点数' }}</strong></div>
-          <div><span>计费单位</span><strong>{{ billingUnitLabel }}</strong></div>
-          <div><span>{{ selectedBilling.billing_mode==='image'?'图片倍率':'计费倍率' }}</span><strong>×{{ billingMultiplier }}</strong></div>
-          <div v-if="billingFxRate!==1"><span>美元兑人民币</span><strong>×{{ billingFxRate }}</strong></div>
-        </div>
-        <div class="breakdown-title">逐项计算</div>
-        <div class="breakdown-list">
-          <div v-for="item in billingBreakdown" :key="item.label" class="breakdown-item">
-            <div class="breakdown-head"><span>{{ item.label }}</span><strong>{{ point(item.amount) }} 点</strong></div>
-            <code>{{ item.formula }}</code>
-          </div>
-        </div>
-        <div class="billing-result"><span>各项费用相加</span><strong>{{ billingSum }} 点</strong><span class="equals">调用记录实际扣除 {{ point(selectedBilling.total_cost) }} 点</span></div>
-        <div class="billing-note">{{ selectedBilling.billing_detail.notice || '本次计算使用调用时保存的计费快照。' }} 1 点 = ¥1。</div>
-      </template>
-    </div>
-    <template #footer><el-button type="primary" @click="billingDialog=false">知道了</el-button></template>
-  </el-dialog>
+  <AllLogsDialog v-if="showAllLogs" v-model="showAllLogs" :model-list="modelList" :is-mobile="isMobile" :initial-model="allLogsInitialModel" :initial-date-range="allLogsInitialRange" @open-billing="openBilling"/>
+  <BillingDetailsDialog v-if="billingDialog" v-model="billingDialog" :billing="selectedBilling"/>
 </div>
 </template>
 
@@ -139,8 +73,11 @@ import api from '@/api'
 import dayjs from 'dayjs'
 import { formatBeijingDate, formatBeijingTime } from '@/utils/time'
 import { createRequestCoordinator } from '@/utils/request-coordinator'
+import { coldStartKeys, takeColdStartRequest } from '@/utils/cold-start-prefetch'
+import UsageCharts from '@/components/logs/UsageCharts.vue'
 
-const UsageCharts=defineAsyncComponent(()=>import('@/components/logs/UsageCharts.vue'))
+const AllLogsDialog=defineAsyncComponent(()=>import('@/components/logs/AllLogsDialog.vue'))
+const BillingDetailsDialog=defineAsyncComponent(()=>import('@/components/logs/BillingDetailsDialog.vue'))
 
 const stats = ref({})
 const modelList = ref([])
@@ -152,12 +89,8 @@ const customRange = ref([])
 const filterModel = ref('')
 const dateRange = ref([])
 const showAllLogs = ref(false)
-const allLogs = ref([])
-const logLoading = ref(false)
-const logPage = ref(1)
-const logTotal = ref(0)
-const logFilter = ref({ model: '', dateRange: [] })
-const exportLoading = ref(false)
+const allLogsInitialModel = ref('')
+const allLogsInitialRange = ref([])
 const isMobile = ref(false)
 const billingDialog = ref(false)
 const selectedBilling = ref(null)
@@ -167,7 +100,6 @@ let refreshTimer = null
 let mobileMedia = null
 const dashboardRequest = createRequestCoordinator()
 const analyticsRequest = createRequestCoordinator()
-const logsRequest = createRequestCoordinator()
 function syncMobile(){isMobile.value=mobileMedia.matches}
 
 const successRate = computed(() => {
@@ -175,63 +107,28 @@ const successRate = computed(() => {
   const success = stats.value.today_status?.find(s => s.status === 'success')?.count || 0
   return ((success / stats.value.today_calls) * 100).toFixed(1)
 })
-const logRangeValid = computed(() => validateRange(logFilter.value.dateRange, false))
-
 const totalTokens = computed(() => (stats.value.input_tokens || 0) + (stats.value.output_tokens || 0))
-const billingPrimaryDimension = computed(()=>selectedBilling.value?.billing_detail?.dimensions?.find(item=>!item.isAdjustment)||{})
-const billingUnitLabel = computed(()=>selectedBilling.value?.billing_mode==='image'?'1 张':selectedBilling.value?.billing_mode==='per_request'?'1 次':`${formatTokenUnit(billingPrimaryDimension.value.unitTokens||1000000)} Token`)
-const billingMultiplier = computed(()=>billingPrimaryDimension.value.multiplier??1)
-const billingFxRate = computed(()=>Number(billingPrimaryDimension.value.fxRate||1))
-
-const billingBreakdown = computed(() => {
-  const row = selectedBilling.value
-  if (!hasBillingDetail(row)) return []
-  const currency = row.billing_detail.currency
-  const symbol = currency==='USD'?'$':currency==='CNY'?'¥':''
-  return row.billing_detail.dimensions.map(item=>{
-    if(item.isAdjustment)return {...item,formula:'用于对齐钱包最终保存的实际扣费金额'}
-    if(row.billing_detail.mode==='image_snapshot'){
-      const itemSymbol=item.currency==='USD'?'$':item.currency==='CNY'?'¥':''
-      const fx=item.currency==='USD'?` × 汇率 ${item.fxRate}`:''
-      return {...item,formula:`${number(item.usage)} 张 × ${itemSymbol}${decimal(item.unitPrice,4)}/张 × 倍率 ${item.multiplier}${fx}（${item.size||'默认尺寸'}）`}
-    }
-    if(row.billing_detail.mode==='fixed_snapshot'){
-      const fx=currency==='USD'?` × 汇率 ${item.fxRate}`:''
-      return {...item,formula:`1 次 × ${symbol}${item.unitPrice}/次 × 倍率 ${item.multiplier}${fx}`}
-    }
-    const multiplierLabel=item.label.includes('输出')?'输出倍率':'输入倍率'
-    const fx=currency==='USD'?` × 汇率 ${item.fxRate}`:''
-    return {...item,formula:`${number(item.usage)} ÷ ${formatTokenUnit(item.unitTokens)} × ${symbol}${item.unitPrice} × ${multiplierLabel} ${item.multiplier}${fx}`}
-  })
-})
-const billingSum = computed(() => point(selectedBilling.value?.billing_detail?.calculatedTotal??selectedBilling.value?.total_cost??0))
-const billingTitle = computed(()=>({snapshot:'本次调用采用的价格快照',image_snapshot:'本次图片生成价格快照',fixed_snapshot:'本次固定请求价格快照',legacy_zero:'历史 0 扣费计算过程',legacy:'旧版计费计算过程'}[selectedBilling.value?.billing_detail?.mode]||'计费计算过程'))
-const billingVersion = computed(()=>({snapshot:'调用时官方价格',image_snapshot:'按实际图片结果计费',fixed_snapshot:'按每请求固定价计费',legacy_zero:'历史实际 0 扣费',legacy:'旧版价格'}[selectedBilling.value?.billing_detail?.mode]||'未知'))
 
 function statusLabel(s) { const m = { success: '成功', failed: '失败', blocked: '拦截' }; return m[s] || s }
 function billingModeType(mode){return mode==='image'?'warning':mode==='per_request'?'success':'info'}
 function billingModeLabel(row){return row.billing_mode==='image'?`图片 ${row.image_count||0} 张`:row.billing_mode==='per_request'?'每请求':'Token'}
-function imageOperationLabel(operation){return ({generation:'生成',edit:'编辑',variation:'变体',transformation:'变换'})[operation]||operation}
 function openBilling(row){selectedBilling.value=row;billingDialog.value=true}
-function openAllLogs(){logFilter.value={model:filterModel.value,dateRange:[...dateRange.value]};logPage.value=1;showAllLogs.value=true;fetchLogs()}
+function openAllLogs(){allLogsInitialModel.value=filterModel.value;allLogsInitialRange.value=[...dateRange.value];showAllLogs.value=true}
 function hasBillingDetail(row){return Array.isArray(row?.billing_detail?.dimensions)}
 function number(value){return Number(value||0).toLocaleString()}
-function formatTokenUnit(value){return Number(value)===1000000?'1M':number(value)}
 function point(value){return Number(value||0).toFixed(6)}
 function decimal(value,digits=2){const parsed=Number(value);return Number.isFinite(parsed)?parsed.toFixed(digits):(0).toFixed(digits)}
 function getPresetRange(preset) { const end = formatBeijingDate(); const start = dayjs(end).subtract(preset === '1d' ? 0 : preset === '30d' ? 29 : 6, 'day').format('YYYY-MM-DD'); return [start, end] }
 function normalizeRange(range){return Array.isArray(range)?range.map(value=>value?dayjs(value).format('YYYY-MM-DD'):''):[]}
 function validateRange(range, notify=true){const normalized=normalizeRange(range);let message='';if(normalized.length!==2||!normalized[0]||!normalized[1])message='请选择完整的开始和结束日期';else if(!dayjs(normalized[0],'YYYY-MM-DD',true).isValid()||!dayjs(normalized[1],'YYYY-MM-DD',true).isValid())message='日期格式无效';else if(dayjs(normalized[0]).isAfter(dayjs(normalized[1])))message='开始日期不能晚于结束日期';else if(dayjs(normalized[1]).diff(dayjs(normalized[0]),'day')+1>90)message='日期范围不能超过 90 个自然日';if(message&&notify)ElMessage.warning(message);return !message}
-function logParams(){const range=normalizeRange(logFilter.value.dateRange);return {model:logFilter.value.model||undefined,start_date:range[0],end_date:range[1]}}
-function onLogFilterChange(){if(!validateRange(logFilter.value.dateRange))return;logPage.value=1;fetchLogs()}
 
 async function fetchAll() {
   const range=[...dateRange.value]
   const model=filterModel.value||undefined
   analyticsRequest.cancel()
   const request=dashboardRequest.run(`overview:${range.join(':')}:${model||''}`, (_signal, request) => Promise.allSettled([
-    api.get('/api/user/models',{signal:request.signal}),
-    api.get('/api/user/logs/overview',{params:{limit:10,model,start_date:range[0],end_date:range[1]},signal:request.signal}),
+    takeColdStartRequest(coldStartKeys.logsModels,()=>api.get('/api/user/models',{signal:request.signal})),
+    takeColdStartRequest(coldStartKeys.logsOverview,()=>api.get('/api/user/logs/overview',{params:{limit:10,model,start_date:range[0],end_date:range[1]},signal:request.signal})),
   ]))
   loading.value = true
   try{
@@ -262,8 +159,6 @@ async function fetchAll() {
     if(dashboardRequest.isCurrent(request))loading.value=false
   }
 }
-async function fetchLogs(){if(!validateRange(logFilter.value.dateRange))return;const p={page:logPage.value,limit:20,...logParams()};const request=logsRequest.run(`logs:${JSON.stringify(p)}`,(_signal,request)=>api.get('/api/user/logs',{params:p,signal:request.signal}));logLoading.value=true;try{const r=await request.promise;if(!logsRequest.isCurrent(request))return;allLogs.value=r.data.data;logTotal.value=r.data.pagination.total}catch(e){}finally{if(logsRequest.isCurrent(request))logLoading.value=false}}
-async function exportLogs(){if(!validateRange(logFilter.value.dateRange))return;exportLoading.value=true;try{const r=await api.get('/api/user/logs/export',{params:logParams(),responseType:'blob'});const disposition=r.headers['content-disposition']||'';const encoded=disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];const fallback=`调用记录_${logFilter.value.dateRange[0]}_${logFilter.value.dateRange[1]}.csv`;const filename=encoded?decodeURIComponent(encoded):fallback;const url=URL.createObjectURL(r.data);const link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);ElMessage.success('CSV 导出成功')}catch(e){}exportLoading.value=false}
 function onPresetChange(val){if(val!=='custom'){dateRange.value=getPresetRange(val);customRange.value=[...dateRange.value];fetchAll()}else{customRange.value=[...dateRange.value]}}
 function onCustomChange(val){const range=normalizeRange(val);if(validateRange(range)){customRange.value=range;dateRange.value=range;fetchAll()}}
 function toggleAutoRefresh(){autoRefresh.value=!autoRefresh.value;if(autoRefresh.value){refreshTimer=setInterval(fetchAll,5000)}else{clearInterval(refreshTimer)}}
@@ -274,7 +169,7 @@ function scheduleCharts(){
   else window.setTimeout(show,80)
 }
 onMounted(()=>{mobileMedia=window.matchMedia('(max-width: 768px)');syncMobile();mobileMedia.addEventListener('change',syncMobile);dateRange.value=getPresetRange('7d');customRange.value=[...dateRange.value];fetchAll()})
-onUnmounted(()=>{dashboardRequest.cancel();analyticsRequest.cancel();logsRequest.cancel();clearInterval(refreshTimer);mobileMedia?.removeEventListener('change',syncMobile)})
+onUnmounted(()=>{dashboardRequest.cancel();analyticsRequest.cancel();clearInterval(refreshTimer);mobileMedia?.removeEventListener('change',syncMobile)})
 </script>
 
 <style scoped>
@@ -289,7 +184,7 @@ onUnmounted(()=>{dashboardRequest.cancel();analyticsRequest.cancel();logsRequest
 .kpi-value { font-size: 24px; font-weight: 700; color: #0f172a; white-space: nowrap }
 .filter-bar { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 20px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04) }
 .filter-left { display: flex; align-items: center; flex-wrap: wrap; gap: 8px }
-.custom-range{width:260px;margin-left:12px}.mobile-date-range{display:flex;gap:8px}.log-filter-bar{margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap}.log-filter-bar>.el-select{width:150px}
+.custom-range{width:260px;margin-left:12px}.mobile-date-range{display:flex;gap:8px}
 .charts-row { margin-bottom: 16px }
 .chart-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04) }
 .chart-header { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 600; color: #0f172a }
@@ -298,7 +193,6 @@ onUnmounted(()=>{dashboardRequest.cancel();analyticsRequest.cancel();logsRequest
 .no-detail { color: #94a3b8; font-size: 11px; }
 .chart-sphere { display: flex; align-items: center; justify-content: center; min-height: 240px }
 .charts-loading{height:84px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #e2e8f0;border-radius:10px;color:#64748b;margin-bottom:16px}.analysis-empty-state{min-height:168px;margin-bottom:14px;padding:26px 30px;display:flex;align-items:center;gap:18px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}.analysis-empty-icon{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:12px;background:#eef3ec;color:var(--primary-dark)}.analysis-empty-state h3{margin:0 0 5px;color:var(--text-primary);font-size:16px}.analysis-empty-state p{margin:0;color:var(--text-secondary);font-size:13px;line-height:1.65}.analysis-empty-action{margin-left:auto;flex:0 0 auto;padding:8px 12px;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;text-decoration:none}.mobile-log-list{display:none}.mobile-log-card{border:1px solid #e2e8f0;border-radius:12px;padding:13px;background:#fff}.mobile-log-head{display:flex;justify-content:space-between;gap:8px}.mobile-log-time{font-size:11px;color:#94a3b8;margin:7px 0}.mobile-log-usage{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}.mobile-log-usage span{background:#f8fafc;border-radius:8px;padding:7px;font-size:11px;color:#64748b}.mobile-log-usage span:last-child{grid-column:1/-1}.mobile-log-usage strong{display:block;color:#0f172a;font-size:12px}.mobile-log-card .billing-detail-button{width:100%}
-.billing-summary{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:10px;margin-bottom:18px}.billing-summary>div,.snapshot-grid>div{background:#f8fafc;border-radius:9px;padding:11px 12px}.billing-summary span,.snapshot-grid span{display:block;font-size:11px;color:#94a3b8;margin-bottom:4px}.billing-summary strong,.snapshot-grid strong{color:#0f172a;font-size:13px}.billing-total{background:#eff6ff!important}.billing-total strong{color:#2563eb!important;font-size:16px!important}.snapshot-title,.breakdown-title{font-size:13px;font-weight:650;color:#334155;margin:16px 0 9px}.snapshot-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.breakdown-list{display:grid;gap:9px}.breakdown-item{border:1px solid #e2e8f0;border-radius:9px;padding:11px 13px}.breakdown-head{display:flex;justify-content:space-between;margin-bottom:7px;color:#334155}.breakdown-head strong{color:#2563eb}.breakdown-item code{display:block;background:#f8fafc;color:#475569;padding:8px;border-radius:6px;font-size:12px;white-space:normal;line-height:1.6}.billing-result{display:flex;align-items:center;gap:12px;background:#0f172a;color:#fff;border-radius:9px;padding:13px 15px;margin-top:12px}.billing-result strong{font-size:17px;color:#93c5fd}.billing-result .equals{margin-left:auto;color:#cbd5e1;font-size:12px}.billing-note{font-size:11px;color:#94a3b8;margin-top:9px}
 @media(max-width:768px){
   .kpi-row{margin-left:0!important;margin-right:0!important;row-gap:0!important;overflow:hidden;border-radius:12px;margin-bottom:10px}
   .kpi-row>[class*="el-col-"]{flex:0 0 50%;max-width:50%;padding:0!important}
@@ -315,9 +209,7 @@ onUnmounted(()=>{dashboardRequest.cancel();analyticsRequest.cancel();logsRequest
   .filter-left>*{max-width:none;flex-shrink:0}
   .filter-left .el-radio-group{width:100%;display:flex}.filter-left .el-radio-button{flex:1}.filter-left :deep(.el-radio-button__inner){width:100%;padding:8px 6px}
   .filter-left .el-select{width:100%!important;margin-left:0!important}
-  .mobile-date-range{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%;min-width:0;gap:8px}.mobile-date-input{width:100%;min-width:0;height:44px;padding:0 9px;border:1px solid #dcdfe6;border-radius:4px;color:#606266;background:#fff;font:inherit;box-sizing:border-box;outline:none}.mobile-date-input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.1)}.log-filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:8px}.log-filter-bar>.el-select,.log-filter-bar>.mobile-date-range{grid-column:1/-1;width:100%}.log-filter-bar>.el-button{margin:0;min-height:44px}
-  :deep(.all-logs-dialog),:deep(.billing-dialog-modal){width:calc(100% - 16px)!important;margin-top:8px!important}.all-logs-dialog :deep(.el-dialog__body),.billing-dialog-modal :deep(.el-dialog__body){padding:12px;overflow:hidden}.all-logs-dialog :deep(.el-pagination){overflow-x:auto;justify-content:flex-start!important}
-  .all-logs-mobile-list{display:grid;gap:8px;max-height:58vh;overflow-y:auto}.all-logs-mobile-list .mobile-log-card{border-radius:10px;padding:11px}.mobile-log-request,.mobile-log-error{overflow-wrap:anywhere;font-size:11px;color:#64748b;margin-bottom:8px}.mobile-log-error{padding:7px;background:#fef2f2;border-radius:7px;color:#b91c1c}
+  .mobile-date-range{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%;min-width:0;gap:8px}.mobile-date-input{width:100%;min-width:0;height:44px;padding:0 9px;border:1px solid #dcdfe6;border-radius:4px;color:#606266;background:#fff;font:inherit;box-sizing:border-box;outline:none}.mobile-date-input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.1)}
   .filter-right{display:flex;width:100%;gap:8px}
   .filter-right .el-button{flex:1;min-height:40px;margin:0}
   .charts-row{margin-bottom:4px}
@@ -332,6 +224,6 @@ onUnmounted(()=>{dashboardRequest.cancel();analyticsRequest.cancel();logsRequest
   .mobile-log-usage span:last-child{grid-column:auto}
   .mobile-log-card .billing-detail-button{min-height:40px}
   .chart-sphere{min-height:210px}.chart-sphere>div{height:210px!important}
-  .billing-summary{grid-template-columns:1fr}.snapshot-grid{grid-template-columns:1fr 1fr}.billing-result{align-items:flex-start;flex-direction:column;gap:4px}.billing-result .equals{margin-left:0}.breakdown-item code{overflow-wrap:anywhere}.chart-header{padding:10px}.chart-sub{white-space:nowrap}
+  .chart-header{padding:10px}.chart-sub{white-space:nowrap}
 }
 </style>

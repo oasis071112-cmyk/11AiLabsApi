@@ -1,8 +1,9 @@
 <template>
+<el-config-provider :locale="zhCn">
 <div class="app-shell user-shell">
   <header class="mobile-topbar">
     <button ref="triggerRef" class="mobile-menu-button" type="button" aria-label="打开导航菜单" @click="openDrawer"><Menu :size="22"/></button>
-    <router-link to="/" class="mobile-brand"><img src="/logo-icon.svg?v=ionailabs-20260726" alt="IonAiLabs"/><span>IonAiLabs</span></router-link>
+    <router-link to="/" class="mobile-brand"><img :src="USER_LOGO_URL" alt="IonAiLabs"/><span>IonAiLabs</span></router-link>
     <button class="mobile-avatar" type="button" aria-label="打开用户菜单" @click="openDrawer">{{ userInitial }}</button>
   </header>
 
@@ -16,7 +17,7 @@
 
     <div class="sidebar-logo">
       <router-link to="/" @click="closeDrawer">
-        <img src="/logo-icon.svg?v=ionailabs-20260726" alt="IonAiLabs"/>
+        <img :src="USER_LOGO_URL" alt="IonAiLabs"/>
         <span>IonAiLabs</span>
       </router-link>
     </div>
@@ -49,6 +50,7 @@
 
   <main class="app-main"><router-view/></main>
 </div>
+</el-config-provider>
 </template>
 
 <script setup>
@@ -59,8 +61,11 @@ import { useAppStore } from '@/stores/app'
 import { useMobileDrawer } from '@/composables/useMobileDrawer'
 import { useMobile } from '@/composables/useMobile'
 import { LayoutDashboard, Wallet, Key, Cpu, ScrollText, Shield, LogOut, Lock, ShoppingCart, Menu, X } from '@lucide/vue'
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
+const USER_LOGO_URL = '/logo-icon.svg?v=ionailabs-20260726'
 const route=useRoute(),router=useRouter(),authStore=useAuthStore(),appStore=useAppStore()
+if(authStore.token)void authStore.checkAuth()
 const { isMobile, drawerOpen, drawerRef, triggerRef, openDrawer, closeDrawer }=useMobileDrawer()
 const narrowScreen=useMobile(1180)
 const isCompactDesktop=computed(()=>narrowScreen.value&&!isMobile.value)

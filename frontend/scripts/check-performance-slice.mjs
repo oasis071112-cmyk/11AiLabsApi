@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import { createRequestCoordinator } from '../src/utils/request-coordinator.js'
 
 const logs = fs.readFileSync(new URL('../src/views/user/Logs.vue', import.meta.url), 'utf8')
+const allLogsDialog = fs.readFileSync(new URL('../src/components/logs/AllLogsDialog.vue', import.meta.url), 'utf8')
 const userDashboard = fs.readFileSync(new URL('../src/views/user/Dashboard.vue', import.meta.url), 'utf8')
 const adminDashboard = fs.readFileSync(new URL('../src/views/admin/Dashboard.vue', import.meta.url), 'utf8')
 const dashboardCharts = fs.readFileSync(new URL('../src/components/DashboardCharts.vue', import.meta.url), 'utf8')
@@ -58,9 +59,9 @@ await oldA.promise
 assert.equal(await freshA.promise, 'fresh A')
 assert.equal(alternating.isCurrent(freshA), true, 'A→B→A 的最终请求完成后仍须保持当前身份')
 
-assert.match(logs, /createRequestCoordinator/, 'Logs 必须使用可取消且去重的请求协调器')
-assert.match(logs, /signal:\s*request\.signal/, 'Logs 请求必须把取消信号传给 API 客户端')
-assert.match(logs, /logsRequest\.isCurrent\(request\)/, 'Logs 必须忽略过期响应')
+assert.match(allLogsDialog, /createRequestCoordinator/, '全部日志弹窗必须使用可取消且去重的请求协调器')
+assert.match(allLogsDialog, /signal:\s*request\.signal/, '全部日志请求必须把取消信号传给 API 客户端')
+assert.match(allLogsDialog, /logsRequest\.isCurrent\(request\)/, '全部日志弹窗必须忽略过期响应')
 
 assert.match(userDashboard, /dashboard-skeleton/, '用户控制台必须在核心数据加载时呈现骨架')
 assert.match(adminDashboard, /dashboard-skeleton/, '管理员控制台必须在核心数据加载时呈现骨架')

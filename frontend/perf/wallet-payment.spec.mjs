@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { installSessionMocks } from './mock-api.mjs'
 
 async function json(route, body, status = 200) {
   return route.fulfill({ status, contentType: 'application/json; charset=utf-8', body: JSON.stringify(body) })
@@ -50,6 +51,58 @@ async function installWalletMocks(context, state) {
     body: '<!doctype html><title>Mock Pay</title><h1>Mock payment page</h1>',
   }))
 }
+
+test('wallet cold start launches payment, balance, transaction, and order reads together', async ({ page }) => {
+  await installSessionMocks(page, 'user')
+  const startedAt = new Map()
+  const startedBeforeVue = new Map()
+  let vueBundleReleased = false
+  let authStartedBeforeVue = false
+  await page.route(/\/assets\/vendor-vue-[^/]+\.js$/, async route => {
+    const response = await route.fetch()
+    await new Promise(resolve => setTimeout(resolve, 350))
+    vueBundleReleased = true
+    await route.fulfill({ response })
+  })
+  await page.route(/\/api\/auth\/me(?:\?.*)?$/, route => {
+    authStartedBeforeVue = !vueBundleReleased
+    return json(route, {
+      user: { id: 7, username: 'wallet-user', role: 'user', status: 'active' },
+      wallet: { quota_balance: 10, gift_quota: 0, frozen_balance: 0 },
+    })
+  })
+  const record = (name, route, body, delayMs = 0) => {
+    startedAt.set(name, performance.now())
+    startedBeforeVue.set(name, !vueBundleReleased)
+    return new Promise(resolve => setTimeout(resolve, delayMs)).then(() => json(route, body))
+  }
+
+  await page.route(/\/api\/user\/payment-options(?:\?.*)?$/, route => record('payment-options', route, {
+    enabled: true, methods: ['alipay'], minimum: 1, maximum: 10000,
+  }, 350))
+  await page.route(/\/api\/user\/wallet(?:\?.*)?$/, route => record('wallet', route, {
+    quota_balance: 10, gift_quota: 0, frozen_balance: 0,
+  }))
+  await page.route(/\/api\/user\/transactions(?:\?.*)?$/, route => record('transactions', route, {
+    data: [], pagination: { page: 1, limit: 20, total: 0 },
+  }))
+  await page.route(/\/api\/user\/recharge-orders(?:\?.*)?$/, route => record('recharge-orders', route, {
+    data: [], pagination: { page: 1, limit: 20, total: 0 },
+  }))
+
+  await page.goto('/wallet', { waitUntil: 'domcontentloaded' })
+  await expect.poll(() => startedAt.size).toBe(4)
+
+  const starts = [...startedAt.values()]
+  const spreadMs = Math.max(...starts) - Math.min(...starts)
+  expect(spreadMs, `wallet startup request spread was ${spreadMs.toFixed(0)}ms`).toBeLessThan(30)
+  expect(authStartedBeforeVue, 'profile request waited for the Vue bundle').toBe(true)
+  expect([...startedBeforeVue.values()].every(Boolean), 'wallet data waited for the Vue bundle').toBe(true)
+
+  await page.waitForLoadState('networkidle')
+  const resourceCount = await page.evaluate(() => performance.getEntriesByType('resource').length + 1)
+  expect(resourceCount, `wallet cold start loaded ${resourceCount} document/resources`).toBeLessThan(30)
+})
 
 test('online payment stays on the wallet, refreshes from the signed order state, and closes the return tab', async ({ context, page }) => {
   const state = { status: 'pending', orderCreates: 0, statusReads: 0, walletReads: 0, transactionReads: 0, orderReads: 0 }

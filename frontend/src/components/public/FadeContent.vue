@@ -1,11 +1,8 @@
 <script setup>
-import { gsap } from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 // Adapted from the official Vue Bits port of React Bits FadeContent.
 // The reduced-motion branch is IonAiLabs-specific.
-gsap.registerPlugin(ScrollTrigger)
 
 const props = defineProps({
   duration: { type: Number, default: 0.5 },
@@ -15,45 +12,70 @@ const props = defineProps({
 })
 
 const fadeRef = ref(null)
-let timeline = null
-let trigger = null
+let observer = null
+let animation = null
+let idleHandle = null
+let idleFallback = null
 
 onMounted(() => {
   const element = fadeRef.value
   if (!element) return
 
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    gsap.set(element, { autoAlpha: 1, y: 0, clearProps: 'transform' })
+    element.style.opacity = '1'
+    element.style.visibility = 'visible'
+    element.style.transform = ''
     return
   }
 
-  gsap.set(element, {
-    autoAlpha: 0,
-    y: props.offsetY,
-    willChange: 'opacity, transform'
-  })
+  element.style.opacity = '0'
+  element.style.visibility = 'hidden'
+  element.style.transform = `translate3d(0, ${props.offsetY}px, 0)`
+  element.style.willChange = 'opacity, transform'
 
-  timeline = gsap.timeline({ paused: true, delay: props.delay })
-  timeline.to(element, {
-    autoAlpha: 1,
-    y: 0,
-    duration: props.duration,
-    ease: 'power2.out',
-    clearProps: 'willChange'
-  })
+  const reveal = () => {
+    element.style.visibility = 'visible'
+    animation = element.animate([
+      { opacity: 0, transform: `translate3d(0, ${props.offsetY}px, 0)` },
+      { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+    ], {
+      duration: props.duration * 1000,
+      delay: props.delay * 1000,
+      easing: 'cubic-bezier(.25,.46,.45,.94)',
+      fill: 'forwards',
+    })
+    animation.addEventListener('finish',()=>{
+      element.style.opacity = '1'
+      element.style.visibility = 'visible'
+      element.style.transform = ''
+      element.style.willChange = ''
+    },{once:true})
+  }
+  const initialize = () => {
+    if (!('IntersectionObserver' in window) || !('animate' in element)) {
+      element.style.opacity = '1'
+      element.style.visibility = 'visible'
+      element.style.transform = ''
+      element.style.willChange = ''
+      return
+    }
+    observer = new IntersectionObserver(entries=>{
+      if(!entries.some(entry=>entry.isIntersecting))return
+      observer?.disconnect()
+      reveal()
+    },{threshold:props.threshold})
+    observer.observe(element)
+  }
 
-  trigger = ScrollTrigger.create({
-    trigger: element,
-    start: `top ${(1 - props.threshold) * 100}%`,
-    once: true,
-    onEnter: () => timeline?.play()
-  })
+  if ('requestIdleCallback' in window) idleHandle = window.requestIdleCallback(initialize, { timeout: 100 })
+  else idleFallback = window.setTimeout(initialize, 32)
 })
 
 onBeforeUnmount(() => {
-  trigger?.kill()
-  timeline?.kill()
-  if (fadeRef.value) gsap.killTweensOf(fadeRef.value)
+  if (idleHandle!==null) window.cancelIdleCallback(idleHandle)
+  if (idleFallback!==null) window.clearTimeout(idleFallback)
+  observer?.disconnect()
+  animation?.cancel()
 })
 </script>
 

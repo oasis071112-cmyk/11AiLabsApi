@@ -1,4 +1,5 @@
 <template>
+<el-config-provider :locale="zhCn">
 <div class="auth-page"><section class="auth-shell">
 <aside class="auth-brand-panel"><img src="/logo-icon.svg?v=ionailabs-20260726" alt="IonAiLabs"/><div><strong>IonAiLabs</strong><span>API 服务管理平台</span></div><p>创建账号后即可管理自己的模型调用与额度。</p></aside>
 <div class="auth-card">
@@ -13,10 +14,11 @@
 <div class="auth-switch" style="text-align:center;color:#909399">已有账号？<el-link type="primary" @click="$router.push('/login')">立即登录</el-link></div>
 <el-alert v-if="result" :title="result" type="success" style="margin-top:16px" :closable="false"/>
 </div></section></div>
+</el-config-provider>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';import { useRouter } from 'vue-router';import { useAuthStore } from '@/stores/auth';import { ElMessage } from 'element-plus';import { UserPlus } from '@lucide/vue'
+import { ref, reactive } from 'vue';import { useRouter } from 'vue-router';import { useAuthStore } from '@/stores/auth';import { ElMessage } from 'element-plus';import { UserPlus } from '@lucide/vue';import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 const router=useRouter(),authStore=useAuthStore(),frm=ref(null),loading=ref(false),result=ref('')
 const form=reactive({username:'',email:'',password:'',cp:''})
 const rules={username:[{required:true,message:'请输入用户名',trigger:'blur'},{min:3,max:32,message:'3-32字符',trigger:'blur'}],password:[{required:true,message:'请输入密码',trigger:'blur'},{min:6,message:'至少6位',trigger:'blur'}],cp:[{required:true,message:'请确认密码',trigger:'blur'},{validator:(r,v,cb)=>v===form.password?cb():cb(new Error('两次密码不一致')),trigger:'blur'}]}

@@ -61,6 +61,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api'
 import { ElMessage } from 'element-plus'
 import { Wallet, ShoppingCart, Coins, Gift, Lock } from '@lucide/vue'
+import { coldStartKeys, takeColdStartRequest } from '@/utils/cold-start-prefetch'
 
 const PAYMENT_RETURN_MESSAGE = 'ionailabs:payment-return'
 const wallet=ref({quota_balance:0,gift_quota:0,frozen_balance:0})
@@ -79,9 +80,9 @@ const notifiedOrders=new Set()
 watch(()=>route.path,path=>{if(path==='/subscribe')rechargeDialog.value=true},{immediate:true})
 function onRechargeClosed(){if(route.path==='/subscribe')router.replace('/wallet')}
 function delay(ms){return new Promise(resolve=>window.setTimeout(resolve,ms))}
-async function fetchWallet(){try{const r=await api.get('/api/user/wallet');wallet.value={quota_balance:r.data.quota_balance||r.data.recharge_balance||0,gift_quota:r.data.gift_quota||r.data.gift_balance||0,frozen_balance:r.data.frozen_balance||0}}catch(e){}}
-async function fetchTx(){ltx.value=true;try{const r=await api.get('/api/user/transactions',{params:{page:txPage.value}});transactions.value=r.data.data;txTotal.value=r.data.pagination.total}catch(e){}ltx.value=false}
-async function fetchOrders(){lo.value=true;try{const r=await api.get('/api/user/recharge-orders',{params:{page:oPage.value}});orders.value=r.data.data;oTotal.value=r.data.pagination.total}catch(e){}lo.value=false}
+async function fetchWallet(){try{const r=await takeColdStartRequest(coldStartKeys.walletBalance,()=>api.get('/api/user/wallet'));wallet.value={quota_balance:r.data.quota_balance||r.data.recharge_balance||0,gift_quota:r.data.gift_quota||r.data.gift_balance||0,frozen_balance:r.data.frozen_balance||0}}catch(e){}}
+async function fetchTx(){ltx.value=true;try{const load=()=>api.get('/api/user/transactions',{params:{page:txPage.value}});const r=txPage.value===1?await takeColdStartRequest(coldStartKeys.walletTransactions,load):await load();transactions.value=r.data.data;txTotal.value=r.data.pagination.total}catch(e){}ltx.value=false}
+async function fetchOrders(){lo.value=true;try{const load=()=>api.get('/api/user/recharge-orders',{params:{page:oPage.value}});const r=oPage.value===1?await takeColdStartRequest(coldStartKeys.walletOrders,load):await load();orders.value=r.data.data;oTotal.value=r.data.pagination.total}catch(e){}lo.value=false}
 async function refreshPaymentData(){await Promise.all([fetchWallet(),fetchOrders(),fetchTx()])}
 
 function notifyOriginalWallet(orderNo,status){
@@ -184,12 +185,13 @@ async function submitRecharge(){
 
 onMounted(async()=>{
   window.addEventListener('message',handlePaymentReturn)
+  const walletDataPromise=Promise.all([fetchWallet(),fetchTx(),fetchOrders()])
   try{
-    const paymentResponse=await api.get('/api/user/payment-options')
+    const paymentResponse=await takeColdStartRequest(coldStartKeys.walletPaymentOptions,()=>api.get('/api/user/payment-options'))
     paymentOptions.value=paymentResponse.data
     if(!paymentOptions.value.methods.includes(rf.value.payment_method))rf.value.payment_method=paymentOptions.value.methods[0]||'manual_transfer'
   }catch(e){}
-  await Promise.all([fetchWallet(),fetchTx(),fetchOrders()])
+  await walletDataPromise
   const returnedOrderNo=String(route.query.payment_order||'')
   if(returnedOrderNo){
     if(notifyOriginalWallet(returnedOrderNo,'returned'))return
