@@ -10,5 +10,5 @@ requestAnimationFrame(() => {
   const pinia = createPinia()
   app.use(pinia)
   app.use(router)
-  requestAnimationFrame(() => app.mount('#app'))
+  void router.isReady().catch(()=>{}).then(()=>requestAnimationFrame(() => app.mount('#app')))
 })

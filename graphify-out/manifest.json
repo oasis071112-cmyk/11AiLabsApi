@@ -260,12 +260,12 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1785918254.7655945,
+    "mtime": 1785922503.499753,
     "ast_hash": "a372321978ef6bbbf415c8f17c83c675",
     "semantic_hash": ""
   },
   "frontend/components.d.ts": {
-    "mtime": 1785918038.414209,
+    "mtime": 1785922504.3897524,
     "ast_hash": "c7fcf66cf851429c098ce438f53250b9",
     "semantic_hash": ""
   },
@@ -330,8 +330,8 @@
     "semantic_hash": ""
   },
   "frontend/src/main.js": {
-    "mtime": 1785916670.3222992,
-    "ast_hash": "597c45d38ae50d4b23b9957c0875acaa",
+    "mtime": 1785922497.3175802,
+    "ast_hash": "6229b875a52132db2662faa0e86daa8e",
     "semantic_hash": ""
   },
   "frontend/src/router/index.js": {
@@ -995,8 +995,8 @@
     "semantic_hash": ""
   },
   "frontend/scripts/check-first-paint-budget.mjs": {
-    "mtime": 1785916403.1979485,
-    "ast_hash": "0dc776ecebb37b2eae31d647d4ceab3e",
+    "mtime": 1785922497.3205814,
+    "ast_hash": "6b7de810fafd6bfff0422deec0f41230",
     "semantic_hash": ""
   },
   "docs/performance-validation.md": {
