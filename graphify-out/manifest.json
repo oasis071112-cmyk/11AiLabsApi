@@ -1220,8 +1220,8 @@
     "semantic_hash": ""
   },
   "check-nginx-tls-policy.sh": {
-    "mtime": 1785920053.799688,
-    "ast_hash": "654b46ecf6ae6d4a609296c25ceb125b",
+    "mtime": 1785921100.5895243,
+    "ast_hash": "92f4a22b8f6a7c863f41c58bb43919fa",
     "semantic_hash": ""
   }
 }
