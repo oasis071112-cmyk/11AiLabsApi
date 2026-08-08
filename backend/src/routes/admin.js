@@ -638,16 +638,131 @@ router.put('/keys/:id/permissions', authenticate, requireAdmin('admin'), (req, r
 
 router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) => {
   const db = getDatabase();
-  const { page=1, limit=50, user_id, model, status } = req.query;
-  const offset = (page-1)*limit;
+  const {
+    page=1, limit=50, user_id, model, status, start_at, end_at, q,
+    channel, channel_exact, billing_mode, dimension='model', bucket='day', include_summary='true',
+    ranking_sort_by='calls', ranking_sort_order='desc',
+  } = req.query;
+  const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
+  const limitNumber = Math.min(200, Math.max(1, Number.parseInt(limit, 10) || 50));
+  const offset = (pageNumber-1)*limitNumber;
+  if (!['model','channel','user'].includes(dimension)) return res.status(400).json({ error: '日志聚合维度无效' });
+  if (!['hour','day'].includes(bucket)) return res.status(400).json({ error: '日志趋势粒度无效' });
+  if (!['label','calls','share','total_cost','success_rate','failed_or_blocked_calls'].includes(ranking_sort_by)) return res.status(400).json({ error: '日志榜单排序字段无效' });
+  if (!['asc','desc'].includes(String(ranking_sort_order).toLowerCase())) return res.status(400).json({ error: '日志榜单排序方向无效' });
+  if ((start_at && Number.isNaN(Date.parse(start_at))) || (end_at && Number.isNaN(Date.parse(end_at)))) {
+    return res.status(400).json({ error: '日志时间范围无效' });
+  }
+  if (start_at && end_at && Date.parse(start_at) >= Date.parse(end_at)) return res.status(400).json({ error: '日志开始时间必须早于结束时间' });
   let where = 'WHERE 1=1'; const p = [];
-  if (user_id) { where += ' AND arl.user_id=?'; p.push(user_id); }
-  if (model) { where += ' AND arl.model_code=?'; p.push(model); }
+  if (user_id) {
+    if (user_id === '__none__') where += ' AND arl.user_id IS NULL';
+    else { where += ' AND arl.user_id=?'; p.push(user_id); }
+  }
+  if (model) {
+    if (model === '__none__') where += " AND (arl.model_code IS NULL OR TRIM(arl.model_code)='')";
+    else { where += ' AND arl.model_code=?'; p.push(model); }
+  }
   if (status) { where += ' AND arl.status=?'; p.push(status); }
-  const logs = db.prepare(`SELECT arl.*,u.username FROM api_request_logs arl LEFT JOIN users u ON arl.user_id=u.id ${where} ORDER BY arl.created_at DESC LIMIT ? OFFSET ?`).all(...p, Number(limit), offset)
+  if (start_at) { where += ' AND arl.created_at>=datetime(?)'; p.push(start_at); }
+  if (end_at) { where += ' AND arl.created_at<datetime(?)'; p.push(end_at); }
+  if (q) {
+    const search = `%${String(q).trim()}%`;
+    where += ' AND (u.username LIKE ? OR CAST(arl.user_id AS TEXT)=? OR arl.request_id LIKE ? OR arl.model_code LIKE ?)';
+    p.push(search, String(q).trim(), search, search);
+  }
+  if (channel) {
+    if (channel === '__none__') {
+      where += " AND (arl.upstream_channel_name IS NULL OR TRIM(arl.upstream_channel_name)='') AND arl.upstream_channel_id IS NULL";
+    } else {
+      const search = `%${String(channel).trim()}%`;
+      where += ' AND (arl.upstream_channel_name LIKE ? OR CAST(arl.upstream_channel_id AS TEXT)=?)';
+      p.push(search, String(channel).trim());
+    }
+  }
+  if (channel_exact) {
+    if (channel_exact === '__none__') {
+      where += " AND arl.upstream_channel_id IS NULL AND (arl.upstream_channel_name IS NULL OR TRIM(arl.upstream_channel_name)='')";
+    } else if (String(channel_exact).startsWith('id:')) {
+      where += ' AND CAST(arl.upstream_channel_id AS TEXT)=?'; p.push(String(channel_exact).slice(3));
+    } else if (String(channel_exact).startsWith('name:')) {
+      where += ' AND arl.upstream_channel_name=?'; p.push(String(channel_exact).slice(5));
+    } else return res.status(400).json({ error: '日志渠道下钻标识无效' });
+  }
+  if (billing_mode) { where += " AND COALESCE(NULLIF(arl.billing_mode,''),'token')=?"; p.push(billing_mode); }
+
+  const from = 'FROM api_request_logs arl LEFT JOIN users u ON arl.user_id=u.id';
+  const logs = db.prepare(`SELECT arl.*,u.username ${from} ${where} ORDER BY arl.created_at DESC LIMIT ? OFFSET ?`).all(...p, limitNumber, offset)
     .map(log => ({ ...log, user_deduction_usd: deriveUserDeductionUsd(log) }));
-  const total = db.prepare(`SELECT COUNT(*) as count FROM api_request_logs arl ${where}`).get(...p);
-  res.json({ data: logs, pagination: { page: Number(page), limit: Number(limit), total: total.count } });
+  if (include_summary === 'false') {
+    const total = Number(db.prepare(`SELECT COUNT(*) AS total ${from} ${where}`).get(...p).total || 0);
+    return res.json({ data: logs, pagination: { page: pageNumber, limit: limitNumber, total } });
+  }
+  const aggregate = db.prepare(`SELECT COUNT(*) AS total_calls,
+    COALESCE(SUM(arl.total_cost),0) AS total_cost,
+    SUM(CASE WHEN arl.status='success' THEN 1 ELSE 0 END) AS success_calls,
+    SUM(CASE WHEN arl.status='failed' THEN 1 ELSE 0 END) AS failed_calls,
+    SUM(CASE WHEN arl.status='blocked' THEN 1 ELSE 0 END) AS blocked_calls,
+    SUM(CASE WHEN arl.status IS NULL OR arl.status NOT IN ('success','failed','blocked') THEN 1 ELSE 0 END) AS pending_calls
+    ${from} ${where}`).get(...p);
+  const totalCalls = Number(aggregate.total_calls || 0);
+  const summary = {
+    total_calls: totalCalls,
+    total_cost: Number(aggregate.total_cost || 0),
+    success_calls: Number(aggregate.success_calls || 0),
+    failed_calls: Number(aggregate.failed_calls || 0),
+    blocked_calls: Number(aggregate.blocked_calls || 0),
+    pending_calls: Number(aggregate.pending_calls || 0),
+    success_rate: totalCalls ? Number((Number(aggregate.success_calls || 0) * 100 / totalCalls).toFixed(2)) : 0,
+  };
+  const bucketSql = bucket === 'hour'
+    ? "strftime('%Y-%m-%d %H:00',arl.created_at,'+8 hours')"
+    : "strftime('%Y-%m-%d',arl.created_at,'+8 hours')";
+  const trend = db.prepare(`SELECT ${bucketSql} AS label,
+    SUM(CASE WHEN arl.status='success' THEN 1 ELSE 0 END) AS success_calls,
+    SUM(CASE WHEN arl.status='failed' THEN 1 ELSE 0 END) AS failed_calls,
+    SUM(CASE WHEN arl.status='blocked' THEN 1 ELSE 0 END) AS blocked_calls,
+    SUM(CASE WHEN arl.status IS NULL OR arl.status NOT IN ('success','failed','blocked') THEN 1 ELSE 0 END) AS pending_calls,
+    COALESCE(SUM(arl.total_cost),0) AS total_cost
+    ${from} ${where} GROUP BY ${bucketSql} ORDER BY ${bucketSql} ASC`).all(...p)
+    .map(row => ({ ...row, success_calls: Number(row.success_calls || 0), failed_calls: Number(row.failed_calls || 0), blocked_calls: Number(row.blocked_calls || 0), pending_calls: Number(row.pending_calls || 0), total_cost: Number(row.total_cost || 0) }));
+  const dimensions = {
+    model: { key: "COALESCE(NULLIF(arl.model_code,''),'__none__')", label: "COALESCE(NULLIF(arl.model_code,''),'—')" },
+    channel: {
+      key: "CASE WHEN arl.upstream_channel_id IS NOT NULL THEN 'id:'||CAST(arl.upstream_channel_id AS TEXT) WHEN NULLIF(arl.upstream_channel_name,'') IS NOT NULL THEN 'name:'||arl.upstream_channel_name ELSE '__none__' END",
+      label: "COALESCE(NULLIF(arl.upstream_channel_name,''),CAST(arl.upstream_channel_id AS TEXT),'—')",
+    },
+    user: { key: "COALESCE(CAST(arl.user_id AS TEXT),'__none__')", label: "COALESCE(NULLIF(u.username,''),'用户 #'||arl.user_id,'—')" },
+  };
+  const group = dimensions[dimension];
+  const rankingSortSql = {
+    label: group.label,
+    calls: 'COUNT(*)',
+    share: 'COUNT(*)',
+    total_cost: 'COALESCE(SUM(arl.total_cost),0)',
+    success_rate: "1.0*SUM(CASE WHEN arl.status='success' THEN 1 ELSE 0 END)/NULLIF(COUNT(*),0)",
+    failed_or_blocked_calls: "SUM(CASE WHEN arl.status IN ('failed','blocked') THEN 1 ELSE 0 END)",
+  }[ranking_sort_by];
+  const rankingSortOrder = String(ranking_sort_order).toUpperCase();
+  const ranking = db.prepare(`SELECT ${group.key} AS key,${group.label} AS label,COUNT(*) AS calls,
+    COALESCE(SUM(arl.total_cost),0) AS total_cost,
+    SUM(CASE WHEN arl.status='success' THEN 1 ELSE 0 END) AS success_calls,
+    SUM(CASE WHEN arl.status IN ('failed','blocked') THEN 1 ELSE 0 END) AS failed_or_blocked_calls,
+    SUM(CASE WHEN arl.status IS NULL OR arl.status NOT IN ('success','failed','blocked') THEN 1 ELSE 0 END) AS pending_calls
+    ${from} ${where} GROUP BY ${group.key},${group.label} ORDER BY ${rankingSortSql} ${rankingSortOrder},COUNT(*) DESC,${group.label} ASC LIMIT 20`).all(...p)
+    .map(row => {
+      const calls = Number(row.calls || 0);
+      const successCalls = Number(row.success_calls || 0);
+      return {
+        key: String(row.key), label: String(row.label), calls,
+        share: totalCalls ? Number((calls * 100 / totalCalls).toFixed(2)) : 0,
+        total_cost: Number(row.total_cost || 0),
+        success_rate: calls ? Number((successCalls * 100 / calls).toFixed(2)) : 0,
+        failed_or_blocked_calls: Number(row.failed_or_blocked_calls || 0),
+        pending_calls: Number(row.pending_calls || 0),
+      };
+    });
+  res.json({ data: logs, pagination: { page: pageNumber, limit: limitNumber, total: totalCalls }, summary, trend, ranking });
 });
 
 // ========== 渠道模型管理 ==========

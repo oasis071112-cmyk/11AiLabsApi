@@ -532,25 +532,172 @@ class PostgresAdminCompatRepository {
     });
   }
 
-  async listLogs({ page, limit, userId, model, status: requestedStatus }) {
+  async listLogs({
+    page, limit, userId, model, status: requestedStatus, startAt, endAt,
+    query, channel, channelExact, billingMode, dimension = 'model', bucket = 'day', includeSummary = true,
+    rankingSortBy = 'calls', rankingSortOrder = 'desc',
+  }) {
+    if (!['model', 'channel', 'user'].includes(dimension)) {
+      throw new AdminCompatError(400, 'invalid_log_dimension', '日志聚合维度无效');
+    }
+    if (!['hour', 'day'].includes(bucket)) {
+      throw new AdminCompatError(400, 'invalid_log_bucket', '日志趋势粒度无效');
+    }
+    if (!['label', 'calls', 'share', 'total_cost', 'success_rate', 'failed_or_blocked_calls'].includes(rankingSortBy)) {
+      throw new AdminCompatError(400, 'invalid_log_ranking_sort', '日志榜单排序字段无效');
+    }
+    if (!['asc', 'desc'].includes(String(rankingSortOrder).toLowerCase())) {
+      throw new AdminCompatError(400, 'invalid_log_ranking_order', '日志榜单排序方向无效');
+    }
+    const start = startAt ? new Date(startAt) : null;
+    const end = endAt ? new Date(endAt) : null;
+    if ((start && Number.isNaN(start.getTime())) || (end && Number.isNaN(end.getTime()))) {
+      throw new AdminCompatError(400, 'invalid_log_range', '日志时间范围无效');
+    }
+    if (start && end && start >= end) throw new AdminCompatError(400, 'invalid_log_range', '日志开始时间必须早于结束时间');
     const values = [];
     const conditions = [];
-    if (userId) { values.push(userId); conditions.push(`arl.user_id=$${values.length}`); }
-    if (model) { values.push(text(model)); conditions.push(`arl.model_code=$${values.length}`); }
+    if (userId) {
+      if (userId === '__none__') conditions.push('arl.user_id IS NULL');
+      else { values.push(userId); conditions.push(`arl.user_id=$${values.length}`); }
+    }
+    if (model) {
+      if (model === '__none__') conditions.push(`COALESCE(arl.model_code,'')=''`);
+      else { values.push(text(model)); conditions.push(`arl.model_code=$${values.length}`); }
+    }
     if (requestedStatus) { values.push(text(requestedStatus)); conditions.push(`arl.status=$${values.length}`); }
+    if (start) { values.push(start.toISOString()); conditions.push(`arl.created_at>=$${values.length}::timestamptz`); }
+    if (end) { values.push(end.toISOString()); conditions.push(`arl.created_at<$${values.length}::timestamptz`); }
+    if (query) {
+      const normalized = text(query);
+      values.push(`%${normalized}%`);
+      const fuzzy = values.length;
+      values.push(normalized);
+      const exact = values.length;
+      conditions.push(`(u.username ILIKE $${fuzzy} OR arl.user_id::text=$${exact} OR arl.request_id ILIKE $${fuzzy} OR arl.model_code ILIKE $${fuzzy})`);
+    }
+    if (channel) {
+      if (channel === '__none__') {
+        conditions.push('arl.upstream_account_id IS NULL');
+      } else {
+        values.push(`%${text(channel)}%`);
+        conditions.push(`COALESCE(arl.upstream_account_id::text,'') ILIKE $${values.length}`);
+      }
+    }
+    if (channelExact) {
+      if (channelExact === '__none__') {
+        conditions.push('arl.upstream_account_id IS NULL');
+      } else if (String(channelExact).startsWith('id:')) {
+        values.push(String(channelExact).slice(3));
+        conditions.push(`arl.upstream_account_id::text=$${values.length}`);
+      } else {
+        throw new AdminCompatError(400, 'invalid_log_channel_key', '日志渠道下钻标识无效');
+      }
+    }
+    const billingModeSql = `COALESCE(arl.billing_snapshot->'charge'->>'mode',arl.billing_snapshot->>'billing_mode',arl.billing_snapshot->>'mode','token')`;
+    if (billingMode) { values.push(text(billingMode)); conditions.push(`${billingModeSql}=$${values.length}`); }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const [logs, total] = await Promise.all([
-      this.pool.query(`SELECT arl.*,u.username FROM api_request_logs arl LEFT JOIN users u ON u.id=arl.user_id
-        ${where} ORDER BY arl.created_at DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
-      [...values, limit, (page - 1) * limit]),
-      this.pool.query(`SELECT COUNT(*) AS count FROM api_request_logs arl ${where}`, values),
+    const from = 'FROM api_request_logs arl LEFT JOIN users u ON u.id=arl.user_id';
+    const bucketSql = bucket === 'hour'
+      ? `to_char(date_trunc('hour',arl.created_at AT TIME ZONE 'Asia/Shanghai'),'YYYY-MM-DD HH24:00')`
+      : `to_char(date_trunc('day',arl.created_at AT TIME ZONE 'Asia/Shanghai'),'YYYY-MM-DD')`;
+    const dimensions = {
+      model: { key: `COALESCE(NULLIF(arl.model_code,''),'__none__')`, label: `COALESCE(NULLIF(arl.model_code,''),'—')` },
+      channel: { key: `COALESCE('id:'||arl.upstream_account_id::text,'__none__')`, label: `COALESCE(arl.upstream_account_id::text,'—')` },
+      user: { key: `COALESCE(arl.user_id::text,'__none__')`, label: `COALESCE(NULLIF(u.username,''),'用户 #'||arl.user_id::text,'—')` },
+    };
+    const group = dimensions[dimension];
+    const normalizeLogs = rows => rows.map(log => {
+      const normalized = numericFields(log, ['total_cost']);
+      const snapshot = asObject(normalized.billing_snapshot);
+      const charge = asObject(snapshot.charge);
+      return {
+        ...normalized,
+        upstream_channel_id: normalized.upstream_channel_id ?? normalized.upstream_account_id ?? null,
+        billing_mode: normalized.billing_mode || charge.mode || snapshot.billing_mode || snapshot.mode || 'token',
+        user_deduction_usd: deriveUserDeductionUsd(normalized),
+      };
+    });
+    const logsSql = `SELECT arl.*,u.username FROM api_request_logs arl LEFT JOIN users u ON u.id=arl.user_id
+      ${where} ORDER BY arl.created_at DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
+    if (!includeSummary) {
+      const [logs, total] = await Promise.all([
+        this.pool.query(logsSql, [...values, limit, (page - 1) * limit]),
+        this.pool.query(`SELECT COUNT(*) AS total ${from} ${where}`, values),
+      ]);
+      return {
+        data: normalizeLogs(logs.rows),
+        pagination: { page, limit, total: Number(total.rows[0]?.total || 0) },
+      };
+    }
+    const rankingSortSql = {
+      label: group.label,
+      calls: 'COUNT(*)',
+      share: 'COUNT(*)',
+      total_cost: 'COALESCE(SUM(arl.total_cost),0)',
+      success_rate: `COUNT(*) FILTER (WHERE arl.status='success')::numeric/NULLIF(COUNT(*),0)`,
+      failed_or_blocked_calls: `COUNT(*) FILTER (WHERE arl.status IN ('failed','blocked'))`,
+    }[rankingSortBy];
+    const rankingOrder = String(rankingSortOrder).toUpperCase();
+    const [logs, aggregate, trendRows, rankingRows] = await Promise.all([
+      this.pool.query(logsSql, [...values, limit, (page - 1) * limit]),
+      this.pool.query(`SELECT COUNT(*) AS total_calls,COALESCE(SUM(arl.total_cost),0) AS total_cost,
+        COUNT(*) FILTER (WHERE arl.status='success') AS success_calls,
+        COUNT(*) FILTER (WHERE arl.status='failed') AS failed_calls,
+        COUNT(*) FILTER (WHERE arl.status='blocked') AS blocked_calls,
+        COUNT(*) FILTER (WHERE COALESCE(arl.status,'') NOT IN ('success','failed','blocked')) AS pending_calls
+        ${from} ${where}`, values),
+      this.pool.query(`SELECT ${bucketSql} AS bucket_label,
+        COUNT(*) FILTER (WHERE arl.status='success') AS success_calls,
+        COUNT(*) FILTER (WHERE arl.status='failed') AS failed_calls,
+        COUNT(*) FILTER (WHERE arl.status='blocked') AS blocked_calls,
+        COUNT(*) FILTER (WHERE COALESCE(arl.status,'') NOT IN ('success','failed','blocked')) AS pending_calls,
+        COALESCE(SUM(arl.total_cost),0) AS total_cost
+        ${from} ${where} GROUP BY ${bucketSql} ORDER BY ${bucketSql} ASC`, values),
+      this.pool.query(`SELECT ${group.key} AS group_key,${group.label} AS group_label,COUNT(*) AS calls,
+        COALESCE(SUM(arl.total_cost),0) AS total_cost,
+        COUNT(*) FILTER (WHERE arl.status='success') AS success_calls,
+        COUNT(*) FILTER (WHERE arl.status IN ('failed','blocked')) AS failed_or_blocked_calls,
+        COUNT(*) FILTER (WHERE COALESCE(arl.status,'') NOT IN ('success','failed','blocked')) AS pending_calls
+        ${from} ${where} GROUP BY ${group.key},${group.label} ORDER BY ${rankingSortSql} ${rankingOrder},COUNT(*) DESC,${group.label} ASC LIMIT 20`, values),
     ]);
+    const aggregateRow = aggregate.rows[0] || {};
+    const totalCalls = Number(aggregateRow.total_calls || 0);
+    const successCalls = Number(aggregateRow.success_calls || 0);
     return {
-      data: logs.rows.map(log => {
-        const normalized = numericFields(log, ['total_cost']);
-        return { ...normalized, user_deduction_usd: deriveUserDeductionUsd(normalized) };
+      data: normalizeLogs(logs.rows),
+      pagination: { page, limit, total: totalCalls },
+      summary: {
+        total_calls: totalCalls,
+        total_cost: Number(aggregateRow.total_cost || 0),
+        success_calls: successCalls,
+        failed_calls: Number(aggregateRow.failed_calls || 0),
+        blocked_calls: Number(aggregateRow.blocked_calls || 0),
+        pending_calls: Number(aggregateRow.pending_calls || 0),
+        success_rate: totalCalls ? Number((successCalls * 100 / totalCalls).toFixed(2)) : 0,
+      },
+      trend: trendRows.rows.map(row => ({
+        label: String(row.bucket_label ?? ''),
+        success_calls: Number(row.success_calls || 0),
+        failed_calls: Number(row.failed_calls || 0),
+        blocked_calls: Number(row.blocked_calls || 0),
+        pending_calls: Number(row.pending_calls || 0),
+        total_cost: Number(row.total_cost || 0),
+      })),
+      ranking: rankingRows.rows.map(row => {
+        const calls = Number(row.calls || 0);
+        const groupSuccessCalls = Number(row.success_calls || 0);
+        return {
+          key: String(row.group_key ?? '—'),
+          label: String(row.group_label ?? row.group_key ?? '—'),
+          calls,
+          share: totalCalls ? Number((calls * 100 / totalCalls).toFixed(2)) : 0,
+          total_cost: Number(row.total_cost || 0),
+          success_rate: calls ? Number((groupSuccessCalls * 100 / calls).toFixed(2)) : 0,
+          failed_or_blocked_calls: Number(row.failed_or_blocked_calls || 0),
+          pending_calls: Number(row.pending_calls || 0),
+        };
       }),
-      pagination: { page, limit, total: Number(total.rows[0]?.count || 0) },
     };
   }
 

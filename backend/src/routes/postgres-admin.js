@@ -133,7 +133,23 @@ function createPostgresAdminRouter({
     res.json({ message: 'Key 权限已更新', data: publicValue(await data.updateKeyPermissions(req.params.id, req.body.model_codes, actorFromRequest(req))) });
   }));
   router.get('/logs', ...operators, asyncRoute(async (req, res) => {
-    res.json(publicValue(await data.listLogs({ ...pagination(req.query, 50), userId: req.query.user_id, model: req.query.model, status: req.query.status })));
+    res.json(publicValue(await data.listLogs({
+      ...pagination(req.query, 50),
+      userId: req.query.user_id,
+      model: req.query.model,
+      status: req.query.status,
+      startAt: req.query.start_at,
+      endAt: req.query.end_at,
+      query: req.query.q,
+      channel: req.query.channel,
+      channelExact: req.query.channel_exact,
+      billingMode: req.query.billing_mode,
+      dimension: req.query.dimension || 'model',
+      bucket: req.query.bucket || 'day',
+      includeSummary: req.query.include_summary !== 'false',
+      rankingSortBy: req.query.ranking_sort_by || 'calls',
+      rankingSortOrder: req.query.ranking_sort_order || 'desc',
+    })));
   }));
 
   router.get('/models', ...operators, asyncRoute(async (_req, res) => res.json({ data: publicValue(await data.listModels()) })));

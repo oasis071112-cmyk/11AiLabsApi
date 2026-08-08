@@ -121,6 +121,25 @@ describe('PostgreSQL management compatibility router', () => {
     expect(repository.getChannelMonitoring).toHaveBeenCalledWith('7', { limit: 25, windowHours: 12 });
   });
 
+  it('passes every request-log operations filter through the PostgreSQL router', async () => {
+    const params = new URLSearchParams({
+      user_id: '2', model: 'gpt-ops', status: 'failed', start_at: '2026-08-07T00:00:00.000Z',
+      end_at: '2026-08-08T00:00:00.000Z', q: 'req-ops', channel: 'account-7', billing_mode: 'token',
+      channel_exact: 'id:account-7', dimension: 'channel', bucket: 'hour', page: '2', limit: '25',
+      include_summary: 'false', ranking_sort_by: 'success_rate', ranking_sort_order: 'asc',
+    });
+
+    const response = await request(`/logs?${params}`);
+
+    expect(response.status).toBe(200);
+    expect(repository.listLogs).toHaveBeenLastCalledWith({
+      page: 2, limit: 25, userId: '2', model: 'gpt-ops', status: 'failed',
+      startAt: '2026-08-07T00:00:00.000Z', endAt: '2026-08-08T00:00:00.000Z',
+      query: 'req-ops', channel: 'account-7', channelExact: 'id:account-7', billingMode: 'token', dimension: 'channel', bucket: 'hour',
+      includeSummary: false, rankingSortBy: 'success_rate', rankingSortOrder: 'asc',
+    });
+  });
+
   it('provides model, channel and routing group compatibility CRUD/status seams', async () => {
     expect((await request('/models', { method: 'POST', body: JSON.stringify({ model_code: 'gpt-image-2', model_name: 'Image' }) })).status).toBe(201);
     expect((await request('/models/gpt-image-2/status', { method: 'PATCH', body: JSON.stringify({ status: 'inactive' }) })).status).toBe(200);
@@ -326,12 +345,14 @@ describe('PostgreSQL management compatibility router', () => {
   it('returns the settled user deduction in USD from PostgreSQL request-log snapshots', async () => {
     const pool = {
       connect: vi.fn(),
-      query: vi.fn(async sql => sql.includes('COUNT(*)')
-        ? { rows: [{ count: '1' }] }
-        : { rows: [{
+      query: vi.fn(async sql => sql.includes('ORDER BY arl.created_at DESC')
+        ? { rows: [{
           request_id: 'req-usd-1', user_id: '2', model_code: 'gpt-test', status: 'success',
           total_cost: '14.000000', billing_snapshot: { charge: { mode: 'token', currency: 'USD', usd_cny_rate: 7 } },
-        }] }),
+        }] }
+        : sql.includes('COUNT(*) AS total_calls')
+          ? { rows: [{ total_calls: '1', total_cost: '14.000000', success_calls: '1', failed_calls: '0', blocked_calls: '0', pending_calls: '0' }] }
+          : { rows: [] }),
     };
     const data = new PostgresAdminCompatRepository({
       pool, secretBox: { activeVersion: 'v1', seal: () => 'unused' },
@@ -344,6 +365,73 @@ describe('PostgreSQL management compatibility router', () => {
     expect(result).toMatchObject({ pagination: { page: 2, limit: 50, total: 1 } });
     expect(result.data[0]).toMatchObject({ total_cost: 14, user_deduction_usd: 2 });
     expect(pool.query.mock.calls[0][1]).toEqual(['2', 'gpt-test', 'success', 50, 50]);
+  });
+
+  it('returns filtered PostgreSQL request-log operations summaries from the same log data', async () => {
+    const queries = [];
+    const pool = {
+      connect: vi.fn(),
+      query: vi.fn(async (sql, values) => {
+        queries.push({ sql, values });
+        if (sql.includes('ORDER BY arl.created_at DESC')) {
+          return { rows: [{
+            request_id: 'req-ops-1', user_id: '2', model_code: 'gpt-ops', upstream_account_id: 'account-7',
+            status: 'success', total_cost: '3.000000', billing_snapshot: { charge: { mode: 'token', currency: 'USD', usd_cny_rate: 7 } },
+          }] };
+        }
+        if (sql.includes('COUNT(*) AS total_calls')) {
+          return { rows: [{ total_calls: '5', total_cost: '3.000000', success_calls: '2', failed_calls: '1', blocked_calls: '1', pending_calls: '1' }] };
+        }
+        if (sql.includes('AS bucket_label')) {
+          return { rows: [{ bucket_label: '2026-08-07 09:00', success_calls: '2', failed_calls: '1', blocked_calls: '1', pending_calls: '1', total_cost: '3.000000' }] };
+        }
+        if (sql.includes('AS group_key')) {
+          return { rows: [{ group_key: 'gpt-ops', group_label: 'gpt-ops', calls: '5', total_cost: '3.000000', success_calls: '2', failed_or_blocked_calls: '2', pending_calls: '1' }] };
+        }
+        throw new Error(`unexpected SQL: ${sql}`);
+      }),
+    };
+    const data = new PostgresAdminCompatRepository({
+      pool, secretBox: { activeVersion: 'v1', seal: () => 'unused' },
+    });
+
+    const result = await data.listLogs({
+      page: 1, limit: 1, userId: '2', model: 'gpt-ops', status: 'success',
+      startAt: '2026-08-07T00:00:00.000Z', endAt: '2026-08-08T00:00:00.000Z',
+      query: 'req-ops', channel: 'account-7', billingMode: 'token', dimension: 'model', bucket: 'hour',
+    });
+
+    expect(result).toMatchObject({
+      pagination: { page: 1, limit: 1, total: 5 },
+      summary: { total_calls: 5, total_cost: 3, success_calls: 2, failed_calls: 1, blocked_calls: 1, pending_calls: 1, success_rate: 40 },
+      trend: [{ label: '2026-08-07 09:00', success_calls: 2, failed_calls: 1, blocked_calls: 1, pending_calls: 1, total_cost: 3 }],
+      ranking: [{ key: 'gpt-ops', label: 'gpt-ops', calls: 5, share: 100, total_cost: 3, success_rate: 40, failed_or_blocked_calls: 2, pending_calls: 1 }],
+    });
+    expect(result.data[0]).toMatchObject({ upstream_channel_id: 'account-7', user_deduction_usd: 3 / 7 });
+    expect(queries).toHaveLength(4);
+    expect(queries.every(({ sql }) => sql.includes('api_request_logs'))).toBe(true);
+    expect(queries.every(({ sql }) => !sql.includes('upstream_accounts'))).toBe(true);
+  });
+
+  it('returns a PostgreSQL log page in list-only mode with two same-table queries', async () => {
+    const queries = [];
+    const pool = {
+      connect: vi.fn(),
+      query: vi.fn(async (sql, values) => {
+        queries.push({ sql, values });
+        if (sql.includes('ORDER BY arl.created_at DESC')) return { rows: [{ request_id: 'req-list-only', total_cost: '0' }] };
+        if (sql.includes('COUNT(*) AS total')) return { rows: [{ total: '1' }] };
+        throw new Error(`unexpected SQL: ${sql}`);
+      }),
+    };
+    const data = new PostgresAdminCompatRepository({ pool, secretBox: { activeVersion: 'v1', seal: () => 'unused' } });
+
+    const result = await data.listLogs({ page: 1, limit: 50, includeSummary: false, channelExact: 'id:7' });
+
+    expect(result).toMatchObject({ data: [{ request_id: 'req-list-only' }], pagination: { page: 1, limit: 50, total: 1 } });
+    expect(result).not.toHaveProperty('summary');
+    expect(queries).toHaveLength(2);
+    expect(queries[0].values).toContain('7');
   });
 
   it('serves account availability and sanitized probe history from the monitoring read model', async () => {

@@ -45,8 +45,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/admin.js": {
-    "mtime": 1786174857.36377,
-    "ast_hash": "8251170c303afb87919387a7b4828c8e",
+    "mtime": 1785649932.302819,
+    "ast_hash": "eb144a7837cf852f7d48afb1848a9911",
     "semantic_hash": ""
   },
   "backend/src/routes/auth.js": {
@@ -155,8 +155,8 @@
     "semantic_hash": "e084fa5a8564725149944e558da31f24"
   },
   "backend/tests/admin-finance.test.js": {
-    "mtime": 1786174754.8164892,
-    "ast_hash": "b291fd1526c08926327e8c05f4dc72a3",
+    "mtime": 1785649913.9074745,
+    "ast_hash": "82019ccf5b8818811337371d2cb5bf42",
     "semantic_hash": ""
   },
   "backend/tests/auth.test.js": {
@@ -260,13 +260,13 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1786175230.8891776,
+    "mtime": 1785922503.499753,
     "ast_hash": "a372321978ef6bbbf415c8f17c83c675",
     "semantic_hash": ""
   },
   "frontend/components.d.ts": {
-    "mtime": 1786175231.5319767,
-    "ast_hash": "7e0419219f8b6f506a1b7b361f2bc19f",
+    "mtime": 1785922504.3897524,
+    "ast_hash": "c7fcf66cf851429c098ce438f53250b9",
     "semantic_hash": ""
   },
   "frontend/package.json": {
@@ -295,9 +295,9 @@
     "semantic_hash": ""
   },
   "frontend/src/components/AdminTrendChart.vue": {
-    "mtime": 1786174403.5219724,
-    "ast_hash": "cd93e63c06371d36e007bbd64505564f",
-    "semantic_hash": ""
+    "mtime": 1784358483.2003424,
+    "ast_hash": "8999793463e33a6980fe17516e1f9155",
+    "semantic_hash": "8999793463e33a6980fe17516e1f9155"
   },
   "frontend/src/components/DashboardCharts.vue": {
     "mtime": 1785847960.2568588,
@@ -375,8 +375,8 @@
     "semantic_hash": ""
   },
   "frontend/src/views/admin/Logs.vue": {
-    "mtime": 1786175224.6536973,
-    "ast_hash": "d1b8ef1ed16561397e20afbd1fdc7a47",
+    "mtime": 1785650041.3100183,
+    "ast_hash": "6cf9b70279fd7b773ff75be2299fdd0a",
     "semantic_hash": ""
   },
   "frontend/src/views/admin/Models.vue": {
@@ -875,8 +875,8 @@
     "semantic_hash": ""
   },
   "backend/src/modules/control-plane/admin-compat-repository.js": {
-    "mtime": 1786174857.369628,
-    "ast_hash": "70e42b99afd471ecde015247db4ae0eb",
+    "mtime": 1785681035.1372654,
+    "ast_hash": "a51b0e9eebcf603ff64c17f0f236d724",
     "semantic_hash": ""
   },
   "backend/src/modules/identity/index.js": {
@@ -885,8 +885,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-admin.js": {
-    "mtime": 1786174857.3662207,
-    "ast_hash": "3dc549287d44cc6dec651a9489445fce",
+    "mtime": 1785578187.9832072,
+    "ast_hash": "93cfcd679072126f26b5975e364bc66e",
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-auth.js": {
@@ -905,8 +905,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-admin.test.js": {
-    "mtime": 1786174754.819015,
-    "ast_hash": "f09f5f04c0dc8659f990ead5a84db2de",
+    "mtime": 1785681022.4609697,
+    "ast_hash": "a2620ac83617a51136426bb42560e496",
     "semantic_hash": ""
   },
   "backend/tests/postgres-auth-user-routes.test.js": {
@@ -1170,8 +1170,8 @@
     "semantic_hash": ""
   },
   "frontend/scripts/check-admin-logs.mjs": {
-    "mtime": 1786174754.821681,
-    "ast_hash": "2ff639ed672b112f21149d08a114dcbf",
+    "mtime": 1785650003.570494,
+    "ast_hash": "a0b6f5cce1ee70b577738a8b7be03c71",
     "semantic_hash": ""
   },
   "frontend/src/utils/billing.js": {

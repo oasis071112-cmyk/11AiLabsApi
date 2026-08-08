@@ -80,6 +80,96 @@ describe('管理端余额与订单安全边界', () => {
     });
   });
 
+  it('summarizes every matching request log independently from the current page', async () => {
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const insert = db.prepare(`INSERT INTO api_request_logs
+      (request_id,user_id,model_code,upstream_channel_name,billing_mode,input_tokens,output_tokens,total_cost,status,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`);
+    insert.run(`OPS-A1-${suffix}`, userId, 'gpt-ops-a', 'channel-alpha', 'token', 100, 20, 1, 'success', '2026-08-07 01:10:00');
+    insert.run(`OPS-A2-${suffix}`, userId, 'gpt-ops-a', 'channel-alpha', 'token', 200, 30, 2, 'success', '2026-08-07 01:40:00');
+    insert.run(`OPS-A3-${suffix}`, userId, 'gpt-ops-a', 'channel-beta', 'token', 0, 0, 0, 'failed', '2026-08-07 02:10:00');
+    insert.run(`OPS-B1-${suffix}`, userId, 'gpt-ops-b', 'channel-beta', 'token', 0, 0, 0, 'blocked', '2026-08-07 03:10:00');
+
+    const query = new URLSearchParams({
+      user_id: String(userId), start_at: '2026-08-07T00:00:00.000Z', end_at: '2026-08-08T00:00:00.000Z',
+      dimension: 'model', bucket: 'hour', page: '1', limit: '1',
+    });
+    const response = await request(`/api/admin/logs?${query}`);
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.pagination).toMatchObject({ page: 1, limit: 1, total: 4 });
+    expect(payload.data).toHaveLength(1);
+    expect(payload.summary).toEqual({
+      total_calls: 4,
+      total_cost: 3,
+      success_calls: 2,
+      failed_calls: 1,
+      blocked_calls: 1,
+      pending_calls: 0,
+      success_rate: 50,
+    });
+    expect(payload.trend).toEqual([
+      expect.objectContaining({ label: '2026-08-07 09:00', success_calls: 2, failed_calls: 0, blocked_calls: 0 }),
+      expect.objectContaining({ label: '2026-08-07 10:00', success_calls: 0, failed_calls: 1, blocked_calls: 0 }),
+      expect.objectContaining({ label: '2026-08-07 11:00', success_calls: 0, failed_calls: 0, blocked_calls: 1 }),
+    ]);
+    expect(payload.ranking).toEqual([
+      expect.objectContaining({ key: 'gpt-ops-a', label: 'gpt-ops-a', calls: 3, share: 75, total_cost: 3, success_rate: 66.67, failed_or_blocked_calls: 1 }),
+      expect.objectContaining({ key: 'gpt-ops-b', label: 'gpt-ops-b', calls: 1, share: 25, total_cost: 0, success_rate: 0, failed_or_blocked_calls: 1 }),
+    ]);
+  });
+
+  it('drills into request logs whose displayed channel is unavailable', async () => {
+    const requestId = `OPS-NO-CHANNEL-${Date.now()}-${Math.random()}`;
+    getDatabase().prepare(`INSERT INTO api_request_logs
+      (request_id,user_id,model_code,total_cost,status,created_at)
+      VALUES (?,?,?,0,'success','2026-08-07 04:10:00')`).run(requestId, userId, 'gpt-no-channel');
+    const query = new URLSearchParams({
+      user_id: String(userId), model: 'gpt-no-channel', channel: '__none__',
+      start_at: '2026-08-07T00:00:00.000Z', end_at: '2026-08-08T00:00:00.000Z',
+    });
+
+    const response = await request(`/api/admin/logs?${query}`);
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.pagination.total).toBe(1);
+    expect(payload.data[0]).toMatchObject({ request_id: requestId, upstream_channel_name: null });
+  });
+
+  it('returns raw log pages without rerunning operations aggregates', async () => {
+    const response = await request(`/api/admin/logs?user_id=${userId}&include_summary=false&page=1&limit=1`);
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.data).toHaveLength(1);
+    expect(payload.pagination).toMatchObject({ page: 1, limit: 1 });
+    expect(payload).not.toHaveProperty('summary');
+    expect(payload).not.toHaveProperty('trend');
+    expect(payload).not.toHaveProperty('ranking');
+  });
+
+  it('drills into an exact channel object without fuzzy collisions', async () => {
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const insert = db.prepare(`INSERT INTO api_request_logs
+      (request_id,user_id,model_code,upstream_channel_id,upstream_channel_name,total_cost,status,created_at)
+      VALUES (?,?,?,?,?,0,'success','2026-08-07 04:20:00')`);
+    insert.run(`OPS-CHANNEL-7-${suffix}`, userId, 'gpt-channel-exact', 7, 'channel-7');
+    insert.run(`OPS-CHANNEL-17-${suffix}`, userId, 'gpt-channel-exact', 17, 'channel-17');
+
+    const query = new URLSearchParams({
+      user_id: String(userId), model: 'gpt-channel-exact', channel_exact: 'id:7',
+      start_at: '2026-08-07T00:00:00.000Z', end_at: '2026-08-08T00:00:00.000Z', include_summary: 'false',
+    });
+    const payload = await (await request(`/api/admin/logs?${query}`)).json();
+
+    expect(payload.pagination.total).toBe(1);
+    expect(payload.data[0]).toMatchObject({ upstream_channel_id: 7 });
+  });
+
   it('存在待处理订单时，不允许无来源说明地手工增加额度', async () => {
     const db = getDatabase();
     const orderId = createOrder('pending', 10);
