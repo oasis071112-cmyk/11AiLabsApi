@@ -152,6 +152,7 @@
   "150": "request-limits.js",
   "151": "PostgreSQL/Redis 隔离演练与发布准备记录",
   "152": "mock-upstream.js",
+  "153": "sqljs-control-plane-import.test.js",
   "154": "echarts",
   "155": "echarts",
   "156": "operationsParams",
@@ -168,9 +169,15 @@
   "167": "winston",
   "168": "postgres-concurrency-migration-integration.test.js",
   "169": "live-admin-dashboard.spec.mjs",
+  "170": "extendRedisCooldown",
   "171": "middleware/auth.js",
+  "172": "channel-docs.js",
+  "173": "postgres-admin-integration.test.js",
   "174": "check-nginx-tls-policy.sh",
   "175": "channel-capabilities.js",
+  "176": "postgres-admin.test.js",
+  "177": "worker-runtime.test.js",
   "178": "user-model-multipliers.test.js",
+  "179": "postgres-payment.js",
   "180": "ensureCustomDefaults"
 }

@@ -5,7 +5,11 @@ const { ACCOUNT_CAPABILITIES, ACCOUNT_PROTOCOLS } = require('./index');
 const { normalizeUpstreamModels, inferModelType } = require('../../utils/model-sync');
 const { inferProvider } = require('../../utils/pricing-sync');
 const { defaultImageDisplayPricing } = require('../../utils/pricing-engine');
-const { deriveUserDeductionUsd } = require('../../utils/admin-user-deduction');
+const {
+  deriveUserDeductionUsd,
+  postgresUserDeductionUsdSql,
+  strictUserDeductionUsdAggregateSql,
+} = require('../../utils/admin-user-deduction');
 
 class AdminCompatError extends Error {
   constructor(status, code, message) {
@@ -543,7 +547,7 @@ class PostgresAdminCompatRepository {
     if (!['hour', 'day'].includes(bucket)) {
       throw new AdminCompatError(400, 'invalid_log_bucket', '日志趋势粒度无效');
     }
-    if (!['label', 'calls', 'share', 'total_cost', 'success_rate', 'failed_or_blocked_calls'].includes(rankingSortBy)) {
+    if (!['label', 'calls', 'share', 'total_cost', 'user_deduction_usd', 'success_rate', 'failed_or_blocked_calls'].includes(rankingSortBy)) {
       throw new AdminCompatError(400, 'invalid_log_ranking_sort', '日志榜单排序字段无效');
     }
     if (!['asc', 'desc'].includes(String(rankingSortOrder).toLowerCase())) {
@@ -598,6 +602,8 @@ class PostgresAdminCompatRepository {
     if (billingMode) { values.push(text(billingMode)); conditions.push(`${billingModeSql}=$${values.length}`); }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const from = 'FROM api_request_logs arl LEFT JOIN users u ON u.id=arl.user_id';
+    const userDeductionUsdSql = postgresUserDeductionUsdSql('arl');
+    const userDeductionUsdAggregateSql = strictUserDeductionUsdAggregateSql(userDeductionUsdSql, 'arl.status');
     const bucketSql = bucket === 'hour'
       ? `to_char(date_trunc('hour',arl.created_at AT TIME ZONE 'Asia/Shanghai'),'YYYY-MM-DD HH24:00')`
       : `to_char(date_trunc('day',arl.created_at AT TIME ZONE 'Asia/Shanghai'),'YYYY-MM-DD')`;
@@ -635,13 +641,16 @@ class PostgresAdminCompatRepository {
       calls: 'COUNT(*)',
       share: 'COUNT(*)',
       total_cost: 'COALESCE(SUM(arl.total_cost),0)',
+      user_deduction_usd: 'user_deduction_usd',
       success_rate: `COUNT(*) FILTER (WHERE arl.status='success')::numeric/NULLIF(COUNT(*),0)`,
       failed_or_blocked_calls: `COUNT(*) FILTER (WHERE arl.status IN ('failed','blocked'))`,
     }[rankingSortBy];
     const rankingOrder = String(rankingSortOrder).toUpperCase();
+    const rankingNullsSql = rankingSortBy === 'user_deduction_usd' ? ' NULLS LAST' : '';
     const [logs, aggregate, trendRows, rankingRows] = await Promise.all([
       this.pool.query(logsSql, [...values, limit, (page - 1) * limit]),
       this.pool.query(`SELECT COUNT(*) AS total_calls,COALESCE(SUM(arl.total_cost),0) AS total_cost,
+        ${userDeductionUsdAggregateSql} AS user_deduction_usd,
         COUNT(*) FILTER (WHERE arl.status='success') AS success_calls,
         COUNT(*) FILTER (WHERE arl.status='failed') AS failed_calls,
         COUNT(*) FILTER (WHERE arl.status='blocked') AS blocked_calls,
@@ -656,10 +665,11 @@ class PostgresAdminCompatRepository {
         ${from} ${where} GROUP BY ${bucketSql} ORDER BY ${bucketSql} ASC`, values),
       this.pool.query(`SELECT ${group.key} AS group_key,${group.label} AS group_label,COUNT(*) AS calls,
         COALESCE(SUM(arl.total_cost),0) AS total_cost,
+        ${userDeductionUsdAggregateSql} AS user_deduction_usd,
         COUNT(*) FILTER (WHERE arl.status='success') AS success_calls,
         COUNT(*) FILTER (WHERE arl.status IN ('failed','blocked')) AS failed_or_blocked_calls,
         COUNT(*) FILTER (WHERE COALESCE(arl.status,'') NOT IN ('success','failed','blocked')) AS pending_calls
-        ${from} ${where} GROUP BY ${group.key},${group.label} ORDER BY ${rankingSortSql} ${rankingOrder},COUNT(*) DESC,${group.label} ASC LIMIT 20`, values),
+        ${from} ${where} GROUP BY ${group.key},${group.label} ORDER BY ${rankingSortSql} ${rankingOrder}${rankingNullsSql},COUNT(*) DESC,${group.label} ASC LIMIT 20`, values),
     ]);
     const aggregateRow = aggregate.rows[0] || {};
     const totalCalls = Number(aggregateRow.total_calls || 0);
@@ -670,6 +680,7 @@ class PostgresAdminCompatRepository {
       summary: {
         total_calls: totalCalls,
         total_cost: Number(aggregateRow.total_cost || 0),
+        user_deduction_usd: aggregateRow.user_deduction_usd == null ? null : Number(aggregateRow.user_deduction_usd),
         success_calls: successCalls,
         failed_calls: Number(aggregateRow.failed_calls || 0),
         blocked_calls: Number(aggregateRow.blocked_calls || 0),
@@ -693,6 +704,7 @@ class PostgresAdminCompatRepository {
           calls,
           share: totalCalls ? Number((calls * 100 / totalCalls).toFixed(2)) : 0,
           total_cost: Number(row.total_cost || 0),
+          user_deduction_usd: row.user_deduction_usd == null ? null : Number(row.user_deduction_usd),
           success_rate: calls ? Number((groupSuccessCalls * 100 / calls).toFixed(2)) : 0,
           failed_or_blocked_calls: Number(row.failed_or_blocked_calls || 0),
           pending_calls: Number(row.pending_calls || 0),

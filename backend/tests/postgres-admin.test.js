@@ -413,6 +413,73 @@ describe('PostgreSQL management compatibility router', () => {
     expect(queries.every(({ sql }) => !sql.includes('upstream_accounts'))).toBe(true);
   });
 
+  it('returns PostgreSQL USD deduction aggregates and sorts rankings by that field', async () => {
+    const queries = [];
+    const pool = {
+      connect: vi.fn(),
+      query: vi.fn(async (sql, values) => {
+        queries.push({ sql, values });
+        if (sql.includes('ORDER BY arl.created_at DESC')) {
+          return { rows: [{
+            request_id: 'req-usd-ops', status: 'success', total_cost: '14.000000',
+            billing_snapshot: { charge: { currency: 'USD', usd_cny_rate: 7 } },
+          }] };
+        }
+        if (sql.includes('COUNT(*) AS total_calls')) {
+          return { rows: [{
+            total_calls: '2', total_cost: '29.000000', user_deduction_usd: '3.500000',
+            success_calls: '2', failed_calls: '0', blocked_calls: '0', pending_calls: '0',
+          }] };
+        }
+        if (sql.includes('AS bucket_label')) return { rows: [] };
+        if (sql.includes('AS group_key')) {
+          return { rows: [{
+            group_key: 'gpt-usd-ops', group_label: 'gpt-usd-ops', calls: '2', total_cost: '29.000000',
+            user_deduction_usd: '3.500000', success_calls: '2', failed_or_blocked_calls: '0', pending_calls: '0',
+          }] };
+        }
+        throw new Error(`unexpected SQL: ${sql}`);
+      }),
+    };
+    const data = new PostgresAdminCompatRepository({ pool, secretBox: { activeVersion: 'v1', seal: () => 'unused' } });
+
+    const result = await data.listLogs({
+      page: 1, limit: 50, dimension: 'model', rankingSortBy: 'user_deduction_usd', rankingSortOrder: 'desc',
+    });
+
+    expect(result.summary.user_deduction_usd).toBe(3.5);
+    expect(result.ranking[0].user_deduction_usd).toBe(3.5);
+    const rankingQuery = queries.find(({ sql }) => sql.includes('AS group_key'))?.sql || '';
+    expect(rankingQuery).toContain('AS user_deduction_usd');
+    expect(rankingQuery).toContain('ORDER BY user_deduction_usd DESC NULLS LAST');
+  });
+
+  it('preserves valid zero and unavailable USD deductions from PostgreSQL snapshots', async () => {
+    const pool = {
+      connect: vi.fn(),
+      query: vi.fn(async sql => sql.includes('ORDER BY arl.created_at DESC')
+        ? { rows: [
+          {
+            request_id: 'req-usd-zero', status: 'success', total_cost: '0.000000',
+            billing_snapshot: { charge: { currency: 'USD', usd_cny_rate: '7' } },
+          },
+          {
+            request_id: 'req-usd-unavailable', status: 'success', total_cost: '7.000000',
+            billing_snapshot: { charge: { currency: 'CNY', usd_cny_rate: '7' } },
+          },
+        ] }
+        : { rows: [{ total: '2' }] }),
+    };
+    const data = new PostgresAdminCompatRepository({ pool, secretBox: { activeVersion: 'v1', seal: () => 'unused' } });
+
+    const result = await data.listLogs({ page: 1, limit: 50, includeSummary: false });
+
+    expect(result.data).toEqual([
+      expect.objectContaining({ request_id: 'req-usd-zero', user_deduction_usd: 0 }),
+      expect.objectContaining({ request_id: 'req-usd-unavailable', user_deduction_usd: null }),
+    ]);
+  });
+
   it('returns a PostgreSQL log page in list-only mode with two same-table queries', async () => {
     const queries = [];
     const pool = {

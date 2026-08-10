@@ -104,6 +104,7 @@ describe('管理端余额与订单安全边界', () => {
     expect(payload.summary).toEqual({
       total_calls: 4,
       total_cost: 3,
+      user_deduction_usd: null,
       success_calls: 2,
       failed_calls: 1,
       blocked_calls: 1,
@@ -118,6 +119,36 @@ describe('管理端余额与订单安全边界', () => {
     expect(payload.ranking).toEqual([
       expect.objectContaining({ key: 'gpt-ops-a', label: 'gpt-ops-a', calls: 3, share: 75, total_cost: 3, success_rate: 66.67, failed_or_blocked_calls: 1 }),
       expect.objectContaining({ key: 'gpt-ops-b', label: 'gpt-ops-b', calls: 1, share: 25, total_cost: 0, success_rate: 0, failed_or_blocked_calls: 1 }),
+    ]);
+  });
+
+  it('aggregates each settled USD deduction at its request-time rate and sorts the ranking by USD', async () => {
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const insert = db.prepare(`INSERT INTO api_request_logs
+      (request_id,user_id,model_code,total_cost,status,official_currency,usd_cny_rate,created_at)
+      VALUES (?,?,?,?,?,?,?,?)`);
+    insert.run(
+      `USD-OPS-A-${suffix}`, userId, 'gpt-usd-ops-a', 14, 'success',
+      'USD', 7, '2026-08-09 01:10:00',
+    );
+    insert.run(
+      `USD-OPS-B-${suffix}`, userId, 'gpt-usd-ops-b', 15, 'success',
+      'USD', 10, '2026-08-09 01:20:00',
+    );
+
+    const query = new URLSearchParams({
+      user_id: String(userId), start_at: '2026-08-09T00:00:00.000Z', end_at: '2026-08-10T00:00:00.000Z',
+      dimension: 'model', ranking_sort_by: 'user_deduction_usd', ranking_sort_order: 'desc',
+    });
+    const response = await request(`/api/admin/logs?${query}`);
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.summary.user_deduction_usd).toBeCloseTo(3.5, 12);
+    expect(payload.ranking).toEqual([
+      expect.objectContaining({ key: 'gpt-usd-ops-a', total_cost: 14, user_deduction_usd: 2 }),
+      expect.objectContaining({ key: 'gpt-usd-ops-b', total_cost: 15, user_deduction_usd: 1.5 }),
     ]);
   });
 

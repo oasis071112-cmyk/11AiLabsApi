@@ -12,7 +12,11 @@ const { normalizedBaseUrl, supportedPaymentMethods } = require('../utils/easypay
 const { grantQuotaOrder } = require('../utils/quota-orders');
 const { positiveMultiplier } = require('../utils/multiplier-policy');
 const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
-const { deriveUserDeductionUsd } = require('../utils/admin-user-deduction');
+const {
+  deriveUserDeductionUsd,
+  sqliteUserDeductionUsdSql,
+  strictUserDeductionUsdAggregateSql,
+} = require('../utils/admin-user-deduction');
 const {
   reconcileModelStatus,
   routedModelCodesForChannels,
@@ -648,7 +652,7 @@ router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) =
   const offset = (pageNumber-1)*limitNumber;
   if (!['model','channel','user'].includes(dimension)) return res.status(400).json({ error: '日志聚合维度无效' });
   if (!['hour','day'].includes(bucket)) return res.status(400).json({ error: '日志趋势粒度无效' });
-  if (!['label','calls','share','total_cost','success_rate','failed_or_blocked_calls'].includes(ranking_sort_by)) return res.status(400).json({ error: '日志榜单排序字段无效' });
+  if (!['label','calls','share','total_cost','user_deduction_usd','success_rate','failed_or_blocked_calls'].includes(ranking_sort_by)) return res.status(400).json({ error: '日志榜单排序字段无效' });
   if (!['asc','desc'].includes(String(ranking_sort_order).toLowerCase())) return res.status(400).json({ error: '日志榜单排序方向无效' });
   if ((start_at && Number.isNaN(Date.parse(start_at))) || (end_at && Number.isNaN(Date.parse(end_at)))) {
     return res.status(400).json({ error: '日志时间范围无效' });
@@ -692,6 +696,8 @@ router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) =
   if (billing_mode) { where += " AND COALESCE(NULLIF(arl.billing_mode,''),'token')=?"; p.push(billing_mode); }
 
   const from = 'FROM api_request_logs arl LEFT JOIN users u ON arl.user_id=u.id';
+  const userDeductionUsdSql = sqliteUserDeductionUsdSql('arl');
+  const userDeductionUsdAggregateSql = strictUserDeductionUsdAggregateSql(userDeductionUsdSql, 'arl.status');
   const logs = db.prepare(`SELECT arl.*,u.username ${from} ${where} ORDER BY arl.created_at DESC LIMIT ? OFFSET ?`).all(...p, limitNumber, offset)
     .map(log => ({ ...log, user_deduction_usd: deriveUserDeductionUsd(log) }));
   if (include_summary === 'false') {
@@ -700,6 +706,7 @@ router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) =
   }
   const aggregate = db.prepare(`SELECT COUNT(*) AS total_calls,
     COALESCE(SUM(arl.total_cost),0) AS total_cost,
+    ${userDeductionUsdAggregateSql} AS user_deduction_usd,
     SUM(CASE WHEN arl.status='success' THEN 1 ELSE 0 END) AS success_calls,
     SUM(CASE WHEN arl.status='failed' THEN 1 ELSE 0 END) AS failed_calls,
     SUM(CASE WHEN arl.status='blocked' THEN 1 ELSE 0 END) AS blocked_calls,
@@ -709,6 +716,7 @@ router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) =
   const summary = {
     total_calls: totalCalls,
     total_cost: Number(aggregate.total_cost || 0),
+    user_deduction_usd: aggregate.user_deduction_usd == null ? null : Number(aggregate.user_deduction_usd),
     success_calls: Number(aggregate.success_calls || 0),
     failed_calls: Number(aggregate.failed_calls || 0),
     blocked_calls: Number(aggregate.blocked_calls || 0),
@@ -740,16 +748,19 @@ router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) =
     calls: 'COUNT(*)',
     share: 'COUNT(*)',
     total_cost: 'COALESCE(SUM(arl.total_cost),0)',
+    user_deduction_usd: 'user_deduction_usd',
     success_rate: "1.0*SUM(CASE WHEN arl.status='success' THEN 1 ELSE 0 END)/NULLIF(COUNT(*),0)",
     failed_or_blocked_calls: "SUM(CASE WHEN arl.status IN ('failed','blocked') THEN 1 ELSE 0 END)",
   }[ranking_sort_by];
   const rankingSortOrder = String(ranking_sort_order).toUpperCase();
+  const rankingNullsSql = ranking_sort_by === 'user_deduction_usd' ? ' NULLS LAST' : '';
   const ranking = db.prepare(`SELECT ${group.key} AS key,${group.label} AS label,COUNT(*) AS calls,
     COALESCE(SUM(arl.total_cost),0) AS total_cost,
+    ${userDeductionUsdAggregateSql} AS user_deduction_usd,
     SUM(CASE WHEN arl.status='success' THEN 1 ELSE 0 END) AS success_calls,
     SUM(CASE WHEN arl.status IN ('failed','blocked') THEN 1 ELSE 0 END) AS failed_or_blocked_calls,
     SUM(CASE WHEN arl.status IS NULL OR arl.status NOT IN ('success','failed','blocked') THEN 1 ELSE 0 END) AS pending_calls
-    ${from} ${where} GROUP BY ${group.key},${group.label} ORDER BY ${rankingSortSql} ${rankingSortOrder},COUNT(*) DESC,${group.label} ASC LIMIT 20`).all(...p)
+    ${from} ${where} GROUP BY ${group.key},${group.label} ORDER BY ${rankingSortSql} ${rankingSortOrder}${rankingNullsSql},COUNT(*) DESC,${group.label} ASC LIMIT 20`).all(...p)
     .map(row => {
       const calls = Number(row.calls || 0);
       const successCalls = Number(row.success_calls || 0);
@@ -757,6 +768,7 @@ router.get('/logs', authenticate, requireAdmin('admin','operator'), (req, res) =
         key: String(row.key), label: String(row.label), calls,
         share: totalCalls ? Number((calls * 100 / totalCalls).toFixed(2)) : 0,
         total_cost: Number(row.total_cost || 0),
+        user_deduction_usd: row.user_deduction_usd == null ? null : Number(row.user_deduction_usd),
         success_rate: calls ? Number((successCalls * 100 / calls).toFixed(2)) : 0,
         failed_or_blocked_calls: Number(row.failed_or_blocked_calls || 0),
         pending_calls: Number(row.pending_calls || 0),

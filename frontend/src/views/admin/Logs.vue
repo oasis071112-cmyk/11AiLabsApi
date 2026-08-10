@@ -30,7 +30,7 @@
 
     <section class="ops-kpi-grid" v-loading="loading" aria-label="运营汇总">
       <article class="stat-card"><span>调用次数</span><strong>{{ formatInteger(summary.total_calls) }}</strong><small>当前筛选范围</small></article>
-      <article class="stat-card"><span>实际扣点</span><strong>{{ formatPoints(summary.total_cost) }}</strong><small>已记录调用合计</small></article>
+      <article class="stat-card"><span>美元扣费</span><strong>{{ formatUsdDeduction(summary.user_deduction_usd) }}</strong><small>已结算调用合计</small></article>
       <article class="stat-card success-card"><span>成功率</span><strong>{{ formatPercent(summary.success_rate) }}</strong><small>{{ formatInteger(summary.success_calls) }} 次成功</small></article>
       <article class="stat-card danger-card"><span>失败 / 拦截</span><strong>{{ formatInteger(anomalyCalls) }}</strong><small>{{ formatInteger(summary.failed_calls) }} 失败 · {{ formatInteger(summary.blocked_calls) }} 拦截</small></article>
     </section>
@@ -44,7 +44,7 @@
 
     <section class="ranking-card" v-loading="loading">
       <div class="ranking-head">
-        <div><h4>运营榜单</h4><p>调用量、扣点和稳定性均来自当前日志字段</p></div>
+        <div><h4>运营榜单</h4><p>调用量、美元扣费和稳定性均来自当前日志字段</p></div>
         <div class="dimension-tabs" role="tablist" aria-label="榜单维度">
           <button v-for="item in dimensions" :key="item.value" type="button" role="tab" :aria-selected="dimension===item.value" :class="{active:dimension===item.value}" @click="setDimension(item.value)">{{ item.label }}</button>
         </div>
@@ -54,7 +54,7 @@
         <el-table-column prop="label" :label="dimensionLabel" min-width="220" show-overflow-tooltip sortable="custom"><template #default="{row}"><div class="rank-object"><span>{{ row.label }}</span><small>点击查看调用明细</small></div></template></el-table-column>
         <el-table-column prop="calls" label="调用量" width="120" sortable="custom"><template #default="{row}">{{ formatInteger(row.calls) }}</template></el-table-column>
         <el-table-column prop="share" label="占比" width="110" sortable="custom"><template #default="{row}">{{ formatPercent(row.share) }}</template></el-table-column>
-        <el-table-column prop="total_cost" label="实际扣点" width="140" sortable="custom"><template #default="{row}">{{ formatPoints(row.total_cost) }}</template></el-table-column>
+        <el-table-column prop="user_deduction_usd" label="美元扣费" width="140" sortable="custom"><template #default="{row}">{{ formatUsdDeduction(row.user_deduction_usd) }}</template></el-table-column>
         <el-table-column prop="success_rate" label="成功率" width="120" sortable="custom"><template #default="{row}"><span :class="rateTone(row.success_rate)">{{ formatPercent(row.success_rate) }}</span></template></el-table-column>
         <el-table-column prop="failed_or_blocked_calls" label="失败 / 拦截" width="130" sortable="custom"><template #default="{row}">{{ formatInteger(row.failed_or_blocked_calls) }}</template></el-table-column>
       </el-table>
@@ -64,7 +64,7 @@
           <div class="mobile-rank-head"><strong>{{ row.label }}</strong><span>{{ formatInteger(row.calls) }} 次</span></div>
           <div class="mobile-rank-metrics">
             <div><small>调用占比</small><span>{{ formatPercent(row.share) }}</span></div>
-            <div><small>实际扣点</small><span>{{ formatPoints(row.total_cost) }}</span></div>
+            <div><small>美元扣费</small><span>{{ formatUsdDeduction(row.user_deduction_usd) }}</span></div>
             <div><small>成功率</small><span :class="rateTone(row.success_rate)">{{ formatPercent(row.success_rate) }}</span></div>
             <div><small>失败 / 拦截</small><span>{{ formatInteger(row.failed_or_blocked_calls) }}</span></div>
           </div>
@@ -85,7 +85,7 @@
           <article v-for="row in detailLogs" :key="row.request_id||row.id" class="log-record" :class="{expanded:expandedLogId===(row.request_id||row.id)}">
             <button type="button" class="log-record-summary" @click="toggleLog(row)">
               <div class="record-time"><strong>{{ formatBeijingTime(row.created_at) }}</strong><el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag></div>
-              <div class="record-primary"><span>{{ row.model_code||'—' }}</span><strong>{{ formatPoints(row.total_cost) }}</strong></div>
+              <div class="record-primary"><span>{{ row.model_code||'—' }}</span><strong>{{ formatUsdDeduction(row.user_deduction_usd) }}</strong></div>
               <div class="record-meta"><span>{{ row.username||`用户 #${row.user_id||'—'}` }}</span><span>{{ channelLabel(row) }}</span></div>
             </button>
             <div v-if="expandedLogId===(row.request_id||row.id)" class="record-detail">
@@ -134,7 +134,7 @@ import { useMobile } from '@/composables/useMobile'
 import { formatBeijingDate, formatBeijingTime } from '@/utils/time'
 import { formatUsdDeduction } from '@/utils/billing'
 
-const EMPTY_SUMMARY={total_calls:0,total_cost:0,success_calls:0,failed_calls:0,blocked_calls:0,pending_calls:0,success_rate:0}
+const EMPTY_SUMMARY={total_calls:0,total_cost:0,user_deduction_usd:0,success_calls:0,failed_calls:0,blocked_calls:0,pending_calls:0,success_rate:0}
 const presets=[{value:'24h',label:'近24小时'},{value:'today',label:'今天'},{value:'7d',label:'近7天'},{value:'30d',label:'近30天'},{value:'custom',label:'自定义'}]
 const dimensions=[{value:'model',label:'按模型'},{value:'channel',label:'按渠道'},{value:'user',label:'按用户'}]
 const isMobile=useMobile()
@@ -249,7 +249,6 @@ function openAllDetails(){activeDetail.value={type:'all',key:'',label:'全部调
 function openRankDetails(row){activeDetail.value={type:dimension.value,key:row.key,label:row.label,caption:`${dimensionLabel.value}明细`};detailPage.value=1;expandedLogId.value=null;detailsOpen.value=true;fetchDetails()}
 function toggleLog(row){const id=row.request_id||row.id;expandedLogId.value=expandedLogId.value===id?null:id}
 function formatInteger(value){return Number(value||0).toLocaleString('zh-CN')}
-function formatPoints(value){return `${Number(value||0).toFixed(6)} 点`}
 function formatPercent(value){return `${Number(value||0).toFixed(2)}%`}
 function rateTone(value){return Number(value)>=98?'rate-good':Number(value)>=90?'rate-warn':'rate-bad'}
 function statusType(value){return value==='success'?'success':value==='blocked'?'warning':'danger'}

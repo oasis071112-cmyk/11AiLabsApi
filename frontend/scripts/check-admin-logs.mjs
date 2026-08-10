@@ -3,6 +3,10 @@ import fs from 'node:fs'
 import { formatUsdDeduction } from '../src/utils/billing.js'
 
 const logs = fs.readFileSync(new URL('../src/views/admin/Logs.vue', import.meta.url), 'utf8')
+const section = (start, end) => logs.slice(logs.indexOf(start), logs.indexOf(end, logs.indexOf(start)))
+const desktopRanking = section('class="desktop-ranking-table"', '</el-table>')
+const mobileRanking = section('class="mobile-ranking-list"', '<el-empty')
+const mobileDetails = section('class="mobile-log-list"', '<el-pagination')
 
 assert.equal(formatUsdDeduction(2), '$2.000000')
 assert.equal(formatUsdDeduction('0.5'), '$0.500000')
@@ -16,6 +20,12 @@ assert.match(
   /formatUsdDeduction\(row\.user_deduction_usd\)/,
   '美元明细必须格式化后端返回的 user_deduction_usd 字段',
 )
+assert.match(logs, /formatUsdDeduction\(summary\.user_deduction_usd\)/, '运营 KPI 必须展示美元扣费合计')
+assert.match(desktopRanking, /prop="user_deduction_usd" label="美元扣费"/, '桌面榜单必须展示并排序美元扣费')
+assert.match(mobileRanking, /formatUsdDeduction\(row\.user_deduction_usd\)/, '手机榜单必须展示美元扣费')
+assert.match(mobileDetails, /class="record-primary"[^\n]+formatUsdDeduction\(row\.user_deduction_usd\)/, '折叠调用明细必须展示美元扣费')
+assert.doesNotMatch(logs, /实际扣点/, '管理端调用日志不得继续展示人民币点数扣费')
+assert.doesNotMatch(logs, /formatPoints\(/, '管理端调用日志不得继续格式化点数扣费')
 assert.match(logs, /class="ops-kpi-grid"/, '调用日志首屏必须提供运营 KPI')
 assert.match(logs, /class="desktop-ranking-table"/, '桌面端必须提供可排序的聚合榜单')
 assert.match(logs, /class="mobile-ranking-list"/, '手机端必须使用聚合卡片而不是压缩桌面表格')
