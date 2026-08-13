@@ -5,8 +5,10 @@ const { ACCOUNT_CAPABILITIES, ACCOUNT_PROTOCOLS } = require('./index');
 const { normalizeUpstreamModels, inferModelType } = require('../../utils/model-sync');
 const { inferProvider } = require('../../utils/pricing-sync');
 const { defaultImageDisplayPricing } = require('../../utils/pricing-engine');
+const { buildBillingDetailFromSnapshot } = require('../../utils/billing-detail');
 const {
   deriveUserDeductionUsd,
+  postgresSettledLogSql,
   postgresUserDeductionUsdSql,
   strictUserDeductionUsdAggregateSql,
 } = require('../../utils/admin-user-deduction');
@@ -53,6 +55,48 @@ function numericFields(row, fields) {
   const result = { ...row };
   for (const field of fields) result[field] = Number(row[field] || 0);
   return result;
+}
+
+function normalizeRequestLog(log) {
+  if (!log) return null;
+  const normalized = numericFields(log, [
+    'id', 'input_tokens', 'output_tokens', 'total_cost', 'pending_reserved_amount', 'output_items',
+  ]);
+  const snapshot = asObject(normalized.billing_snapshot);
+  const charge = asObject(snapshot.charge);
+  const usage = asObject(charge.usage);
+  const settlement = asObject(snapshot.settlement);
+  const billingMode = normalized.billing_mode || charge.mode || snapshot.billing_mode || snapshot.mode || 'token';
+  return {
+    ...normalized,
+    upstream_channel_id: normalized.upstream_channel_id ?? normalized.upstream_account_id ?? null,
+    billing_mode: billingMode,
+    billing_model: charge.model_code || normalized.model_code || null,
+    cached_input_tokens: Number(usage.cached_input_tokens || 0),
+    uncached_input_tokens: Number(usage.uncached_input_tokens || 0),
+    cache_creation_tokens: Number(usage.cache_creation_tokens || 0),
+    cache_creation_5m_tokens: Number(usage.cache_creation_5m_tokens || 0),
+    cache_creation_1h_tokens: Number(usage.cache_creation_1h_tokens || 0),
+    image_input_tokens: Number(usage.image_input_tokens || 0),
+    image_output_tokens: Number(usage.image_output_tokens || 0),
+    input_price: charge.input_price == null ? null : Number(charge.input_price),
+    output_price: charge.output_price == null ? null : Number(charge.output_price),
+    cached_input_price: charge.cached_input_price == null ? null : Number(charge.cached_input_price),
+    cache_creation_price: charge.cache_creation_price == null ? null : Number(charge.cache_creation_price),
+    billing_multiplier_input: charge.input_multiplier == null ? null : Number(charge.input_multiplier),
+    billing_multiplier_output: charge.output_multiplier == null ? null : Number(charge.output_multiplier),
+    billing_multiplier_image: charge.multiplier == null ? null : Number(charge.multiplier),
+    billing_multiplier_source_input: charge.input_multiplier == null ? null : 'request_snapshot',
+    billing_multiplier_source_output: charge.output_multiplier == null ? null : 'request_snapshot',
+    billing_multiplier_source_image: charge.multiplier == null ? null : 'request_snapshot',
+    usd_cny_rate: charge.usd_cny_rate == null ? null : Number(charge.usd_cny_rate),
+    billing_currency: charge.currency || null,
+    auto_settlement: Object.keys(settlement).length ? settlement : null,
+    billing_detail: buildBillingDetailFromSnapshot({ ...normalized, billing_mode: billingMode }),
+    billing_snapshot_missing: !Object.keys(snapshot).length,
+    exact_detail_supported: true,
+    user_deduction_usd: deriveUserDeductionUsd(normalized),
+  };
 }
 
 function positiveInteger(value, fallback, field) {
@@ -585,7 +629,8 @@ class PostgresAdminCompatRepository {
         conditions.push('arl.upstream_account_id IS NULL');
       } else {
         values.push(`%${text(channel)}%`);
-        conditions.push(`COALESCE(arl.upstream_account_id::text,'') ILIKE $${values.length}`);
+        conditions.push(`(COALESCE(arl.upstream_account_id::text,'') ILIKE $${values.length}
+          OR COALESCE(ua.display_name,'') ILIKE $${values.length} OR COALESCE(ua.account_key,'') ILIKE $${values.length})`);
       }
     }
     if (channelExact) {
@@ -601,30 +646,27 @@ class PostgresAdminCompatRepository {
     const billingModeSql = `COALESCE(arl.billing_snapshot->'charge'->>'mode',arl.billing_snapshot->>'billing_mode',arl.billing_snapshot->>'mode','token')`;
     if (billingMode) { values.push(text(billingMode)); conditions.push(`${billingModeSql}=$${values.length}`); }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const from = 'FROM api_request_logs arl LEFT JOIN users u ON u.id=arl.user_id';
+    const from = `FROM api_request_logs arl LEFT JOIN users u ON u.id=arl.user_id
+      LEFT JOIN upstream_accounts ua ON ua.id=arl.upstream_account_id`;
     const userDeductionUsdSql = postgresUserDeductionUsdSql('arl');
-    const userDeductionUsdAggregateSql = strictUserDeductionUsdAggregateSql(userDeductionUsdSql, 'arl.status');
+    const userDeductionUsdAggregateSql = strictUserDeductionUsdAggregateSql(
+      userDeductionUsdSql, 'arl.status', postgresSettledLogSql('arl'),
+    );
     const bucketSql = bucket === 'hour'
       ? `to_char(date_trunc('hour',arl.created_at AT TIME ZONE 'Asia/Shanghai'),'YYYY-MM-DD HH24:00')`
       : `to_char(date_trunc('day',arl.created_at AT TIME ZONE 'Asia/Shanghai'),'YYYY-MM-DD')`;
     const dimensions = {
       model: { key: `COALESCE(NULLIF(arl.model_code,''),'__none__')`, label: `COALESCE(NULLIF(arl.model_code,''),'—')` },
-      channel: { key: `COALESCE('id:'||arl.upstream_account_id::text,'__none__')`, label: `COALESCE(arl.upstream_account_id::text,'—')` },
+      channel: { key: `COALESCE('id:'||arl.upstream_account_id::text,'__none__')`, label: `COALESCE(NULLIF(ua.display_name,''),arl.upstream_account_id::text,'—')` },
       user: { key: `COALESCE(arl.user_id::text,'__none__')`, label: `COALESCE(NULLIF(u.username,''),'用户 #'||arl.user_id::text,'—')` },
     };
     const group = dimensions[dimension];
-    const normalizeLogs = rows => rows.map(log => {
-      const normalized = numericFields(log, ['total_cost']);
-      const snapshot = asObject(normalized.billing_snapshot);
-      const charge = asObject(snapshot.charge);
-      return {
-        ...normalized,
-        upstream_channel_id: normalized.upstream_channel_id ?? normalized.upstream_account_id ?? null,
-        billing_mode: normalized.billing_mode || charge.mode || snapshot.billing_mode || snapshot.mode || 'token',
-        user_deduction_usd: deriveUserDeductionUsd(normalized),
-      };
-    });
-    const logsSql = `SELECT arl.*,u.username FROM api_request_logs arl LEFT JOIN users u ON u.id=arl.user_id
+    const normalizeLogs = rows => rows.map(normalizeRequestLog);
+    const logsSql = `SELECT arl.*,u.username,u.email,ua.display_name AS upstream_channel_name,
+      ua.account_key AS upstream_channel_key,ak.key_name,ak.key_prefix
+      FROM api_request_logs arl LEFT JOIN users u ON u.id=arl.user_id
+      LEFT JOIN upstream_accounts ua ON ua.id=arl.upstream_account_id
+      LEFT JOIN api_keys ak ON ak.id=arl.api_key_id
       ${where} ORDER BY arl.created_at DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
     if (!includeSummary) {
       const [logs, total] = await Promise.all([
@@ -711,6 +753,26 @@ class PostgresAdminCompatRepository {
         };
       }),
     };
+  }
+
+  async getLogDetail(id, createdAt) {
+    const timestamp = new Date(createdAt);
+    if (!String(id || '').trim() || Number.isNaN(timestamp.getTime())) {
+      throw new AdminCompatError(400, 'invalid_log_identity', '调用日志标识或创建时间无效');
+    }
+    const millisecondEnd = new Date(timestamp.getTime() + 1);
+    const { rows } = await this.pool.query(`SELECT arl.*,u.username,u.email,
+      ua.display_name AS upstream_channel_name,ua.account_key AS upstream_channel_key,
+      ak.key_name,ak.key_prefix
+      FROM api_request_logs arl
+      LEFT JOIN users u ON u.id=arl.user_id
+      LEFT JOIN upstream_accounts ua ON ua.id=arl.upstream_account_id
+      LEFT JOIN api_keys ak ON ak.id=arl.api_key_id
+      WHERE arl.id=$1
+        AND arl.created_at >= $2::timestamptz
+        AND arl.created_at < $3::timestamptz
+      LIMIT 1`, [String(id), timestamp.toISOString(), millisecondEnd.toISOString()]);
+    return normalizeRequestLog(rows[0]);
   }
 
   async listModels() {

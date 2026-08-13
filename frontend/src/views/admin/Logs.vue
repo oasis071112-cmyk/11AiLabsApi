@@ -49,6 +49,7 @@
           <button v-for="item in dimensions" :key="item.value" type="button" role="tab" :aria-selected="dimension===item.value" :class="{active:dimension===item.value}" @click="setDimension(item.value)">{{ item.label }}</button>
         </div>
       </div>
+      <div v-if="operationsError" class="detail-inline-error operations-inline-error" role="alert"><span>{{ operationsError }}</span><el-button size="small" @click="fetchOperations">重试</el-button></div>
 
       <el-table v-if="ranking.length" class="desktop-ranking-table" :data="ranking" stripe table-layout="fixed" :default-sort="{prop:'calls',order:'descending'}" @sort-change="handleRankingSort" @row-click="openRankDetails">
         <el-table-column prop="label" :label="dimensionLabel" min-width="220" show-overflow-tooltip sortable="custom"><template #default="{row}"><div class="rank-object"><span>{{ row.label }}</span><small>点击查看调用明细</small></div></template></el-table-column>
@@ -71,39 +72,59 @@
           <span class="mobile-rank-action">查看调用明细 →</span>
         </button>
       </div>
-      <el-empty v-if="!loading&&!ranking.length" description="当前范围暂无调用记录" :image-size="64"/>
+      <el-empty v-if="!loading&&!operationsError&&!ranking.length" description="当前范围暂无调用记录" :image-size="64"/>
     </section>
 
     <el-drawer v-model="detailsOpen" class="log-detail-drawer" direction="rtl" :size="isMobile?'100%':'640px'" :with-header="false" append-to-body>
       <div class="detail-shell">
         <header class="detail-head">
-          <button type="button" aria-label="关闭调用明细" @click="detailsOpen=false">×</button>
-          <div><span>{{ activeDetail.caption }}</span><h4>{{ activeDetail.label }}</h4><small>{{ rangeCaption }} · 共 {{ formatInteger(detailTotal) }} 条</small></div>
+          <button v-if="detailView==='record'" type="button" aria-label="返回调用明细列表" @click="backToDetailList">‹</button>
+          <button v-else type="button" aria-label="关闭调用明细" @click="detailsOpen=false">×</button>
+          <div v-if="detailView==='record'"><span>完整调用详情</span><h4>{{ selectedLog?.model_code||'调用记录' }}</h4><small class="mono">{{ selectedLog?.request_id||'—' }}</small></div>
+          <div v-else><span>{{ activeDetail.caption }}</span><h4>{{ activeDetail.label }}</h4><small>{{ rangeCaption }} · 共 {{ formatInteger(detailTotal) }} 条</small></div>
         </header>
-        <div class="detail-filter-note">当前页面的时间、搜索与高级筛选保持生效</div>
-        <div class="mobile-log-list" v-loading="detailLoading">
-          <article v-for="row in detailLogs" :key="row.request_id||row.id" class="log-record" :class="{expanded:expandedLogId===(row.request_id||row.id)}">
-            <button type="button" class="log-record-summary" @click="toggleLog(row)">
+        <div v-if="detailView==='list'" class="detail-filter-note">当前页面的时间、搜索与高级筛选保持生效</div>
+        <div v-if="detailView==='list'" class="mobile-log-list">
+          <el-skeleton v-if="detailLoading" animated :rows="7"/>
+          <div v-else-if="detailError" class="detail-inline-error" role="alert"><span>{{ detailError }}</span><el-button size="small" @click="fetchDetails">重试</el-button></div>
+          <article v-for="row in detailLoading||detailError?[]:detailLogs" :key="row.id" class="log-record">
+            <button type="button" class="log-record-summary" @click="openLogDetail(row)">
               <div class="record-time"><strong>{{ formatBeijingTime(row.created_at) }}</strong><el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag></div>
               <div class="record-primary"><span>{{ row.model_code||'—' }}</span><strong>{{ formatUsdDeduction(row.user_deduction_usd) }}</strong></div>
               <div class="record-meta"><span>{{ row.username||`用户 #${row.user_id||'—'}` }}</span><span>{{ channelLabel(row) }}</span></div>
             </button>
-            <div v-if="expandedLogId===(row.request_id||row.id)" class="record-detail">
-              <dl>
-                <div><dt>请求 ID</dt><dd class="mono">{{ row.request_id||'—' }}</dd></div>
-                <div><dt>计费模型</dt><dd>{{ row.billing_model||row.model_code||'—' }}</dd></div>
-                <div><dt>计费方式</dt><dd>{{ billingModeLabel(row) }}</dd></div>
-                <div><dt>倍率来源</dt><dd>{{ multiplierText(row) }}</dd></div>
-                <div><dt>输入 Token</dt><dd>{{ tokenValue(row.input_tokens,row.billing_mode) }}</dd></div>
-                <div><dt>输出 Token</dt><dd>{{ tokenValue(row.output_tokens,row.billing_mode) }}</dd></div>
-                <div><dt>用户实际扣费（USD）</dt><dd>{{ formatUsdDeduction(row.user_deduction_usd) }}</dd></div>
-                <div class="error-row"><dt>错误</dt><dd>{{ row.error_message||'—' }}</dd></div>
-              </dl>
-            </div>
           </article>
-          <el-empty v-if="!detailLoading&&!detailLogs.length" description="暂无调用明细" :image-size="58"/>
+          <el-empty v-if="!detailLoading&&!detailError&&!detailLogs.length" description="暂无调用明细" :image-size="58"/>
         </div>
-        <el-pagination v-if="detailTotal>50" v-model:current-page="detailPage" :page-size="50" :total="detailTotal" layout="prev,pager,next" @current-change="fetchDetails"/>
+        <div v-else class="single-log-detail">
+          <el-skeleton v-if="singleLoading" animated :rows="10"/>
+          <div v-else-if="singleError" class="detail-inline-error" role="alert"><span>{{ singleError }}</span><el-button size="small" @click="retryLogDetail">重试</el-button></div>
+          <div v-else-if="selectedLog" class="record-detail complete-record-detail">
+            <div v-if="selectedLog.billing_snapshot_missing" class="historical-snapshot-note">历史记录无快照</div>
+            <dl>
+              <div><dt>数据库日志 ID</dt><dd class="mono">{{ selectedLog.id }}</dd></div>
+              <div><dt>请求 ID</dt><dd class="mono">{{ selectedLog.request_id||'—' }}</dd></div>
+              <div><dt>用户</dt><dd>{{ selectedLog.username||`用户 #${selectedLog.user_id||'—'}` }}</dd></div>
+              <div><dt>API Key</dt><dd>{{ selectedLog.key_name||selectedLog.key_prefix||'—' }}</dd></div>
+              <div><dt>实际渠道</dt><dd>{{ channelLabel(selectedLog) }}</dd></div>
+              <div><dt>计费模型 / 方式</dt><dd>{{ selectedLog.billing_model||selectedLog.model_code||'—' }} · {{ billingModeLabel(selectedLog) }}</dd></div>
+              <div><dt>普通输入 Token</dt><dd>{{ tokenValue(selectedLog.uncached_input_tokens??selectedLog.input_tokens,selectedLog.billing_mode) }}</dd></div>
+              <div><dt>缓存读取 Token</dt><dd>{{ tokenValue(selectedLog.cached_input_tokens,selectedLog.billing_mode) }}</dd></div>
+              <div><dt>缓存创建 Token</dt><dd>{{ tokenValue(selectedLog.cache_creation_tokens,selectedLog.billing_mode) }}</dd></div>
+              <div><dt>缓存创建 5 分钟 Token</dt><dd>{{ tokenValue(selectedLog.cache_creation_5m_tokens,selectedLog.billing_mode) }}</dd></div>
+              <div><dt>缓存创建 1 小时 Token</dt><dd>{{ tokenValue(selectedLog.cache_creation_1h_tokens,selectedLog.billing_mode) }}</dd></div>
+              <div><dt>图片输入 / 输出 Token</dt><dd>{{ tokenValue(selectedLog.image_input_tokens,selectedLog.billing_mode) }} / {{ tokenValue(selectedLog.image_output_tokens,selectedLog.billing_mode) }}</dd></div>
+              <div><dt>输出 Token</dt><dd>{{ tokenValue(selectedLog.output_tokens,selectedLog.billing_mode) }}</dd></div>
+              <div><dt>输入 / 输出价格</dt><dd>{{ priceText(selectedLog.input_price) }} / {{ priceText(selectedLog.output_price) }}</dd></div>
+              <div><dt>倍率</dt><dd>{{ multiplierText(selectedLog) }}</dd></div>
+              <div><dt>美元汇率</dt><dd>{{ selectedLog.usd_cny_rate??'—' }}</dd></div>
+              <div><dt>用户实际扣费（USD）</dt><dd>{{ formatUsdDeduction(selectedLog.user_deduction_usd) }}</dd></div>
+              <div><dt>自动结算</dt><dd>{{ settlementText(selectedLog.auto_settlement) }}</dd></div>
+              <div class="error-row"><dt>错误</dt><dd>{{ selectedLog.error_type||'—' }} · {{ selectedLog.error_message||'—' }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <el-pagination v-if="detailView==='list'&&detailTotal>50" v-model:current-page="detailPage" :page-size="50" :total="detailTotal" layout="prev,pager,next" @current-change="fetchDetails"/>
       </div>
     </el-drawer>
 
@@ -138,15 +159,17 @@ const EMPTY_SUMMARY={total_calls:0,total_cost:0,user_deduction_usd:0,success_cal
 const presets=[{value:'24h',label:'近24小时'},{value:'today',label:'今天'},{value:'7d',label:'近7天'},{value:'30d',label:'近30天'},{value:'custom',label:'自定义'}]
 const dimensions=[{value:'model',label:'按模型'},{value:'channel',label:'按渠道'},{value:'user',label:'按用户'}]
 const isMobile=useMobile()
-const loading=ref(false),detailLoading=ref(false),filterDrawer=ref(false),detailsOpen=ref(false)
+const loading=ref(false),detailLoading=ref(false),singleLoading=ref(false),filterDrawer=ref(false),detailsOpen=ref(false)
 const summary=ref({...EMPTY_SUMMARY}),trend=ref([]),ranking=ref([])
+const operationsError=ref('')
 const preset=ref('24h'),dimension=ref('model'),searchInput=ref(''),customStart=ref(''),customEnd=ref('')
 const filters=reactive({q:'',status:'',channel:'',billing_mode:''})
 const rankingSort=reactive({prop:'calls',order:'desc'})
-const detailLogs=ref([]),detailTotal=ref(0),detailPage=ref(1),expandedLogId=ref(null)
+const detailLogs=ref([]),detailTotal=ref(0),detailPage=ref(1),detailError=ref(''),singleError=ref('')
+const detailView=ref('list'),selectedLog=ref(null),selectedLogIdentity=ref(null)
 const activeDetail=ref({type:'all',key:'',label:'全部调用',caption:'调用明细'})
 const appliedQueryParams=ref(null)
-let operationsRequestId=0,detailRequestId=0
+let operationsRequestId=0,detailRequestId=0,singleRequestId=0,detailController=null,singleController=null
 
 const anomalyCalls=computed(()=>Number(summary.value.failed_calls||0)+Number(summary.value.blocked_calls||0))
 const rangeCaption=computed(()=>presets.find(item=>item.value===preset.value)?.label||'当前范围')
@@ -194,6 +217,7 @@ function baseParams(){
 async function fetchOperations(){
   const requestId=++operationsRequestId
   loading.value=true
+  operationsError.value=''
   try{
     const params={...operationsParams(),page:1,limit:50}
     const response=await api.get('/api/admin/logs',{params})
@@ -202,7 +226,7 @@ async function fetchOperations(){
     trend.value=response.data.trend||[]
     ranking.value=response.data.ranking||[]
     appliedQueryParams.value={...params}
-  }catch(error){if(requestId===operationsRequestId)ElMessage.error(error.response?.data?.error||error.message||'调用日志加载失败，请重试')}
+  }catch(error){if(requestId===operationsRequestId)operationsError.value=error.response?.data?.error||error.message||'调用日志加载失败，请重试'}
   finally{if(requestId===operationsRequestId)loading.value=false}
 }
 function setPreset(value){
@@ -237,17 +261,30 @@ function detailParams(){
 }
 async function fetchDetails(){
   const requestId=++detailRequestId
+  detailController?.abort();detailController=new AbortController()
   detailLoading.value=true
+  detailError.value=''
   try{
-    const response=await api.get('/api/admin/logs',{params:detailParams()})
+    const response=await api.get('/api/admin/logs',{params:detailParams(),signal:detailController.signal})
     if(requestId!==detailRequestId)return
     detailLogs.value=response.data.data||[];detailTotal.value=Number(response.data.pagination?.total||0)
-  }catch(error){if(requestId===detailRequestId)ElMessage.error(error.response?.data?.error||'调用明细加载失败，请重试')}
+  }catch(error){if(requestId===detailRequestId&&error.code!=='ERR_CANCELED')detailError.value=error.response?.data?.error||error.message||'调用明细加载失败，请重试'}
   finally{if(requestId===detailRequestId)detailLoading.value=false}
 }
-function openAllDetails(){activeDetail.value={type:'all',key:'',label:'全部调用',caption:'调用明细'};detailPage.value=1;expandedLogId.value=null;detailsOpen.value=true;fetchDetails()}
-function openRankDetails(row){activeDetail.value={type:dimension.value,key:row.key,label:row.label,caption:`${dimensionLabel.value}明细`};detailPage.value=1;expandedLogId.value=null;detailsOpen.value=true;fetchDetails()}
-function toggleLog(row){const id=row.request_id||row.id;expandedLogId.value=expandedLogId.value===id?null:id}
+function openAllDetails(){activeDetail.value={type:'all',key:'',label:'全部调用',caption:'调用明细'};detailPage.value=1;detailView.value='list';detailsOpen.value=true;fetchDetails()}
+function openRankDetails(row){activeDetail.value={type:dimension.value,key:row.key,label:row.label,caption:`${dimensionLabel.value}明细`};detailPage.value=1;detailView.value='list';detailsOpen.value=true;fetchDetails()}
+async function openLogDetail(row){
+  const requestId=++singleRequestId
+  selectedLogIdentity.value={...row};selectedLog.value=null;singleError.value='';detailView.value='record'
+  if(row.exact_detail_supported!==true){selectedLog.value=row;return}
+  if(row.id===undefined||!row.created_at){singleError.value='该记录缺少数据库日志标识，无法精确读取';return}
+  singleController?.abort();singleController=new AbortController();singleLoading.value=true
+  try{const response=await api.get(`/api/admin/logs/${encodeURIComponent(row.id)}`,{params:{created_at:row.created_at},signal:singleController.signal});if(requestId===singleRequestId)selectedLog.value=response.data.data}
+  catch(error){if(requestId===singleRequestId&&error.code!=='ERR_CANCELED')singleError.value=error.response?.data?.error||error.message||'完整调用详情加载失败，请重试'}
+  finally{if(requestId===singleRequestId)singleLoading.value=false}
+}
+function retryLogDetail(){if(selectedLogIdentity.value)openLogDetail(selectedLogIdentity.value)}
+function backToDetailList(){singleController?.abort();detailView.value='list';selectedLog.value=null;singleError.value=''}
 function formatInteger(value){return Number(value||0).toLocaleString('zh-CN')}
 function formatPercent(value){return `${Number(value||0).toFixed(2)}%`}
 function rateTone(value){return Number(value)>=98?'rate-good':Number(value)>=90?'rate-warn':'rate-bad'}
@@ -262,7 +299,9 @@ function multiplierText(row){
   return `入 ${multiplierValue(row.billing_multiplier_input)} · ${sourceLabel(row.billing_multiplier_source_input)} / 出 ${multiplierValue(row.billing_multiplier_output)} · ${sourceLabel(row.billing_multiplier_source_output)}`
 }
 function multiplierValue(value){return value===undefined||value===null||value===''?'—':`×${value}`}
-function sourceLabel(value){return{user:'用户专属',routing_group:'路由分组',global:'全局倍率',system_default:'1× 兜底',channel:'旧渠道倍率',platform_model:'旧平台模型',platform_default:'旧平台全局',model_default:'旧模型兜底'}[value]||'旧记录'}
+function sourceLabel(value){return{request_snapshot:'调用快照',user:'用户专属',routing_group:'路由分组',global:'全局倍率',system_default:'1× 兜底',channel:'旧渠道倍率',platform_model:'旧平台模型',platform_default:'旧平台全局',model_default:'旧模型兜底'}[value]||'旧记录'}
+function priceText(value){return value===undefined||value===null?'—':String(value)}
+function settlementText(value){if(!value)return'—';return{partial_settled:'部分用量已结算',zero_released:'零扣费已解冻',settled:'已结算'}[value.outcome]||value.outcome||'已自动处理'}
 </script>
 
 <style scoped>
@@ -273,4 +312,7 @@ function sourceLabel(value){return{user:'用户专属',routing_group:'路由分�
 @media(min-width:769px) and (max-width:1120px){.logs-insights-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:768px){.logs-heading .el-button,.logs-toolbar>.el-button{min-height:44px}.logs-toolbar :deep(.el-input__wrapper){min-height:44px}.date-presets button{min-height:44px}.reset-button{width:44px;min-height:44px}.dimension-tabs button{min-height:44px}.admin-logs-page :deep(.el-pagination button),.admin-logs-page :deep(.el-pager li){min-width:44px;height:44px}}
 @media(max-width:390px){.date-presets button{font-size:10px}.ops-kpi-grid .stat-card{padding:11px}.ops-kpi-grid .stat-card strong{font-size:18px}.logs-heading p{max-width:205px}.mobile-rank-metrics{gap:6px}}
+.detail-inline-error{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0;padding:14px;border:1px solid #f2c6c6;border-radius:10px;background:#fff5f5;color:var(--danger);font-size:12px}.single-log-detail{min-height:0;padding:14px;overflow-y:auto}.single-log-detail>.el-skeleton{padding:8px}.complete-record-detail{padding:0;background:transparent}.complete-record-detail dl{grid-template-columns:repeat(2,minmax(0,1fr));padding-top:0;border-top:0}.historical-snapshot-note{margin-bottom:10px;padding:9px 11px;border-radius:8px;background:#fff8e8;color:#8a6116;font-size:12px}
+.operations-inline-error{margin:12px}
+@media(max-width:768px){.complete-record-detail dl{grid-template-columns:1fr}.detail-inline-error{align-items:flex-start;flex-direction:column}.detail-inline-error .el-button{min-height:44px}}
 </style>

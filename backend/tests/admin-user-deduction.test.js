@@ -42,6 +42,17 @@ describe('deriveUserDeductionUsd', () => {
     })).toBe(1);
   });
 
+  it('returns USD for a failed request that was automatically partial-settled', () => {
+    expect(deriveUserDeductionUsd({
+      status: 'failed',
+      total_cost: 0.7,
+      billing_snapshot: {
+        charge: { currency: 'USD', usd_cny_rate: 7 },
+        settlement: { outcome: 'partial_settled' },
+      },
+    })).toBeCloseTo(0.1, 12);
+  });
+
   it.each([
     ['failed call', { status: 'failed', total_cost: 7, billing_snapshot: { currency: 'USD', usd_cny_rate: 7 } }],
     ['pending settlement', { status: 'settlement_pending', total_cost: 0, billing_snapshot: { currency: 'USD', usd_cny_rate: 7 } }],

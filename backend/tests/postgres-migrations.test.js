@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
+  buildNonTransactionalMigrationSql,
   buildTransactionalMigrationSql,
+  isNonTransactionalMigration,
   resolveMigrationDatabaseUrl,
   runPostgresMigrations,
   sha256,
@@ -122,11 +124,11 @@ describe('PostgreSQL migration runner seam', () => {
     });
 
     expect(result).toEqual({
-      applied: ['001_foundation', '002_runtime_limits_and_billing', '003_public_api_compatibility', '004_api_key_daily_usage', '005_wallet_nonnegative', '006_upstream_concurrency_default', '007_upstream_tpm_unlimited'],
+      applied: ['001_foundation', '002_runtime_limits_and_billing', '003_public_api_compatibility', '004_api_key_daily_usage', '005_wallet_nonnegative', '006_upstream_concurrency_default', '007_upstream_tpm_unlimited', '008_admin_log_drilldown_indexes'],
       skipped: [],
     });
     expect(calls.map(call => call.kind)).toEqual([
-      'bootstrap', 'read-applied', 'migration', 'migration', 'migration', 'migration', 'migration', 'migration', 'migration',
+      'bootstrap', 'read-applied', 'migration', 'migration', 'migration', 'migration', 'migration', 'migration', 'migration', 'migration',
     ]);
   });
 
@@ -142,5 +144,18 @@ describe('PostgreSQL migration runner seam', () => {
       expect(sql.match(/INSERT INTO schema_migrations/gi)).toHaveLength(1);
       expect(sql).toContain(`VALUES ('${version}', '${sha256(source)}')`);
     }
+  });
+
+  it('runs explicitly marked concurrent-index migrations outside a transaction under the advisory lock', () => {
+    const source = fs.readFileSync(path.resolve(import.meta.dirname, '../migrations/postgres/008_admin_log_drilldown_indexes.sql'));
+    const sql = buildNonTransactionalMigrationSql({
+      version: '008_admin_log_drilldown_indexes', checksum: sha256(source), source: source.toString('utf8'),
+    });
+
+    expect(isNonTransactionalMigration(source)).toBe(true);
+    expect(sql).toContain('CREATE INDEX CONCURRENTLY');
+    expect(sql).toContain('pg_advisory_lock');
+    expect(sql).not.toMatch(/^BEGIN;$/m);
+    expect(sql).not.toMatch(/^COMMIT;$/m);
   });
 });

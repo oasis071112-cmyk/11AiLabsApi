@@ -151,6 +151,12 @@ function createPostgresAdminRouter({
       rankingSortOrder: req.query.ranking_sort_order || 'desc',
     })));
   }));
+  router.get('/logs/:id', ...operators, asyncRoute(async (req, res) => {
+    if (!req.query.created_at) throw new AdminCompatError(400, 'missing_log_created_at', '缺少调用日志创建时间');
+    const detail = await data.getLogDetail(req.params.id, req.query.created_at);
+    if (!detail) throw new AdminCompatError(404, 'log_not_found', '调用日志不存在');
+    res.json({ data: publicValue(detail) });
+  }));
 
   router.get('/models', ...operators, asyncRoute(async (_req, res) => res.json({ data: publicValue(await data.listModels()) })));
   router.get('/pricing-sync/status', ...operators, asyncRoute(async (_req, res) => {

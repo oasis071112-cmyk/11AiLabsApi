@@ -25,8 +25,9 @@ function isUsdSnapshot(value, fallbackCurrency) {
 }
 
 function deriveUserDeductionUsd(log = {}) {
-  if (log.status !== 'success') return null;
   const persistedSnapshot = parseBillingSnapshot(log.billing_snapshot);
+  const settlement = parseBillingSnapshot(persistedSnapshot.settlement);
+  if (log.status !== 'success' && settlement.outcome !== 'partial_settled') return null;
   const chargeSnapshot = parseBillingSnapshot(persistedSnapshot.charge);
   const billingSnapshot = Object.keys(chargeSnapshot).length ? chargeSnapshot : persistedSnapshot;
   const rate = Number(billingSnapshot.usd_cny_rate ?? persistedSnapshot.usd_cny_rate ?? log.usd_cny_rate);
@@ -35,6 +36,11 @@ function deriveUserDeductionUsd(log = {}) {
   if (!Number.isFinite(rate) || rate <= 0) return null;
   if (!Number.isFinite(settledPoints) || settledPoints < 0) return null;
   return settledPoints / rate;
+}
+
+function postgresSettledLogSql(tableAlias = 'arl') {
+  const snapshot = `COALESCE(${tableAlias}.billing_snapshot,'{}'::jsonb)`;
+  return `(${tableAlias}.status='success' OR ${snapshot}->'settlement'->>'outcome'='partial_settled')`;
 }
 
 function sqliteUserDeductionUsdSql(tableAlias = 'arl') {
@@ -60,13 +66,13 @@ function postgresUserDeductionUsdSql(tableAlias = 'arl') {
       AND NOT EXISTS (SELECT 1 FROM jsonb_each(${tierCharges}) AS tier(key,value)
         WHERE UPPER(COALESCE(tier.value->>'currency',''))<>'USD')
     ELSE FALSE END))`;
-  return `CASE WHEN ${tableAlias}.status='success'
+  return `CASE WHEN ${postgresSettledLogSql(tableAlias)}
     AND ${tableAlias}.total_cost>=0 AND ${rate}>0 AND ${usdCurrency}
     THEN ${tableAlias}.total_cost/${rate} ELSE NULL END`;
 }
 
-function strictUserDeductionUsdAggregateSql(valueSql, statusSql) {
-  return `CASE WHEN COALESCE(SUM(CASE WHEN ${statusSql}='success' THEN 1 ELSE 0 END),0)=COUNT(${valueSql})
+function strictUserDeductionUsdAggregateSql(valueSql, statusSql, settledSql = `${statusSql}='success'`) {
+  return `CASE WHEN COALESCE(SUM(CASE WHEN ${settledSql} THEN 1 ELSE 0 END),0)=COUNT(${valueSql})
     THEN COALESCE(SUM(${valueSql}),0) ELSE NULL END`;
 }
 
@@ -74,5 +80,6 @@ module.exports = {
   deriveUserDeductionUsd,
   sqliteUserDeductionUsdSql,
   postgresUserDeductionUsdSql,
+  postgresSettledLogSql,
   strictUserDeductionUsdAggregateSql,
 };

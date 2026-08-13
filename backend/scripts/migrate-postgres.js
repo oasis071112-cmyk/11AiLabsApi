@@ -115,6 +115,38 @@ function buildTransactionalMigrationSql({ version, checksum, source }) {
   ].join('\n');
 }
 
+function isNonTransactionalMigration(source) {
+  return /^\s*--\s*ionailabs:non-transactional\s*$/im.test(String(source));
+}
+
+function buildNonTransactionalMigrationSql({ version, checksum, source }) {
+  const body = stripMigrationEnvelope(source);
+  const guard = [
+    'DO $migration_guard$',
+    'DECLARE existing_checksum TEXT;',
+    'BEGIN',
+    `  SELECT sm.checksum INTO existing_checksum FROM schema_migrations sm WHERE sm.version = ${sqlLiteral(version)};`,
+    '  IF FOUND THEN',
+    `    IF existing_checksum <> ${sqlLiteral(checksum)} THEN`,
+    `      RAISE EXCEPTION 'Migration checksum mismatch for ${version}';`,
+    '    END IF;',
+    `    RAISE EXCEPTION 'Migration ${version} was applied concurrently';`,
+    '  END IF;',
+    'END;',
+    '$migration_guard$;',
+  ].join('\n');
+  return [
+    `SELECT pg_advisory_lock(hashtext(${sqlLiteral(MIGRATION_LOCK_NAME)}));`,
+    guard,
+    body,
+    'INSERT INTO schema_migrations (version, checksum)',
+    `VALUES (${sqlLiteral(version)}, ${sqlLiteral(checksum)})`,
+    'ON CONFLICT (version) DO NOTHING;',
+    `SELECT pg_advisory_unlock(hashtext(${sqlLiteral(MIGRATION_LOCK_NAME)}));`,
+    '',
+  ].join('\n');
+}
+
 function executeWithPsql({ databaseUrl, kind, file, sql, input, migration }) {
   const args = ['--no-psqlrc', '--set=ON_ERROR_STOP=1', '--dbname', databaseUrl];
   if (file && input !== undefined) throw new Error(`PostgreSQL ${kind}: file and input are mutually exclusive`);
@@ -175,10 +207,13 @@ function runPostgresMigrations({ databaseUrl, migrationDirectory, executePsql = 
       result.skipped.push(migration.version);
       continue;
     }
+    const migrationSql = isNonTransactionalMigration(loaded.source)
+      ? buildNonTransactionalMigrationSql({ ...loaded, source: loaded.source.toString('utf8') })
+      : buildTransactionalMigrationSql({ ...loaded, source: loaded.source.toString('utf8') });
     executePsql({
       kind: 'migration',
       databaseUrl,
-      input: buildTransactionalMigrationSql({ ...loaded, source: loaded.source.toString('utf8') }),
+      input: migrationSql,
       migration: { version: loaded.version, filename: loaded.filename, filepath: loaded.filepath, checksum: loaded.checksum },
     });
     result.applied.push(migration.version);
@@ -209,6 +244,8 @@ module.exports = {
   resolveMigrationDatabaseUrl: resolveDatabaseUrl,
   stripMigrationEnvelope,
   buildSchemaMigrationsBootstrapSql,
+  buildNonTransactionalMigrationSql,
   buildTransactionalMigrationSql,
+  isNonTransactionalMigration,
   runPostgresMigrations,
 };

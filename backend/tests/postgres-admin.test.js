@@ -31,6 +31,7 @@ describe('PostgreSQL management compatibility router', () => {
       setKeyStatus: vi.fn(async (id, status) => ({ id, status })),
       updateKeyPermissions: vi.fn(async (id, models) => ({ id, permissions: models })),
       listLogs: vi.fn(async () => ({ data: [{ request_id: 'req-1' }], pagination: { page: 1, limit: 50, total: 1 } })),
+      getLogDetail: vi.fn(async (id, createdAt) => ({ id: Number(id), created_at: createdAt, request_id: 'req-detail' })),
       listModels: vi.fn(async () => [{ id: 'gpt-image-2', model_code: 'gpt-image-2', status: 'active' }]),
       listPricingRules: vi.fn(async () => [{ id: 'platform:all', rule_name: '默认', scope_type: 'platform' }]),
       createPricingRule: vi.fn(async body => ({ id: 'new-rule', ...body })),
@@ -138,6 +139,15 @@ describe('PostgreSQL management compatibility router', () => {
       query: 'req-ops', channel: 'account-7', channelExact: 'id:account-7', billingMode: 'token', dimension: 'channel', bucket: 'hour',
       includeSummary: false, rankingSortBy: 'success_rate', rankingSortOrder: 'asc',
     });
+  });
+
+  it('loads one exact partitioned request-log row by database id and creation time', async () => {
+    const createdAt = '2026-08-13T06:37:03.000Z';
+    const response = await request(`/logs/901?created_at=${encodeURIComponent(createdAt)}`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { id: 901, created_at: createdAt, request_id: 'req-detail' } });
+    expect(repository.getLogDetail).toHaveBeenLastCalledWith('901', createdAt);
   });
 
   it('provides model, channel and routing group compatibility CRUD/status seams', async () => {
@@ -410,7 +420,7 @@ describe('PostgreSQL management compatibility router', () => {
     expect(result.data[0]).toMatchObject({ upstream_channel_id: 'account-7', user_deduction_usd: 3 / 7 });
     expect(queries).toHaveLength(4);
     expect(queries.every(({ sql }) => sql.includes('api_request_logs'))).toBe(true);
-    expect(queries.every(({ sql }) => !sql.includes('upstream_accounts'))).toBe(true);
+    expect(queries.every(({ sql }) => sql.includes('upstream_accounts'))).toBe(true);
   });
 
   it('returns PostgreSQL USD deduction aggregates and sorts rankings by that field', async () => {
@@ -499,6 +509,52 @@ describe('PostgreSQL management compatibility router', () => {
     expect(result).not.toHaveProperty('summary');
     expect(queries).toHaveLength(2);
     expect(queries[0].values).toContain('7');
+  });
+
+  it('returns a complete exact request-log detail with channel, key, token, pricing and settlement fields', async () => {
+    const createdAt = '2026-08-13T06:37:03.000Z';
+    const pool = {
+      connect: vi.fn(),
+      query: vi.fn(async (_sql, values) => {
+        expect(values).toEqual(['901', createdAt, '2026-08-13T06:37:03.001Z']);
+        return { rows: [{
+          id: '901', created_at: createdAt, request_id: 'req-shared', user_id: '2', username: 'lz11',
+          api_key_id: '4', key_name: 'agent-key', key_prefix: 'sk-live', model_code: 'claude-opus-4-6',
+          upstream_account_id: '7', upstream_channel_name: 'Claude Primary', upstream_channel_key: 'claude-primary',
+          status: 'failed', input_tokens: '120', output_tokens: '30', total_cost: '0.700000',
+          error_type: 'upstream_state_unknown', error_message: 'stream ended',
+          billing_snapshot: {
+            charge: {
+              mode: 'token', snapshot_version: 2, currency: 'USD', usd_cny_rate: 7,
+              unit_tokens: 1000000, input_price: 5, output_price: 25, cached_input_price: 0.5,
+              input_multiplier: 1.2, output_multiplier: 1.3,
+              usage: {
+                input_tokens: 120, cached_input_tokens: 20, cache_creation_tokens: 10,
+                cache_creation_5m_tokens: 4, cache_creation_1h_tokens: 6,
+                image_input_tokens: 2, image_output_tokens: 1, output_tokens: 30,
+              },
+            },
+            settlement: { outcome: 'partial_settled', platform_absorbed: 0.1 },
+          },
+        }] };
+      }),
+    };
+    const data = new PostgresAdminCompatRepository({ pool, secretBox: { activeVersion: 'v1', seal: () => 'unused' } });
+
+    const detail = await data.getLogDetail('901', createdAt);
+
+    expect(detail).toMatchObject({
+      id: 901, request_id: 'req-shared', username: 'lz11', key_name: 'agent-key',
+      upstream_channel_name: 'Claude Primary', input_tokens: 120, output_tokens: 30,
+      cached_input_tokens: 20, cache_creation_tokens: 10,
+      cache_creation_5m_tokens: 4, cache_creation_1h_tokens: 6,
+      image_input_tokens: 2, image_output_tokens: 1,
+      billing_multiplier_input: 1.2, billing_multiplier_output: 1.3,
+      input_price: 5, output_price: 25, usd_cny_rate: 7,
+      auto_settlement: expect.objectContaining({ outcome: 'partial_settled', platform_absorbed: 0.1 }),
+      billing_detail: expect.objectContaining({ dimensions: expect.any(Array) }),
+    });
+    expect(detail.user_deduction_usd).toBeCloseTo(0.1, 12);
   });
 
   it('serves account availability and sanitized probe history from the monitoring read model', async () => {

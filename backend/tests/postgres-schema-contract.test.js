@@ -40,6 +40,7 @@ describe('PostgreSQL foundation schema seam', () => {
       '005_wallet_nonnegative',
       '006_upstream_concurrency_default',
       '007_upstream_tpm_unlimited',
+      '008_admin_log_drilldown_indexes',
     ]);
     expect(foundation).not.toContain('max_concurrency');
     for (const column of [
@@ -112,5 +113,16 @@ describe('PostgreSQL foundation schema seam', () => {
     expect(migration).toContain("VALUES ('007_upstream_tpm_unlimited'");
     expect(migration).not.toContain('max_concurrency');
     expect(migration).not.toContain('rpm_limit');
+  });
+
+  it('builds admin drilldown indexes concurrently on live request-log partitions', () => {
+    const migration = fs.readFileSync(path.join(migrationsDirectory, '008_admin_log_drilldown_indexes.sql'), 'utf8');
+
+    expect(migration).toContain('-- ionailabs:non-transactional');
+    expect(migration.match(/CREATE INDEX CONCURRENTLY/g)).toHaveLength(4);
+    expect(migration.match(/DROP INDEX CONCURRENTLY/g)).toHaveLength(4);
+    expect(migration.match(/NOT index_state\.indisvalid/g)).toHaveLength(4);
+    expect(migration).toContain('ATTACH PARTITION');
+    expect(migration).not.toMatch(/^BEGIN;$/m);
   });
 });

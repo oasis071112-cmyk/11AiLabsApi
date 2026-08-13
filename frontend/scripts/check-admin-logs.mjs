@@ -42,5 +42,13 @@ assert.match(logs, /appliedQueryParams/, '榜单下钻必须复用生成该榜�
 assert.match(logs, /sortable="custom"/, '榜单列必须通过后端执行全量排序')
 assert.doesNotMatch(logs, /class="status-card"/, '首屏不得扩展确认范围之外的状态构成卡')
 assert.match(logs, /min-height:44px/, '手机端交互控件必须达到 44px 触达高度')
+assert.match(logs, /:key="row\.id"/, '逐条调用记录必须使用数据库日志 id 作为 Vue key')
+assert.match(logs, /\/api\/admin\/logs\/\$\{encodeURIComponent\(row\.id\)\}/, '单条明细必须调用精确日志详情接口')
+assert.match(logs, /params:\{created_at:row\.created_at\}/, '分区日志详情必须同时携带 created_at')
+assert.match(logs, /new AbortController\(\)/, '列表与单条详情请求必须支持取消')
+assert.match(logs, /class="detail-inline-error"/, '接口失败必须在抽屉内显示错误和重试')
+assert.match(logs, /<el-skeleton/, '列表和详情加载必须显示骨架')
+assert.match(logs, /detailView==='record'/, '同一抽屉必须支持列表和完整详情切换')
+assert.match(logs, /历史记录无快照/, '只有后端确认缺失快照时才显示历史快照提示')
 
 console.log('Admin logs checks passed.')
