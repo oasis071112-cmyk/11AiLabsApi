@@ -79,10 +79,25 @@ function legacyRuntime(legacyDb) {
 
 async function postgresRuntime({ env, pg, redis, logger, databaseUrl }) {
   const upstreamTimeoutMs = Number(env.UPSTREAM_TIMEOUT_MS || 120_000);
+  const firstByteTimeoutMs = Number(env.UPSTREAM_FIRST_BYTE_TIMEOUT_MS || upstreamTimeoutMs);
+  const streamIdleTimeoutMs = Number(env.UPSTREAM_STREAM_IDLE_TIMEOUT_MS || upstreamTimeoutMs);
+  const streamTotalTimeoutMs = Number(env.UPSTREAM_TOTAL_TIMEOUT_MS || 900_000);
+  const leaseRenewIntervalMs = Number(env.GATEWAY_LEASE_RENEW_INTERVAL_MS || 30_000);
   const leaseTtlMs = Number(env.GATEWAY_LEASE_TTL_MS || 180_000);
-  if (!Number.isFinite(upstreamTimeoutMs) || upstreamTimeoutMs < 1_000
-      || !Number.isFinite(leaseTtlMs) || leaseTtlMs < upstreamTimeoutMs + 5_000) {
-    throw new Error('GATEWAY_LEASE_TTL_MS must exceed UPSTREAM_TIMEOUT_MS by at least 5000ms');
+  const timeouts = [upstreamTimeoutMs, firstByteTimeoutMs, streamIdleTimeoutMs, streamTotalTimeoutMs, leaseRenewIntervalMs, leaseTtlMs];
+  if (timeouts.some(value => !Number.isFinite(value) || value < 1_000)) {
+    throw new Error('Upstream timeout and gateway lease values must be finite and at least 1000ms');
+  }
+  if (streamTotalTimeoutMs < firstByteTimeoutMs || streamTotalTimeoutMs < streamIdleTimeoutMs) {
+    throw new Error('UPSTREAM_TOTAL_TIMEOUT_MS must not be shorter than first-byte or stream-idle timeout');
+  }
+  if (leaseTtlMs < streamIdleTimeoutMs + 5_000 || leaseRenewIntervalMs >= leaseTtlMs) {
+    throw new Error('GATEWAY_LEASE_TTL_MS must exceed UPSTREAM_STREAM_IDLE_TIMEOUT_MS by at least 5000ms and exceed its renewal interval');
+  }
+  if (env.UPSTREAM_TIMEOUT_MS
+      && !env.UPSTREAM_FIRST_BYTE_TIMEOUT_MS
+      && !env.UPSTREAM_STREAM_IDLE_TIMEOUT_MS) {
+    logger.warn?.('UPSTREAM_TIMEOUT_MS is deprecated for streams; configure first-byte and stream-idle timeouts explicitly');
   }
   if (!env.JWT_SECRET || Buffer.byteLength(String(env.JWT_SECRET), 'utf8') < 32) {
     throw new Error('PostgreSQL runtime requires JWT_SECRET with at least 32 bytes');
@@ -149,6 +164,15 @@ async function postgresRuntime({ env, pg, redis, logger, databaseUrl }) {
     identity,
     gatewayScheduler,
     usageSettlement,
+    proxyTimeouts: {
+      upstreamTimeoutMs,
+      streamTimeouts: {
+        firstByteTimeoutMs,
+        idleTimeoutMs: streamIdleTimeoutMs,
+        totalTimeoutMs: streamTotalTimeoutMs,
+      },
+      leaseRenewIntervalMs,
+    },
     async health() {
       const [database, schema, redisHealth] = await Promise.all([
         checkPostgres(pool),

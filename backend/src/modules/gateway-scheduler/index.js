@@ -56,6 +56,25 @@ const RELEASE_SCRIPT = `
 return redis.call('ZREM', KEYS[1], ARGV[1])
 `;
 
+const RENEW_SCRIPT = `
+-- gateway:scheduler:renew:v1
+local now = tonumber(ARGV[1])
+local lease_ttl = tonumber(ARGV[2])
+local lease_id = ARGV[3]
+local current_expiry = redis.call('ZSCORE', KEYS[1], lease_id)
+if not current_expiry then
+  return {0, 0}
+end
+if tonumber(current_expiry) <= now then
+  redis.call('ZREM', KEYS[1], lease_id)
+  return {0, 0}
+end
+local expires_at = now + lease_ttl
+redis.call('ZADD', KEYS[1], expires_at, lease_id)
+redis.call('PEXPIRE', KEYS[1], lease_ttl * 2)
+return {1, expires_at}
+`;
+
 const EXTEND_COOLDOWN_SCRIPT = `
 -- gateway:scheduler:cooldown:v1
 local requested_ttl = tonumber(ARGV[1])
@@ -255,6 +274,29 @@ class RedisLeaseStore {
     return asNumber(removed) === 1;
   }
 
+  async renew({ accountId, id }, now) {
+    let result;
+    try {
+      result = await this.redis.eval(
+        RENEW_SCRIPT,
+        {
+          keys: [`${redisAccountKey(this.redisKeyPrefix, accountId)}:leases`],
+          arguments: [now, this.leaseTtlMs, String(id)].map(String),
+        },
+      );
+    } catch (error) {
+      throw new GatewaySchedulerError(
+        'redis_unavailable',
+        'Gateway scheduler Redis is unavailable',
+        { cause: error },
+      );
+    }
+    return {
+      renewed: asNumber(result?.[0]) === 1,
+      expiresAt: asNumber(result?.[1]),
+    };
+  }
+
   async setCooldown(accountId, cooldownMs, metadata) {
     try {
       return await extendRedisCooldown(this.redis, {
@@ -389,6 +431,11 @@ class GatewayScheduler {
 
   async release(lease) {
     return this.leaseStore.release(lease);
+  }
+
+  async renewLease(lease) {
+    if (!lease?.accountId || !lease?.id) throw new TypeError('lease with accountId and id is required');
+    return this.leaseStore.renew(lease, this.now());
   }
 
   async reportResult(selection, outcome = {}) {

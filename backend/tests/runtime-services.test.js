@@ -149,12 +149,12 @@ describe('application runtime services', () => {
     await runtime.close();
   });
 
-  it('rejects a lease TTL that can expire before the upstream timeout', async () => {
+  it('rejects a lease TTL that can expire before the stream-idle timeout', async () => {
     const redis = fakeRedisDriver();
     await expect(createApplicationRuntime({
-      env: { ...postgresEnvironment(), UPSTREAM_TIMEOUT_MS: '120000', GATEWAY_LEASE_TTL_MS: '120000' },
+      env: { ...postgresEnvironment(), UPSTREAM_STREAM_IDLE_TIMEOUT_MS: '120000', GATEWAY_LEASE_TTL_MS: '120000' },
       pg: { Pool: FakePool }, redis: redis.driver,
-    })).rejects.toThrow(/must exceed UPSTREAM_TIMEOUT_MS/);
+    })).rejects.toThrow(/must exceed UPSTREAM_STREAM_IDLE_TIMEOUT_MS/);
   });
 
   it('rejects PostgreSQL mode without an explicit strong JWT secret', async () => {

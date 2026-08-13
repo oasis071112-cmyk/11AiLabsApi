@@ -185,7 +185,7 @@ async function start() {
     postgresRouters.proxy = createPostgresProxyRouter({
       runtime: applicationRuntime,
       identity,
-      upstreamTimeoutMs: Number(process.env.UPSTREAM_TIMEOUT_MS || 120_000),
+      ...applicationRuntime.proxyTimeouts,
     });
   }
   // 默认密码安全检查

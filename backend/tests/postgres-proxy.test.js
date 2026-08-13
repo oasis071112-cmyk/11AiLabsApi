@@ -1,12 +1,13 @@
 import http from 'node:http';
 import express from 'express';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPostgresProxyRouter } from '../src/routes/postgres-proxy.js';
-import { executeJsonUpstream } from '../src/modules/postgres-proxy/upstream.js';
+import { createSseJsonParser, executeJsonUpstream } from '../src/modules/postgres-proxy/upstream.js';
 
 const servers = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.all(servers.splice(0).map(server => new Promise(resolve => server.close(resolve))));
 });
 
@@ -56,6 +57,18 @@ function baseOptions(overrides = {}) {
 }
 
 describe('PostgreSQL public proxy bridge', () => {
+  it('incrementally parses SSE JSON across byte and UTF-8 boundaries', () => {
+    const parser = createSseJsonParser();
+    const bytes = new TextEncoder().encode('data: {"type":"message_delta","usage":{"output_tokens":3},"note":"流"}\n\n');
+    const split = bytes.indexOf(0xe6) + 1;
+
+    expect(parser.push(bytes.slice(0, split))).toEqual([]);
+    expect(parser.push(bytes.slice(split))).toEqual([expect.objectContaining({
+      type: 'message_delta', usage: { output_tokens: 3 }, note: '流',
+    })]);
+    expect(parser.end()).toEqual([]);
+  });
+
   it('returns only the API-key-visible model catalog', async () => {
     const repository = {
       async listModels(identity) {
@@ -701,8 +714,8 @@ describe('PostgreSQL public proxy bridge', () => {
     expect(JSON.stringify(settlements)).not.toContain('image-upstream.test');
   });
 
-  it('forwards a definitive upstream 4xx unchanged and releases the reservation', async () => {
-    const releases = [];
+  it('forwards a definitive upstream 4xx unchanged and zero-settles the reservation', async () => {
+    const settlements = [];
     const runtime = {
       mode: 'postgres_redis',
       gatewayScheduler: {
@@ -719,8 +732,8 @@ describe('PostgreSQL public proxy bridge', () => {
       },
       usageSettlement: {
         async reserve(value) { return { reserved: value.amount }; },
-        async release(value) { releases.push(value); },
-        async settle() { throw new Error('unexpected settle'); },
+        async release() { throw new Error('unexpected release'); },
+        async settle(value) { settlements.push(value); },
         async markPending() { throw new Error('unexpected pending'); },
       },
       secretBox: { open() { return 'upstream-secret'; } },
@@ -744,13 +757,15 @@ describe('PostgreSQL public proxy bridge', () => {
     expect(await response.json()).toEqual({
       error: { message: 'prompt rejected', type: 'invalid_request_error' },
     });
-    expect(releases).toEqual([expect.objectContaining({
-      userId: 10, reservedAmount: 1, requestId: 'request-4xx',
+    expect(settlements).toEqual([expect.objectContaining({
+      userId: 10, reservedAmount: 1, chargeAmount: 0, requestId: 'request-4xx',
+      successLog: expect.objectContaining({ status: 'failed', error_type: 'upstream_http_400' }),
+      resultMetadata: expect.objectContaining({ outcome: 'zero_released' }),
     })]);
   });
 
-  it('keeps the reservation and marks reconciliation pending after an uncertain transport timeout', async () => {
-    const pending = [];
+  it('automatically zero-settles and releases the reservation after an uncertain timeout without usage', async () => {
+    const settlements = [];
     const runtime = {
       mode: 'postgres_redis',
       gatewayScheduler: {
@@ -767,9 +782,9 @@ describe('PostgreSQL public proxy bridge', () => {
       },
       usageSettlement: {
         async reserve(value) { return { reserved: value.amount }; },
-        async markPending(value) { pending.push(value); },
+        async markPending() { throw new Error('unexpected pending'); },
         async release() { throw new Error('unexpected release'); },
-        async settle() { throw new Error('unexpected settle'); },
+        async settle(value) { settlements.push(value); },
       },
       secretBox: { open() { return 'upstream-secret'; } },
     };
@@ -789,24 +804,132 @@ describe('PostgreSQL public proxy bridge', () => {
     });
 
     expect(response.status).toBe(502);
-    expect(await response.json()).toMatchObject({ error: { type: 'settlement_pending' } });
-    expect(pending).toEqual([expect.objectContaining({
+    expect(await response.json()).toMatchObject({ error: { type: 'upstream_error', code: 'upstream_state_unknown' } });
+    expect(settlements).toEqual([expect.objectContaining({
       userId: 10,
       reservedAmount: 1,
+      chargeAmount: 0,
       requestId: 'request-timeout',
-      log: expect.objectContaining({
-        request_id: 'request-timeout', status: 'settlement_pending',
+      successLog: expect.objectContaining({
+        request_id: 'request-timeout', status: 'failed',
         error_type: 'upstream_state_unknown',
       }),
+      resultMetadata: expect.objectContaining({ outcome: 'zero_released' }),
     })]);
-    const serialized = JSON.stringify(pending[0].log);
+    const serialized = JSON.stringify(settlements[0].successLog);
     expect(serialized).not.toContain('private timeout prompt');
     expect(serialized).not.toContain('sensitive-upstream.test');
     expect(serialized).not.toContain('upstream-secret');
   });
 
-  it('keeps the reservation when a Redis release error wraps an uncertain upstream execution', async () => {
+  it('queues a definitive HTTP failure for automatic settlement when the settlement transaction is temporarily unavailable', async () => {
     const pending = [];
+    const selection = {
+      account: {
+        id: 'account-http-retry', accountKey: 'http-retry', baseUrl: 'https://upstream.test/v1',
+        protocol: 'openai_compatible', credentialEnvelope: 'http-retry.envelope',
+      },
+      upstreamModel: 'vendor-chat', lease: { id: 'lease-http-retry', accountId: 'account-http-retry' },
+    };
+    const runtime = {
+      mode: 'postgres_redis',
+      gatewayScheduler: {
+        async executeWithFailover(_criteria, invoke) { return invoke(selection); },
+      },
+      usageSettlement: {
+        async reserve(value) { return { reserved: value.amount }; },
+        async settle() { throw new Error('database temporarily unavailable'); },
+        async markPending(value) { pending.push(value); },
+        async release() { throw new Error('unexpected release'); },
+      },
+      secretBox: { open() { return 'secret'; } },
+    };
+    const baseUrl = await listen(createPostgresProxyRouter(baseOptions({
+      runtime,
+      requestIdFactory: () => 'request-http-retry',
+      fetchImpl: async () => new Response('{"error":{"message":"invalid"}}', {
+        status: 400, headers: { 'content-type': 'application/json' },
+      }),
+    })));
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST', headers: { Authorization: 'Bearer sk-test', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'public-chat', messages: [] }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(pending).toEqual([expect.objectContaining({
+      requestId: 'request-http-retry',
+      log: expect.objectContaining({
+        status: 'settlement_pending',
+        billing_snapshot: expect.objectContaining({
+          settlement_retry: expect.objectContaining({
+            charge_amount: 0, outcome: 'zero_released',
+            log: expect.objectContaining({ status: 'failed', error_type: 'upstream_http_400' }),
+          }),
+        }),
+      }),
+    })]);
+  });
+
+  it('persists verified usage for worker re-pricing when the pricing database is temporarily unavailable', async () => {
+    const pending = [];
+    const selection = {
+      account: {
+        id: 'account-pricing-retry', accountKey: 'pricing-retry', baseUrl: 'https://upstream.test/v1',
+        protocol: 'openai_compatible', credentialEnvelope: 'pricing-retry.envelope',
+        modelMappings: [{ model: 'public-chat', configuration: { input_price: 0.00001 } }],
+      },
+      upstreamModel: 'vendor-chat', routingGroupId: 'group-1',
+      lease: { id: 'lease-pricing-retry', accountId: 'account-pricing-retry' },
+    };
+    const runtime = {
+      mode: 'postgres_redis',
+      gatewayScheduler: {
+        async executeWithFailover(_criteria, invoke) {
+          return { value: await invoke(selection), selection, attempts: 1, postProcessingError: null };
+        },
+      },
+      usageSettlement: {
+        async reserve(value) { return { reserved: value.amount }; },
+        async markPending(value) { pending.push(value); },
+        async release() { throw new Error('unexpected release'); },
+        async settle() { throw new Error('unexpected settle'); },
+      },
+      secretBox: { open() { return 'secret'; } },
+    };
+    const baseUrl = await listen(createPostgresProxyRouter(baseOptions({
+      runtime,
+      requestIdFactory: () => 'request-pricing-retry',
+      billingPolicy: {
+        async quoteReservation() { return { amount: 1, estimatedTokens: 20, snapshot: {} }; },
+        async quoteCharge() { throw new Error('pricing database unavailable'); },
+      },
+      fetchImpl: async () => new Response(JSON.stringify({
+        id: 'chat-priced-later', choices: [], usage: { prompt_tokens: 12, completion_tokens: 3 },
+      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    })));
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST', headers: { Authorization: 'Bearer sk-test', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'public-chat', messages: [{ role: 'user', content: 'sensitive' }] }),
+    });
+
+    expect(response.status).toBe(500);
+    const persisted = pending[0].log.billing_snapshot.settlement_retry;
+    expect(persisted).toMatchObject({
+      pricing_pending: true,
+      outcome: 'settled',
+      pricing_context: expect.objectContaining({
+        model: 'public-chat', usage: expect.objectContaining({ inputTokens: 12, outputTokens: 3 }),
+      }),
+    });
+    expect(JSON.stringify(persisted.pricing_context)).not.toContain('sensitive');
+    expect(JSON.stringify(persisted.pricing_context)).not.toContain('secret');
+  });
+
+  it('zero-settles when a Redis release error wraps an uncertain upstream execution', async () => {
+    const settlements = [];
     const releases = [];
     const uncertain = Object.assign(new Error('upstream may have completed'), {
       code: 'ETIMEDOUT', executionUncertain: true,
@@ -822,9 +945,9 @@ describe('PostgreSQL public proxy bridge', () => {
       },
       usageSettlement: {
         async reserve(value) { return { reserved: value.amount }; },
-        async markPending(value) { pending.push(value); },
+        async markPending() { throw new Error('unexpected pending'); },
         async release(value) { releases.push(value); },
-        async settle() { throw new Error('unexpected settle'); },
+        async settle(value) { settlements.push(value); },
       },
       secretBox: { open() { return 'unused'; } },
     };
@@ -840,12 +963,221 @@ describe('PostgreSQL public proxy bridge', () => {
     });
 
     expect(response.status).toBe(502);
-    expect(await response.json()).toMatchObject({ error: { type: 'settlement_pending' } });
+    expect(await response.json()).toMatchObject({ error: { type: 'upstream_error' } });
     expect(releases).toEqual([]);
-    expect(pending).toEqual([expect.objectContaining({
+    expect(settlements).toEqual([expect.objectContaining({
       requestId: 'request-wrapped-timeout',
-      log: expect.objectContaining({ error_type: 'upstream_state_unknown' }),
+      chargeAmount: 0,
+      successLog: expect.objectContaining({ error_type: 'upstream_state_unknown', status: 'failed' }),
     })]);
+  });
+
+  it('settles the last verifiable partial SSE usage and writes a compatible stream error event', async () => {
+    const settlements = [];
+    const chargeQuotes = [];
+    const selection = {
+      account: {
+        id: 'account-partial', accountKey: 'partial', baseUrl: 'https://upstream.test/v1',
+        protocol: 'openai_compatible', credentialEnvelope: 'partial.envelope',
+      },
+      upstreamModel: 'vendor-chat',
+      lease: { id: 'lease-partial', accountId: 'account-partial' },
+    };
+    let reads = 0;
+    const stream = new ReadableStream({
+      pull(controller) {
+        reads += 1;
+        if (reads === 1) {
+          controller.enqueue(new TextEncoder().encode([
+            'data: {"id":"partial","choices":[],"usage":{"prompt_tokens":12,"prompt_tokens_details":{"cached_tokens":5},"completion_tokens":3}}',
+            '',
+            '',
+          ].join('\n')));
+          return;
+        }
+        controller.error(Object.assign(new Error('upstream stream reset'), { code: 'ECONNRESET' }));
+      },
+    });
+    const runtime = {
+      mode: 'postgres_redis',
+      gatewayScheduler: {
+        async executeWithFailover(_criteria, invoke) {
+          return { value: await invoke(selection), selection, attempts: 1, postProcessingError: null };
+        },
+      },
+      usageSettlement: {
+        async reserve(value) { return { reserved: value.amount }; },
+        async settle(value) { settlements.push(value); },
+        async markPending() { throw new Error('unexpected pending'); },
+        async release() { throw new Error('unexpected release'); },
+      },
+      secretBox: { open() { return 'secret'; } },
+    };
+    const baseUrl = await listen(createPostgresProxyRouter(baseOptions({
+      runtime,
+      requestIdFactory: () => 'request-partial',
+      billingPolicy: {
+        async quoteReservation() { return { amount: 1, estimatedTokens: 20, snapshot: { amount: 1 } }; },
+        async quoteCharge(context) {
+          chargeQuotes.push(context);
+          return { amount: 2, billingMode: 'token', snapshot: { usage: context.usage } };
+        },
+      },
+      fetchImpl: async () => new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+    })));
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer sk-test', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'public-chat', stream: true, messages: [] }),
+    });
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"id":"partial"');
+    expect(body).toContain('"type":"upstream_error"');
+    expect(chargeQuotes).toEqual([expect.objectContaining({
+      usage: expect.objectContaining({ inputTokens: 12, cachedInputTokens: 5, outputTokens: 3 }),
+      selection,
+    })]);
+    expect(settlements).toEqual([expect.objectContaining({
+      userId: 10, reservedAmount: 1, chargeAmount: 2, requestId: 'request-partial',
+      successLog: expect.objectContaining({
+        status: 'failed', input_tokens: 12, output_tokens: 3, error_type: 'upstream_state_unknown',
+      }),
+      resultMetadata: expect.objectContaining({ outcome: 'partial_settled' }),
+    })]);
+  });
+
+  it('treats natural SSE EOF without a protocol terminal event as a partial failure', async () => {
+    const settlements = [];
+    const selection = {
+      account: {
+        id: 'account-eof', accountKey: 'eof', baseUrl: 'https://upstream.test/v1',
+        protocol: 'openai_compatible', credentialEnvelope: 'eof.envelope',
+      },
+      upstreamModel: 'vendor-chat', lease: { id: 'lease-eof', accountId: 'account-eof' },
+    };
+    const runtime = {
+      mode: 'postgres_redis',
+      gatewayScheduler: {
+        async executeWithFailover(_criteria, invoke) {
+          return { value: await invoke(selection), selection, attempts: 1, postProcessingError: null };
+        },
+      },
+      usageSettlement: {
+        async reserve(value) { return { reserved: value.amount }; },
+        async settle(value) { settlements.push(value); },
+        async markPending() { throw new Error('unexpected pending'); },
+        async release() { throw new Error('unexpected release'); },
+      },
+      secretBox: { open() { return 'secret'; } },
+    };
+    const baseUrl = await listen(createPostgresProxyRouter(baseOptions({
+      runtime,
+      requestIdFactory: () => 'request-eof',
+      billingPolicy: {
+        async quoteReservation() { return { amount: 1, estimatedTokens: 20, snapshot: {} }; },
+        async quoteCharge() { return { amount: 0.2, billingMode: 'token', snapshot: {} }; },
+      },
+      fetchImpl: async () => new Response(
+        'data: {"id":"partial","choices":[],"usage":{"prompt_tokens":12,"completion_tokens":3}}\n\n',
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      ),
+    })));
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST', headers: { Authorization: 'Bearer sk-test', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'public-chat', stream: true, messages: [] }),
+    });
+    const body = await response.text();
+
+    expect(body).toContain('"code":"stream_terminal_missing"');
+    expect(body).toContain('data: [DONE]');
+    expect(settlements).toEqual([expect.objectContaining({
+      chargeAmount: 0.2,
+      successLog: expect.objectContaining({ status: 'failed', input_tokens: 12, output_tokens: 3 }),
+      resultMetadata: expect.objectContaining({
+        outcome: 'partial_settled', upstream_error_code: 'stream_terminal_missing',
+      }),
+    })]);
+  });
+
+  it('treats an OpenAI error event as failed even when the stream also sends DONE', async () => {
+    await expect(executeJsonUpstream({
+      fetchImpl: async () => new Response([
+        'data: {"usage":{"prompt_tokens":8,"completion_tokens":2}}',
+        '',
+        'data: {"error":{"message":"provider failed"}}',
+        '',
+        'data: [DONE]',
+        '',
+      ].join('\n'), { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+      selection: {
+        account: {
+          accountKey: 'chat-error', baseUrl: 'https://stream.test/v1', protocol: 'openai_compatible',
+          credentialEnvelope: 'chat-error.envelope',
+        },
+        upstreamModel: 'vendor-chat',
+      },
+      secretBox: { open: () => 'secret' },
+      path: 'chat/completions', body: { stream: true }, requestHeaders: {},
+      timeoutMs: 2_000, stream: true, streamOperation: 'chat_completions',
+    })).rejects.toMatchObject({
+      name: 'UpstreamTransportError', code: 'upstream_stream_failed', executionUncertain: true,
+    });
+  });
+
+  it('renews the concurrency lease only after the streaming renewal interval elapses', async () => {
+    const renewals = [];
+    const selection = {
+      account: {
+        id: 'account-renew', accountKey: 'renew', baseUrl: 'https://upstream.test/v1',
+        protocol: 'openai_compatible', credentialEnvelope: 'renew.envelope',
+      },
+      upstreamModel: 'vendor-chat',
+      lease: { id: 'lease-renew', accountId: 'account-renew' },
+    };
+    const runtime = {
+      mode: 'postgres_redis',
+      gatewayScheduler: {
+        async executeWithFailover(_criteria, invoke) {
+          return { value: await invoke(selection), selection, attempts: 1, postProcessingError: null };
+        },
+        async renewLease(lease) { renewals.push(lease); return { renewed: true }; },
+      },
+      usageSettlement: {
+        async reserve(value) { return { reserved: value.amount }; },
+        async settle() {},
+        async markPending() { throw new Error('unexpected pending'); },
+        async release() { throw new Error('unexpected release'); },
+      },
+      secretBox: { open() { return 'secret'; } },
+    };
+    const times = [0, 10_000, 31_000];
+    const baseUrl = await listen(createPostgresProxyRouter(baseOptions({
+      runtime,
+      now: () => times.shift() ?? 31_000,
+      leaseRenewIntervalMs: 30_000,
+      fetchImpl: async () => new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('data: {"id":"first","choices":[]}\n\n'));
+          controller.enqueue(new TextEncoder().encode('data: {"id":"final","choices":[],"usage":{"prompt_tokens":2,"completion_tokens":1}}\n\n'));
+          controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+          controller.close();
+        },
+      }), { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+    })));
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer sk-test', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'public-chat', stream: true, messages: [] }),
+    });
+
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(renewals).toEqual([selection.lease]);
   });
 
   it('forwards SSE unchanged while settling only from final stream usage', async () => {
@@ -979,6 +1311,127 @@ describe('PostgreSQL public proxy bridge', () => {
     expect(snapshot.body.toString('utf8')).toContain('prompt_tokens');
   });
 
+  it('aborts a streaming response when no first data arrives within the first-byte timeout', async () => {
+    vi.useFakeTimers();
+    const body = new ReadableStream({ start() {} });
+    const execution = executeJsonUpstream({
+      fetchImpl: async () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+      selection: {
+        account: {
+          accountKey: 'stream-first-byte', baseUrl: 'https://stream.test/v1', protocol: 'openai_compatible',
+          credentialEnvelope: 'stream.envelope',
+        },
+        upstreamModel: 'vendor-stream',
+      },
+      secretBox: { open: () => 'stream-secret' },
+      path: 'chat/completions',
+      body: { model: 'public-chat', stream: true },
+      requestHeaders: {},
+      timeoutMs: 2_000,
+      streamTimeouts: { firstByteTimeoutMs: 120, idleTimeoutMs: 120, totalTimeoutMs: 900 },
+      stream: true,
+    });
+
+    const rejection = expect(execution).rejects.toMatchObject({
+      name: 'UpstreamTransportError', code: 'first_byte_timeout', executionUncertain: true,
+      responseStarted: true,
+    });
+    await vi.advanceTimersByTimeAsync(121);
+    await rejection;
+  });
+
+  it('resets the stream-idle timeout after every non-empty upstream chunk', async () => {
+    vi.useFakeTimers();
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      start(controller) {
+        setTimeout(() => controller.enqueue(encoder.encode('data: {"id":"first"}\n\n')), 100);
+        setTimeout(() => controller.enqueue(encoder.encode('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n')), 210);
+        setTimeout(() => controller.close(), 220);
+      },
+    });
+    const execution = executeJsonUpstream({
+      fetchImpl: async () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+      selection: {
+        account: {
+          accountKey: 'stream-idle-reset', baseUrl: 'https://stream.test/v1', protocol: 'openai_compatible',
+          credentialEnvelope: 'stream.envelope',
+        },
+        upstreamModel: 'vendor-stream',
+      },
+      secretBox: { open: () => 'stream-secret' },
+      path: 'chat/completions',
+      body: { model: 'public-chat', stream: true },
+      requestHeaders: {}, timeoutMs: 2_000, stream: true,
+      streamTimeouts: { firstByteTimeoutMs: 120, idleTimeoutMs: 120, totalTimeoutMs: 900 },
+    });
+
+    await vi.advanceTimersByTimeAsync(221);
+    await expect(execution).resolves.toMatchObject({ status: 200, streamed: true });
+  });
+
+  it('enforces the total stream duration even while upstream chunks remain active', async () => {
+    vi.useFakeTimers();
+    const encoder = new TextEncoder();
+    let interval;
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"id":"first"}\n\n'));
+        interval = setInterval(() => controller.enqueue(encoder.encode('data: {"id":"keepalive"}\n\n')), 100);
+      },
+      cancel() { clearInterval(interval); },
+    });
+    const execution = executeJsonUpstream({
+      fetchImpl: async () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+      selection: {
+        account: {
+          accountKey: 'stream-total-limit', baseUrl: 'https://stream.test/v1', protocol: 'openai_compatible',
+          credentialEnvelope: 'stream.envelope',
+        },
+        upstreamModel: 'vendor-stream',
+      },
+      secretBox: { open: () => 'stream-secret' },
+      path: 'chat/completions',
+      body: { model: 'public-chat', stream: true },
+      requestHeaders: {}, timeoutMs: 2_000, stream: true,
+      streamTimeouts: { firstByteTimeoutMs: 120, idleTimeoutMs: 120, totalTimeoutMs: 250 },
+    });
+
+    const rejection = expect(execution).rejects.toMatchObject({
+      name: 'UpstreamTransportError', code: 'total_timeout', executionUncertain: true,
+    });
+    await vi.advanceTimersByTimeAsync(251);
+    await rejection;
+  });
+
+  it('enforces the total timeout while downstream chunk handling is blocked', async () => {
+    vi.useFakeTimers();
+    const body = new ReadableStream({
+      start(controller) { controller.enqueue(new TextEncoder().encode('data: {"id":"first"}\n\n')); },
+    });
+    const execution = executeJsonUpstream({
+      fetchImpl: async () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+      selection: {
+        account: {
+          accountKey: 'stream-blocked-write', baseUrl: 'https://stream.test/v1', protocol: 'openai_compatible',
+          credentialEnvelope: 'stream.envelope',
+        },
+        upstreamModel: 'vendor-stream',
+      },
+      secretBox: { open: () => 'stream-secret' },
+      path: 'chat/completions', body: { model: 'public-chat', stream: true }, requestHeaders: {},
+      timeoutMs: 2_000, stream: true,
+      streamTimeouts: { firstByteTimeoutMs: 120, idleTimeoutMs: 120, totalTimeoutMs: 250 },
+      onStreamChunk: () => new Promise(() => {}),
+    });
+
+    const rejection = expect(execution).rejects.toMatchObject({
+      name: 'UpstreamTransportError', code: 'stream_idle_timeout', executionUncertain: true,
+    });
+    await vi.advanceTimersByTimeAsync(121);
+    await rejection;
+  });
+
   it('cancels the upstream reader and aborts fetch when the downstream client disconnects', async () => {
     let upstreamSignal;
     let cancelReason;
@@ -1020,8 +1473,34 @@ describe('PostgreSQL public proxy bridge', () => {
     expect(cancelReason).toBe(disconnected);
   });
 
-  it('forwards a completed response without usage only after marking its reservation pending', async () => {
-    const pending = [];
+  it('preserves a distinct lease-lost error when stream renewal cannot find the concurrency lease', async () => {
+    const leaseLost = Object.assign(new Error('Gateway concurrency lease was lost'), { code: 'lease_lost' });
+    const execution = executeJsonUpstream({
+      fetchImpl: async () => new Response('data: {"id":"first"}\n\n', {
+        status: 200, headers: { 'content-type': 'text/event-stream' },
+      }),
+      selection: {
+        account: {
+          accountKey: 'stream-lease-lost', baseUrl: 'https://stream.test/v1', protocol: 'openai_compatible',
+          credentialEnvelope: 'stream.envelope',
+        },
+        upstreamModel: 'vendor-stream',
+      },
+      secretBox: { open: () => 'stream-secret' },
+      path: 'chat/completions',
+      body: { model: 'public-chat', stream: true },
+      requestHeaders: {}, timeoutMs: 2_000, stream: true,
+      onStreamChunk: () => { throw leaseLost; },
+    });
+
+    await expect(execution).rejects.toMatchObject({
+      name: 'UpstreamTransportError', code: 'lease_lost', executionUncertain: true,
+      partialSnapshot: { streamed: true },
+    });
+  });
+
+  it('forwards a completed response without usage after zero-settling and releasing its reservation', async () => {
+    const settlements = [];
     const selection = {
       account: {
         id: 'account-no-usage', accountKey: 'no-usage', baseUrl: 'https://upstream.test/v1',
@@ -1039,9 +1518,9 @@ describe('PostgreSQL public proxy bridge', () => {
       },
       usageSettlement: {
         async reserve(value) { return { reserved: value.amount }; },
-        async markPending(value) { pending.push(value); },
+        async markPending() { throw new Error('unexpected pending'); },
         async release() { throw new Error('unexpected release'); },
-        async settle() { throw new Error('unexpected settle'); },
+        async settle(value) { settlements.push(value); },
       },
       secretBox: { open() { return 'secret'; } },
     };
@@ -1060,11 +1539,13 @@ describe('PostgreSQL public proxy bridge', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get('x-settlement-status')).toBe('pending');
+    expect(response.headers.get('x-settlement-status')).toBe('zero_released');
     expect(await response.json()).toMatchObject({ id: 'chat-no-usage' });
-    expect(pending).toEqual([expect.objectContaining({
+    expect(settlements).toEqual([expect.objectContaining({
       userId: 10, reservedAmount: 1, requestId: 'request-no-usage',
-      log: expect.objectContaining({ error_type: 'usage_missing', status: 'settlement_pending' }),
+      chargeAmount: 0,
+      successLog: expect.objectContaining({ error_type: 'usage_missing', status: 'failed' }),
+      resultMetadata: expect.objectContaining({ outcome: 'zero_released' }),
     })]);
   });
 });

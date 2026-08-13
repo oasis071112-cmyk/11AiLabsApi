@@ -19,6 +19,18 @@ function fakeSettlementRepository(initialWallet, initialReservations = {}) {
         updateWallet: async (_userId, values) => Object.assign(state.wallet, values),
         appendWalletTransaction: async value => state.transactions.push(value),
         appendRequestLog: async value => state.logs.push(value),
+        async updateRequestLog(identity, values) {
+          const log = identity && typeof identity === 'object'
+            ? state.logs.find(item => String(item.id) === String(identity.id)
+              && String(item.created_at) === String(identity.createdAt))
+            : state.logs.find(item => item.request_id === identity);
+          if (log) Object.assign(log, values, {
+            billing_snapshot: {
+              ...(log.billing_snapshot || {}),
+              ...(values.billing_snapshot || {}),
+            },
+          });
+        },
         async getOrCreateReservation(value) {
           const existing = state.reservations[value.requestId];
           if (existing) return { reservation: { ...existing }, created: false };
@@ -121,7 +133,7 @@ describe('UsageSettlement', () => {
     expect(repository.state.logs).toEqual([{ request_id: 'req_settle', status: 'success', total_cost: 2.5 }]);
   });
 
-  it('keeps the reservation for review instead of creating a negative balance when the final charge exceeds billable funds', async () => {
+  it('caps the final charge at the reservation and records the platform-covered difference', async () => {
     const repository = fakeSettlementRepository(
       { quota_balance: 3, gift_quota: 0, frozen_balance: 2, total_spent: 0 },
       { req_shortfall: { request_id: 'req_shortfall', user_id: 3, reserved_amount: 2, charged_amount: 0, status: 'reserved', result: {} } },
@@ -136,12 +148,14 @@ describe('UsageSettlement', () => {
       successLog: { request_id: 'req_shortfall', status: 'success', total_cost: 4 },
     });
 
-    expect(result).toMatchObject({ pending: 2, requiredCharge: 4, shortfall: 1 });
-    expect(repository.state.wallet).toEqual({ quota_balance: 3, gift_quota: 0, frozen_balance: 2, total_spent: 0 });
-    expect(repository.state.reservations.req_shortfall).toMatchObject({ status: 'pending_review' });
+    expect(result).toMatchObject({ charged: 2, requestedCharge: 4, platformAbsorbed: 2, released: 2 });
+    expect(repository.state.wallet).toEqual({ quota_balance: 1, gift_quota: 0, frozen_balance: 0, total_spent: 2 });
+    expect(repository.state.reservations.req_shortfall).toMatchObject({ status: 'settled', charged_amount: 2 });
     expect(repository.state.logs).toEqual([expect.objectContaining({
-      request_id: 'req_shortfall', status: 'settlement_pending', error_type: 'insufficient_settlement_balance',
-      pending_reserved_amount: 2,
+      request_id: 'req_shortfall', status: 'success', total_cost: 2,
+      billing_snapshot: expect.objectContaining({
+        settlement: expect.objectContaining({ requested_charge: 4, platform_absorbed: 2 }),
+      }),
     })]);
   });
 
@@ -208,5 +222,44 @@ describe('UsageSettlement', () => {
 
     expect(repository.state.wallet.frozen_balance).toBe(4);
     expect(repository.state.logs).toEqual([{ request_id: 'req_pending', status: 'settlement_pending', pending_reserved_amount: 4 }]);
+  });
+
+  it('automatically resolves a pending review at zero charge and updates the original log atomically', async () => {
+    const repository = fakeSettlementRepository(
+      { quota_balance: 8, gift_quota: 2, frozen_balance: 4, total_spent: 0 },
+      { req_pending: { request_id: 'req_pending', user_id: 3, reserved_amount: 4, charged_amount: 0, status: 'pending_review', result: { pending: 4 } } },
+    );
+    repository.state.logs.push({
+      id: 17, created_at: '2026-08-13 14:37:03.123456+08', request_id: 'req_pending', status: 'settlement_pending', pending_reserved_amount: 4,
+      billing_snapshot: { reconciliation_reason: 'upstream_state_unknown' },
+    });
+    repository.state.logs.push({
+      id: 18, created_at: '2026-08-13 14:38:00.000000+08', request_id: 'req_pending', status: 'failed',
+      billing_snapshot: { unrelated: true },
+    });
+    const settlement = new UsageSettlement({ repository });
+
+    const result = await settlement.resolvePending({
+      userId: 3,
+      reservedAmount: 4,
+      chargeAmount: 0,
+      requestId: 'req_pending',
+      logIdentity: { id: 17, createdAt: '2026-08-13 14:37:03.123456+08' },
+      logUpdates: {
+        status: 'failed', error_type: 'upstream_state_unknown', error_message: 'Automatically reconciled without verifiable usage',
+      },
+      resultMetadata: { outcome: 'zero_released', reconciliation_source: 'worker' },
+    });
+
+    expect(result).toMatchObject({ charged: 0, released: 4, outcome: 'zero_released' });
+    expect(repository.state.wallet).toMatchObject({ frozen_balance: 0, total_spent: 0 });
+    expect(repository.state.reservations.req_pending).toMatchObject({ status: 'settled', charged_amount: 0 });
+    expect(repository.state.logs[0]).toEqual(expect.objectContaining({
+      request_id: 'req_pending', status: 'failed', total_cost: 0, pending_reserved_amount: 0,
+      billing_snapshot: expect.objectContaining({
+        settlement: expect.objectContaining({ outcome: 'zero_released', reconciliation_source: 'worker' }),
+      }),
+    }));
+    expect(repository.state.logs[1]).toMatchObject({ id: 18, status: 'failed', billing_snapshot: { unrelated: true } });
   });
 });

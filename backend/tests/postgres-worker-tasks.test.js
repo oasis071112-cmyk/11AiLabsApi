@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createPostgresWorkerTasks,
+  reconcilePendingReservations,
   validateRetentionDays,
 } from '../src/modules/background-worker/postgres-tasks.js';
 
@@ -166,5 +167,106 @@ describe('PostgreSQL worker tasks', () => {
 
     await expect(tasks.find(task => task.name === 'account-monitor').run())
       .rejects.toThrow(/1 of 1 account probes failed/i);
+  });
+
+  it('automatically retries pending reviews every ten seconds using the persisted settlement snapshot', async () => {
+    const resolvePending = vi.fn(async value => ({ charged: value.chargeAmount, released: value.reservedAmount }));
+    const pool = {
+      query: vi.fn(async sql => {
+        if (sql.includes("ur.status='pending_review'")) return { rows: [{
+          request_id: 'request-partial', user_id: 10, reserved_amount: '0.873147',
+          reservation_status: 'pending_review', log_id: '71', log_created_at: '2026-08-13 14:37:03.123456+08',
+          error_type: 'settlement_failed',
+          billing_snapshot: {
+            settlement_retry: {
+              charge_amount: 0.4, outcome: 'settled',
+              log: {
+                status: 'success', model_code: 'claude-opus-4-6', input_tokens: 120,
+                output_tokens: 30, billing_snapshot: { charge: { snapshot_version: 2 } },
+              },
+            },
+          },
+        }, {
+          request_id: 'request-unknown', user_id: 11, reserved_amount: '0.5',
+          reservation_status: 'pending_review', log_id: '72', log_created_at: '2026-08-13 14:38:00.000001+08',
+          error_type: 'upstream_state_unknown', billing_snapshot: {},
+        }, {
+          request_id: 'request-stale', user_id: 12, reserved_amount: '0.25',
+          reservation_status: 'reserved', log_id: null, log_created_at: null,
+          error_type: null, billing_snapshot: {},
+        }] };
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+
+    const result = await reconcilePendingReservations(pool, {
+      usageSettlement: { resolvePending },
+      logger: { warn: vi.fn() },
+    });
+    const tasks = createPostgresWorkerTasks({
+      pool,
+      secretBox: { open: () => '' },
+      usageSettlement: { resolvePending },
+    });
+
+    expect(result).toEqual({ examined: 3, resolved: 3, failed: 0 });
+    expect(tasks.find(task => task.name === 'pending-reconciliation').intervalMs).toBe(10_000);
+    expect(resolvePending).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      requestId: 'request-partial', reservedAmount: 0.873147, chargeAmount: 0.4,
+      reservationStatus: 'pending_review',
+      logIdentity: { id: '71', createdAt: '2026-08-13 14:37:03.123456+08' },
+      logUpdates: expect.objectContaining({ status: 'success', model_code: 'claude-opus-4-6', error_type: null }),
+      resultMetadata: expect.objectContaining({ outcome: 'settled', reconciliation_source: 'worker' }),
+    }));
+    expect(resolvePending).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      requestId: 'request-unknown', reservedAmount: 0.5, chargeAmount: 0,
+      resultMetadata: expect.objectContaining({ outcome: 'zero_released' }),
+    }));
+    expect(resolvePending).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      requestId: 'request-stale', reservedAmount: 0.25, chargeAmount: 0,
+      reservationStatus: 'reserved', logUpdates: null,
+      fallbackLog: expect.objectContaining({ status: 'failed', error_type: 'stale_reservation_released' }),
+      resultMetadata: expect.objectContaining({ outcome: 'zero_released' }),
+    }));
+    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining("ur.status='reserved'"), [16 * 60_000]);
+  });
+
+  it('re-prices persisted verified usage before resolving a pending settlement', async () => {
+    const resolvePending = vi.fn(async value => value);
+    const quoteCharge = vi.fn(async context => ({
+      amount: 0.42, billingMode: 'token', snapshot: { usage: context.usage },
+    }));
+    const pool = {
+      query: vi.fn(async () => ({ rows: [{
+        request_id: 'request-pricing-retry', user_id: 10, api_key_id: 20,
+        reserved_amount: '1', reservation_status: 'pending_review',
+        log_id: '81', log_created_at: '2026-08-13 15:00:00.123456+08',
+        error_type: 'settlement_failed', billing_snapshot: {
+          settlement_retry: {
+            pricing_pending: true, charge_amount: 0, outcome: 'settled',
+            pricing_context: {
+              identity: { userId: 10, routingGroupId: 'group-1' }, operation: 'chat_completions',
+              model: 'claude-opus-4-6', usage: { inputTokens: 12, outputTokens: 3 },
+            },
+            log: { model_code: 'claude-opus-4-6', status: 'success', billing_snapshot: {} },
+          },
+        },
+      }] })),
+    };
+
+    const result = await reconcilePendingReservations(pool, {
+      usageSettlement: { resolvePending }, billingPolicy: { quoteCharge }, logger: { warn: vi.fn() },
+    });
+
+    expect(result).toEqual({ examined: 1, resolved: 1, failed: 0 });
+    expect(quoteCharge).toHaveBeenCalledWith(expect.objectContaining({
+      usage: { inputTokens: 12, outputTokens: 3 },
+    }));
+    expect(resolvePending).toHaveBeenCalledWith(expect.objectContaining({
+      chargeAmount: 0.42,
+      logUpdates: expect.objectContaining({
+        status: 'success', billing_snapshot: expect.objectContaining({ charge: expect.any(Object) }),
+      }),
+    }));
   });
 });

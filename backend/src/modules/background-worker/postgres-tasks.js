@@ -2,6 +2,9 @@ const axios = require('axios');
 const { withTransaction } = require('../../infrastructure/postgres');
 const { extendRedisCooldown } = require('../gateway-scheduler');
 const { PostgresPricingSyncService } = require('../pricing-sync/postgres-service');
+const { UsageSettlement } = require('../usage-settlement');
+const { PostgresSettlementRepository } = require('../usage-settlement/postgres-repository');
+const { PostgresProxyBillingPolicy } = require('../postgres-proxy/postgres-adapters');
 
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
 const AGGREGATE_WATERMARK_KEY = 'worker_daily_aggregate_watermark';
@@ -227,6 +230,128 @@ async function retainProbeHistory(pool, retentionDays = 30) {
   return { deleted: result.rowCount || 0, retentionDays };
 }
 
+function object(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string') return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+async function reconcilePendingReservations(pool, {
+  usageSettlement,
+  billingPolicy,
+  logger = console,
+  staleReservedMs = 16 * 60_000,
+} = {}) {
+  if (!usageSettlement?.resolvePending) throw new Error('pending reconciliation requires UsageSettlement');
+  const { rows = [] } = await pool.query(`SELECT ur.request_id,ur.user_id,ur.api_key_id,ur.reserved_amount,
+      ur.status AS reservation_status,latest.id AS log_id,
+      latest.created_at::text AS log_created_at,latest.error_type,latest.error_message,
+      latest.billing_snapshot
+    FROM usage_reservations ur
+    LEFT JOIN LATERAL (
+      SELECT id,created_at,error_type,error_message,billing_snapshot FROM api_request_logs
+      WHERE request_id=ur.request_id ORDER BY created_at DESC,id DESC LIMIT 1
+    ) latest ON TRUE
+    WHERE ur.status='pending_review'
+       OR (ur.status='reserved' AND ur.updated_at<CURRENT_TIMESTAMP-($1 * INTERVAL '1 millisecond'))
+    ORDER BY ur.updated_at ASC LIMIT 100`, [staleReservedMs]);
+  let resolved = 0;
+  let failed = 0;
+  for (const row of rows) {
+    const snapshot = object(row.billing_snapshot);
+    const retry = object(snapshot.settlement_retry);
+    let retryCharge = Number(retry.charge_amount);
+    let retryLog = object(retry.log);
+    const pricingContext = object(retry.pricing_context);
+    if (retry.pricing_pending === true) {
+      if (!billingPolicy?.quoteCharge) throw new Error('pending pricing reconciliation requires billing policy');
+      try {
+        const quoted = await billingPolicy.quoteCharge(pricingContext);
+        retryCharge = Number(quoted.amount || 0);
+        retryLog = {
+          ...retryLog,
+          total_cost: retryCharge,
+          billing_mode: quoted.billingMode || retryLog.billing_mode,
+          billing_snapshot: {
+            ...(object(retryLog.billing_snapshot)),
+            charge: quoted.snapshot || {},
+          },
+        };
+      } catch (error) {
+        failed += 1;
+        logger.warn?.(`[worker:pending-pricing] ${row.request_id}: ${error.message}`);
+        continue;
+      }
+    }
+    const chargeAmount = Number.isFinite(retryCharge) && retryCharge >= 0 ? retryCharge : 0;
+    const outcome = ['settled', 'partial_settled'].includes(retry.outcome)
+      ? retry.outcome
+      : 'zero_released';
+    const restoredLog = Object.fromEntries(Object.entries(retryLog).filter(([key]) => [
+      'model_code', 'upstream_account_id', 'latency_ms', 'input_tokens', 'output_tokens',
+      'billing_mode', 'endpoint', 'operation', 'output_items', 'final_size', 'output_format',
+      'output_compression', 'image_metadata', 'protocol_metadata', 'billing_snapshot',
+    ].includes(key)));
+    const isSuccess = outcome === 'settled';
+    const logUpdates = row.log_id == null ? null : {
+      ...restoredLog,
+      status: isSuccess ? 'success' : 'failed',
+      error_type: isSuccess ? null : (retryLog.error_type || row.error_type || 'upstream_state_unknown'),
+      error_message: isSuccess
+        ? null
+        : (retryLog.error_message || row.error_message || (outcome === 'partial_settled'
+          ? 'Automatically reconciled from the last verifiable upstream usage'
+          : 'Automatically reconciled without verifiable upstream usage')),
+    };
+    try {
+      await usageSettlement.resolvePending({
+        userId: row.user_id,
+        reservedAmount: Number(row.reserved_amount),
+        chargeAmount,
+        requestId: row.request_id,
+        reservationStatus: row.reservation_status || 'pending_review',
+        logIdentity: row.log_id == null ? null : { id: row.log_id, createdAt: row.log_created_at },
+        logUpdates,
+        fallbackLog: row.log_id == null ? {
+          request_id: row.request_id,
+          user_id: row.user_id,
+          api_key_id: row.api_key_id || null,
+          status: 'failed',
+          input_tokens: 0,
+          output_tokens: 0,
+          billing_mode: 'token',
+          error_type: row.reservation_status === 'reserved'
+            ? 'stale_reservation_released'
+            : 'upstream_state_unknown',
+          error_message: row.reservation_status === 'reserved'
+            ? 'Automatically released after the maximum request duration elapsed'
+            : 'Automatically reconciled without verifiable upstream usage',
+          billing_snapshot: {
+            reconciliation_reason: row.reservation_status === 'reserved'
+              ? 'stale_reservation_released'
+              : 'upstream_state_unknown',
+          },
+        } : null,
+        resultMetadata: {
+          outcome,
+          reconciliation_source: 'worker',
+          usage_verified: outcome === 'partial_settled' || outcome === 'settled',
+        },
+      });
+      resolved += 1;
+    } catch (error) {
+      failed += 1;
+      logger.warn?.(`[worker:pending-reconciliation] ${row.request_id}: ${error.message}`);
+    }
+  }
+  return { examined: rows.length, resolved, failed };
+}
+
 function createPostgresWorkerTasks({
   pool,
   secretBox,
@@ -239,10 +364,14 @@ function createPostgresWorkerTasks({
   probeRetentionDays = 30,
   redisKeyPrefix = 'ionailabs',
   clock = () => new Date(),
+  usageSettlement: providedUsageSettlement,
+  billingPolicy: providedBillingPolicy,
 } = {}) {
   if (!pool?.query) throw new Error('worker PostgreSQL pool is required');
   if (!secretBox?.open) throw new Error('worker secret box is required');
   const pricingSync = new PostgresPricingSyncService({ pool, http, logger, clock });
+  const usageSettlement = providedUsageSettlement || null;
+  const billingPolicy = providedBillingPolicy || new PostgresProxyBillingPolicy(pool);
   const safeRetentionDays = validateRetentionDays(retentionDays);
   if (!Number.isInteger(partitionHorizonMonths) || partitionHorizonMonths < 1 || partitionHorizonMonths > 12) {
     throw new Error('partition horizon must be an integer between 1 and 12 months');
@@ -254,6 +383,13 @@ function createPostgresWorkerTasks({
     throw new Error('probe retention must be an integer between 1 and 365 days');
   }
   return [
+    { name: 'pending-reconciliation', intervalMs: 10_000, run: () => reconcilePendingReservations(pool, {
+      usageSettlement: usageSettlement || new UsageSettlement({
+        repository: new PostgresSettlementRepository(pool),
+      }),
+      billingPolicy,
+      logger,
+    }) },
     { name: 'account-monitor', intervalMs: 30_000, run: () => probeAccounts({
       pool, secretBox, http, redis, logger, clock, probeConcurrency, redisKeyPrefix,
     }) },
@@ -271,5 +407,6 @@ module.exports = {
   aggregateUsage,
   createPostgresWorkerTasks,
   maintainPartitions,
+  reconcilePendingReservations,
   validateRetentionDays,
 };

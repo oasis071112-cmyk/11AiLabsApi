@@ -65,6 +65,8 @@ async function createWorkerRuntime({
       probeRetentionDays: Number(env.UPSTREAM_PROBE_RETENTION_DAYS || 30),
       redisKeyPrefix: env.REDIS_KEY_PREFIX || 'ionailabs',
     });
+    const reconciliationTasks = tasks.filter(task => task.name === 'pending-reconciliation');
+    const maintenanceTasks = tasks.filter(task => task.name !== 'pending-reconciliation');
     // This timer is deliberately separate from the sequential maintenance loop:
     // a slow probe or aggregate must never make a live worker heartbeat go stale.
     const heartbeat = new WorkerHeartbeat({
@@ -74,18 +76,24 @@ async function createWorkerRuntime({
       ttlSeconds: Number(env.WORKER_HEARTBEAT_TTL_SECONDS || 90),
       logger: runtimeLogger,
     });
+    const reconciliationWorker = new BackgroundWorker({
+      tasks: reconciliationTasks,
+      intervalMs: 10_000,
+      logger: runtimeLogger,
+    });
     const worker = new BackgroundWorker({
-      tasks,
-      intervalMs: Number(env.WORKER_TICK_INTERVAL_MS || 30_000),
+      tasks: maintenanceTasks,
+      intervalMs: Number(env.WORKER_TICK_INTERVAL_MS || 10_000),
       logger: runtimeLogger,
     });
     return {
       pool,
       redis,
       worker,
+      reconciliationWorker,
       heartbeat,
       async close() {
-        await Promise.allSettled([worker.stop(), heartbeat.stop()]);
+        await Promise.allSettled([worker.stop(), reconciliationWorker.stop(), heartbeat.stop()]);
         await Promise.allSettled([
           redis.isOpen ? redis.quit() : Promise.resolve(),
           pool.end(),
@@ -112,7 +120,7 @@ async function main() {
   process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
   await runtime.heartbeat.start();
   if (typeof process.send === 'function') process.send('ready');
-  await runtime.worker.start();
+  await Promise.all([runtime.reconciliationWorker.start(), runtime.worker.start()]);
   logger.info('IonAiLabs 后台 worker 已就绪');
   return runtime;
 }

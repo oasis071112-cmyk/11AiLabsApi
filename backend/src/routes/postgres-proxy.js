@@ -1,7 +1,7 @@
 const express = require('express');
 const { randomUUID } = require('node:crypto');
 const { extractUsage, mergeUsage } = require('../utils/pricing-engine');
-const { countGeneratedImages } = require('../utils/image-billing');
+const { countGeneratedImages, generatedImageOutputSizes } = require('../utils/image-billing');
 const {
   ImageRequestExecutor,
   createImageUploadMiddleware,
@@ -30,30 +30,73 @@ function identityFromRequest(req) {
   };
 }
 
-function responseMetrics(snapshot, operation) {
-  const document = jsonFromSnapshot(snapshot);
-  const events = document === null ? jsonEventsFromSnapshot(snapshot) : [document];
+function createResponseMetricsAccumulator(operation) {
   let usage = extractUsage({});
   let usageFound = false;
   let imageCount = 0;
-  for (const event of events) {
-    const payload = event?.response || event;
+  let resultPayload = null;
+  const observe = event => {
+    if (!event || typeof event !== 'object') return;
+    const eventPayload = event?.response || event;
     const rawUsage = operation === 'anthropic_count_tokens'
-      ? (Number.isFinite(Number(payload?.input_tokens)) ? { input_tokens: payload.input_tokens } : null)
-      : payload?.usage || event?.usage || event?.message?.usage || event?.delta?.usage;
+      ? (Number.isFinite(Number(eventPayload?.input_tokens)) ? { input_tokens: eventPayload.input_tokens } : null)
+      : eventPayload?.usage || event?.usage || event?.message?.usage || event?.delta?.usage;
     if (rawUsage) {
       usageFound = true;
       usage = mergeUsage(usage, rawUsage, {
         cacheTokensAreAdditional: operation === 'anthropic_messages',
       });
     }
-    imageCount = Math.max(imageCount, countGeneratedImages(payload || {}));
-  }
+    imageCount = Math.max(imageCount, countGeneratedImages(eventPayload || {}));
+    if (event?.response || Object.keys(event).length > 0) {
+      // Preserve the last complete upstream event as response context for pricing.
+      resultPayload = eventPayload;
+    }
+  };
   return {
-    payload: document || events.at(-1)?.response || events.at(-1) || null,
+    observe,
+    result(fallbackPayload = null) {
+      return { payload: resultPayload || fallbackPayload, usage, usageFound, imageCount };
+    },
+  };
+}
+
+function responseMetrics(snapshot, operation) {
+  const document = jsonFromSnapshot(snapshot);
+  const events = document === null ? jsonEventsFromSnapshot(snapshot) : [document];
+  const accumulator = createResponseMetricsAccumulator(operation);
+  for (const event of events) {
+    accumulator.observe(event);
+  }
+  return accumulator.result(document || events.at(-1)?.response || events.at(-1) || null);
+}
+
+function retryablePricingContext({ identity, operation, model, request, usage, imageCount, selection, response }) {
+  const outputSizes = generatedImageOutputSizes(response || {});
+  return {
+    identity: { userId: identity.userId, routingGroupId: identity.routingGroupId },
+    operation,
+    model,
+    request: {
+      service_tier: request?.service_tier,
+      size: request?.size,
+      n: request?.n,
+      tools: Array.isArray(request?.tools)
+        ? request.tools.map(tool => ({ type: tool?.type, model: tool?.model }))
+        : undefined,
+    },
     usage,
-    usageFound,
     imageCount,
+    selection: {
+      routingGroupId: selection?.routingGroupId,
+      account: {
+        modelMappings: (selection?.account?.modelMappings || []).map(mapping => ({
+          model: mapping?.model,
+          configuration: mapping?.configuration,
+        })),
+      },
+    },
+    response: outputSizes.length ? { data: outputSizes.map(size => ({ size })) } : null,
   };
 }
 
@@ -102,6 +145,13 @@ function createPostgresProxyRouter({
   fetchImpl = globalThis.fetch,
   requestIdFactory = randomUUID,
   upstreamTimeoutMs = 120_000,
+  streamTimeouts = {
+    firstByteTimeoutMs: 120_000,
+    idleTimeoutMs: 120_000,
+    totalTimeoutMs: 900_000,
+  },
+  leaseRenewIntervalMs = 30_000,
+  now = Date.now,
 } = {}) {
   if (runtime?.mode !== 'postgres_redis') throw new Error('PostgreSQL proxy requires postgres_redis runtime');
   if (typeof authenticateApiKey !== 'function') throw new Error('PostgreSQL proxy authentication is required');
@@ -214,6 +264,52 @@ function createPostgresProxyRouter({
     };
   }
 
+  function failureLog({
+    requestId, identityContext, model, operation, endpoint, execution,
+    usage, charge, reservation, reason, message, startedAt,
+  }) {
+    return {
+      request_id: requestId,
+      user_id: identityContext.userId,
+      api_key_id: identityContext.apiKeyId,
+      model_code: model,
+      upstream_account_id: execution?.selection?.account?.id || null,
+      status: 'failed',
+      latency_ms: now() - startedAt,
+      input_tokens: Number(usage?.inputTokens || 0),
+      output_tokens: Number(usage?.outputTokens || 0),
+      total_cost: Number(charge?.amount || 0),
+      billing_mode: charge?.billingMode || (operation.startsWith('image_') ? 'image' : 'token'),
+      error_type: reason,
+      error_message: message,
+      endpoint,
+      operation,
+      billing_snapshot: {
+        operation,
+        reservation: reservation?.snapshot || {},
+        charge: charge?.snapshot || {},
+      },
+    };
+  }
+
+  function writeStreamError(res, protocol, operation, code, message) {
+    if (res.writableEnded || res.destroyed) return;
+    if (operation === 'responses') {
+      res.write(`event: response.failed\ndata: ${JSON.stringify({
+        type: 'response.failed',
+        response: { status: 'failed', error: { type: 'upstream_error', code, message } },
+      })}\n\n`);
+    } else if (protocol === 'anthropic') {
+      res.write(`event: error\ndata: ${JSON.stringify({
+        type: 'error', error: { type: 'api_error', code, message },
+      })}\n\n`);
+    } else {
+      res.write(`data: ${JSON.stringify({ error: { type: 'upstream_error', code, message } })}\n\n`);
+      res.write('data: [DONE]\n\n');
+    }
+    res.end();
+  }
+
   function handleJsonOperation({ operation, capability, protocol, upstreamPath, prepareRequest }) {
     return async (req, res, next) => {
       const identityContext = identityFromRequest(req);
@@ -252,8 +348,47 @@ function createPostgresProxyRouter({
       }
       const requestId = requestIdFactory();
       let reservedAmount = 0;
-      const startedAt = Date.now();
+      const startedAt = now();
+      let lastLeaseRenewedAt = startedAt;
       let reservation;
+      let activeSelection = null;
+      let settlementRetry = null;
+      const shouldStream = billingRequest.stream === true
+        && ['chat_completions', 'responses', 'anthropic_messages'].includes(operation);
+      const streamingMetrics = createResponseMetricsAccumulator(operation);
+      const queueSettlementRetry = async retry => {
+        const normalizedRetry = retry || {
+          chargeAmount: 0,
+          outcome: 'zero_released',
+          log: pendingLog({
+            requestId, identityContext, model, operation, reason: 'settlement_failed', startedAt,
+          }),
+        };
+        await runtime.usageSettlement.markPending({
+          userId: identityContext.userId,
+          reservedAmount,
+          requestId,
+          log: {
+            ...pendingLog({
+              requestId, identityContext, model, operation, reason: 'settlement_failed', startedAt,
+            }),
+            billing_snapshot: {
+              ...(normalizedRetry.log?.billing_snapshot || {}),
+              reconciliation_reason: 'settlement_failed',
+              settlement_retry: {
+                charge_amount: Number(normalizedRetry.chargeAmount || 0),
+                outcome: normalizedRetry.outcome,
+                log: normalizedRetry.log || {},
+                ...(normalizedRetry.pricingContext ? {
+                  pricing_pending: true,
+                  pricing_context: normalizedRetry.pricingContext,
+                } : {}),
+              },
+            },
+          },
+        });
+        reservedAmount = 0;
+      };
       try {
         reservation = await billingPolicy.quoteReservation({
           identity: identityContext,
@@ -277,9 +412,23 @@ function createPostgresProxyRouter({
           capability: requiredCapability,
           estimatedTokens: Number(reservation.estimatedTokens || 0),
         }, selection => {
+          activeSelection = selection;
           if (prepared.execute) return prepared.execute(selection);
-          const shouldStream = billingRequest.stream === true
-            && ['chat_completions', 'responses', 'anthropic_messages'].includes(operation);
+          const writeAndRenewStream = shouldStream ? async chunk => {
+            if (typeof runtime.gatewayScheduler.renewLease === 'function') {
+              const currentTime = now();
+              if (currentTime - lastLeaseRenewedAt >= leaseRenewIntervalMs) {
+                const renewal = await runtime.gatewayScheduler.renewLease(selection.lease);
+                if (!renewal?.renewed) {
+                  const error = new Error('Gateway concurrency lease was lost during upstream streaming');
+                  error.code = 'lease_lost';
+                  throw error;
+                }
+                lastLeaseRenewedAt = currentTime;
+              }
+            }
+            await writeStreamingChunk(res, chunk);
+          } : undefined;
           return executeJsonUpstream({
             fetchImpl,
             selection,
@@ -293,13 +442,18 @@ function createPostgresProxyRouter({
               : billingRequest,
             requestHeaders: req.headers,
             timeoutMs: upstreamTimeoutMs,
+            streamTimeouts,
             stream: shouldStream,
             onStreamStart: shouldStream ? snapshot => startStreamingResponse(res, snapshot) : undefined,
-            onStreamChunk: shouldStream ? chunk => writeStreamingChunk(res, chunk) : undefined,
+            onStreamChunk: writeAndRenewStream,
+            onStreamEvent: shouldStream ? event => streamingMetrics.observe(event) : undefined,
+            streamOperation: operation,
           });
         });
 
-        const metrics = responseMetrics(execution.value, operation);
+        const metrics = shouldStream
+          ? streamingMetrics.result()
+          : responseMetrics(execution.value, operation);
         const { payload, usage, imageCount } = metrics;
         const actualUsageKnown = operation.startsWith('image_')
           ? payload !== null
@@ -307,39 +461,56 @@ function createPostgresProxyRouter({
             ? Number.isFinite(Number(payload?.input_tokens))
             : metrics.usageFound || imageCount > 0;
         if (!actualUsageKnown) {
-          await runtime.usageSettlement.markPending({
+          const charge = { amount: 0, billingMode: operation.startsWith('image_') ? 'image' : 'token', snapshot: {} };
+          const log = failureLog({
+            requestId, identityContext, model, operation, endpoint: upstreamPath,
+            execution, usage, charge, reservation, reason: 'usage_missing',
+            message: 'Upstream response completed without verifiable usage', startedAt,
+          });
+          settlementRetry = { chargeAmount: 0, log, outcome: 'zero_released' };
+          await runtime.usageSettlement.settle({
             userId: identityContext.userId,
             reservedAmount,
+            chargeAmount: 0,
             requestId,
-            log: pendingLog({
-              requestId, identityContext, model, operation, reason: 'usage_missing', startedAt,
-            }),
+            successLog: log,
+            resultMetadata: { outcome: 'zero_released', usage_verified: false },
           });
           reservedAmount = 0;
-          if (!res.headersSent) res.setHeader('x-settlement-status', 'pending');
+          if (!res.headersSent) res.setHeader('x-settlement-status', 'zero_released');
           return finishSnapshotResponse(res, execution.value);
         }
 
-        const charge = await billingPolicy.quoteCharge({
-          identity: identityContext,
-          operation,
-          model,
-          request: billingRequest,
-          usage,
-          imageCount,
-          selection: execution.selection,
-          response: payload,
+        const quoteContext = {
+          identity: identityContext, operation, model, request: billingRequest,
+          usage, imageCount, selection: execution.selection, response: payload,
+        };
+        const persistedPricingContext = retryablePricingContext({
+          identity: identityContext, operation, model, request: billingRequest,
+          usage, imageCount, selection: execution.selection, response: payload,
         });
+        const pricingPendingLog = successLog({
+          requestId, identityContext, model, operation, endpoint: upstreamPath, request: billingRequest,
+          execution, usage, imageCount,
+          charge: { amount: 0, billingMode: operation.startsWith('image_') ? 'image' : 'token', snapshot: {} },
+          reservation, startedAt,
+        });
+        settlementRetry = {
+          chargeAmount: 0, log: pricingPendingLog, outcome: 'settled', pricingContext: persistedPricingContext,
+        };
+        const charge = await billingPolicy.quoteCharge(quoteContext);
+        const log = successLog({
+          requestId, identityContext, model, operation, endpoint: upstreamPath, request: billingRequest,
+          execution, usage,
+          imageCount, charge, reservation, startedAt,
+        });
+        settlementRetry = { chargeAmount: Number(charge.amount || 0), log, outcome: 'settled' };
         const settlement = await runtime.usageSettlement.settle({
           userId: identityContext.userId,
           reservedAmount,
           chargeAmount: Number(charge.amount || 0),
           requestId,
-          successLog: successLog({
-            requestId, identityContext, model, operation, endpoint: upstreamPath, request: billingRequest,
-            execution, usage,
-            imageCount, charge, reservation, startedAt,
-          }),
+          successLog: log,
         });
         reservedAmount = 0;
         if (settlement?.pending && !res.headersSent) res.setHeader('x-settlement-status', 'pending');
@@ -347,36 +518,131 @@ function createPostgresProxyRouter({
       } catch (error) {
         const upstreamHttpError = causeMatching(error, candidate => candidate instanceof UpstreamHttpError);
         if (reservedAmount > 0 && upstreamHttpError) {
-          await runtime.usageSettlement.release({
-            userId: identityContext.userId,
-            reservedAmount,
-            requestId,
-            remark: `Upstream returned definitive HTTP ${upstreamHttpError.status}`,
+          const charge = { amount: 0, billingMode: operation.startsWith('image_') ? 'image' : 'token', snapshot: {} };
+          const log = failureLog({
+            requestId, identityContext, model, operation, endpoint: upstreamPath,
+            execution: activeSelection ? { selection: activeSelection } : null,
+            usage: extractUsage({}), charge, reservation,
+            reason: `upstream_http_${upstreamHttpError.status}`,
+            message: `Upstream returned definitive HTTP ${upstreamHttpError.status}`,
+            startedAt,
           });
-          reservedAmount = 0;
+          settlementRetry = { chargeAmount: 0, log, outcome: 'zero_released' };
+          try {
+            await runtime.usageSettlement.settle({
+              userId: identityContext.userId,
+              reservedAmount,
+              chargeAmount: 0,
+              requestId,
+              successLog: log,
+              resultMetadata: {
+                outcome: 'zero_released',
+                usage_verified: false,
+                upstream_http_status: upstreamHttpError.status,
+              },
+            });
+            reservedAmount = 0;
+          } catch (settlementError) {
+            try { await queueSettlementRetry(settlementRetry); }
+            catch (_pendingError) { /* stale-reservation recovery remains available */ }
+          }
           return writeSnapshot(res, upstreamHttpError.response);
         }
         const uncertain = causeMatching(error, candidate => candidate.executionUncertain === true);
         if (reservedAmount > 0 && uncertain) {
-          await runtime.usageSettlement.markPending({
-            userId: identityContext.userId,
-            reservedAmount,
-            requestId,
-            log: pendingLog({
-              requestId, identityContext, model, operation, reason: 'upstream_state_unknown', startedAt,
-            }),
+          const metrics = shouldStream
+            ? streamingMetrics.result()
+            : responseMetrics(uncertain.partialSnapshot || { body: Buffer.alloc(0) }, operation);
+          const actualUsageKnown = metrics.usageFound || metrics.imageCount > 0;
+        let charge = {
+            amount: 0,
+            billingMode: operation.startsWith('image_') ? 'image' : 'token',
+          snapshot: {},
+        };
+          let persistedUncertainPricingContext = null;
+          const outcome = actualUsageKnown ? 'partial_settled' : 'zero_released';
+          const explicitFailureReasons = new Set([
+            'first_byte_timeout', 'stream_idle_timeout', 'total_timeout', 'lease_lost',
+            'stream_terminal_missing', 'upstream_stream_failed',
+          ]);
+          const failureReason = explicitFailureReasons.has(uncertain.code)
+            ? uncertain.code
+            : 'upstream_state_unknown';
+          if (actualUsageKnown && activeSelection) {
+            const quoteContext = {
+              identity: identityContext, operation, model, request: billingRequest,
+              usage: metrics.usage, imageCount: metrics.imageCount,
+              selection: activeSelection, response: metrics.payload,
+            };
+            persistedUncertainPricingContext = retryablePricingContext({
+              identity: identityContext, operation, model, request: billingRequest,
+              usage: metrics.usage, imageCount: metrics.imageCount,
+              selection: activeSelection, response: metrics.payload,
+            });
+            try {
+              charge = await billingPolicy.quoteCharge(quoteContext);
+            } catch (pricingError) {
+              const retryLog = failureLog({
+                requestId, identityContext, model, operation, endpoint: upstreamPath,
+                execution: activeSelection ? { selection: activeSelection } : null,
+                usage: metrics.usage, charge, reservation, reason: failureReason,
+                message: `Usage was captured but pricing failed (${pricingError.code || 'pricing_error'})`, startedAt,
+              });
+              settlementRetry = {
+                chargeAmount: 0, log: retryLog, outcome, pricingContext: persistedUncertainPricingContext,
+              };
+              try { await queueSettlementRetry(settlementRetry); }
+              catch (_pendingError) { /* stale-reservation recovery remains available */ }
+              if (res.headersSent) {
+                writeStreamError(res, protocol, operation, failureReason, 'Upstream stream ended before completion');
+                return res;
+              }
+              return next(pricingError);
+            }
+          }
+          const log = failureLog({
+            requestId, identityContext, model, operation, endpoint: upstreamPath,
+            execution: activeSelection ? { selection: activeSelection } : null,
+            usage: metrics.usage, charge, reservation, reason: failureReason,
+            message: `Upstream stream ended abnormally (${uncertain.code || 'transport_error'})`, startedAt,
           });
-          reservedAmount = 0;
+          settlementRetry = {
+            chargeAmount: Number(charge.amount || 0), log, outcome,
+            ...(actualUsageKnown && Number(charge.amount || 0) === 0 ? {
+              pricingContext: persistedUncertainPricingContext,
+            } : {}),
+          };
+          try {
+            await runtime.usageSettlement.settle({
+              userId: identityContext.userId,
+              reservedAmount,
+              chargeAmount: settlementRetry.chargeAmount,
+              requestId,
+              successLog: log,
+              resultMetadata: {
+                outcome,
+                usage_verified: actualUsageKnown,
+                upstream_error_code: uncertain.code || 'upstream_transport_error',
+              },
+            });
+            reservedAmount = 0;
+          } catch (settlementError) {
+            try {
+              await queueSettlementRetry(settlementRetry);
+            } catch (_pendingError) { /* reservation remains frozen for automatic retry */ }
+            if (!res.headersSent) return next(settlementError);
+          }
           if (res.headersSent) {
-            if (!res.writableEnded && !res.destroyed) res.end();
+            writeStreamError(res, protocol, operation, failureReason, 'Upstream stream ended before completion');
             return res;
           }
           return apiError(
             res,
             protocol,
             502,
-            'Upstream execution state is uncertain; the reservation is pending reconciliation',
-            'settlement_pending',
+            'Upstream execution ended before completion',
+            'upstream_error',
+            failureReason,
           );
         }
         if (['redis_unavailable', 'no_account_available', 'account_capacity_exhausted'].includes(error.code)) {
@@ -416,16 +682,8 @@ function createPostgresProxyRouter({
         }
         if (reservedAmount > 0) {
           try {
-            await runtime.usageSettlement.markPending({
-              userId: identityContext.userId,
-              reservedAmount,
-              requestId,
-              log: pendingLog({
-                requestId, identityContext, model, operation, reason: 'settlement_failed', startedAt,
-              }),
-            });
-            reservedAmount = 0;
-          } catch (_pendingError) { /* reservation remains frozen for operator reconciliation */ }
+            await queueSettlementRetry(settlementRetry);
+          } catch (_pendingError) { /* stale-reservation recovery remains available */ }
         }
         if (res.headersSent) {
           if (!res.writableEnded && !res.destroyed) res.end();

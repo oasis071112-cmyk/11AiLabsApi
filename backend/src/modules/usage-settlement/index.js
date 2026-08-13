@@ -113,9 +113,57 @@ class UsageSettlement {
     });
   }
 
-  async settle({ userId, reservedAmount, chargeAmount, requestId, successLog }) {
+  async settle({ userId, reservedAmount, chargeAmount, requestId, successLog, resultMetadata = {} }) {
+    return this.settleReservation({
+      userId,
+      reservedAmount,
+      chargeAmount,
+      requestId,
+      expectedStatus: 'reserved',
+      appendLog: successLog,
+      resultMetadata,
+    });
+  }
+
+  async resolvePending({
+    userId,
+    reservedAmount,
+    chargeAmount,
+    requestId,
+    reservationStatus = 'pending_review',
+    logIdentity = null,
+    logUpdates,
+    fallbackLog = null,
+    resultMetadata = {},
+  }) {
+    return this.settleReservation({
+      userId,
+      reservedAmount,
+      chargeAmount,
+      requestId,
+      expectedStatus: reservationStatus,
+      logIdentity,
+      appendLog: fallbackLog,
+      updateLog: logUpdates,
+      resultMetadata,
+    });
+  }
+
+  async settleReservation({
+    userId,
+    reservedAmount,
+    chargeAmount,
+    requestId,
+    expectedStatus,
+    appendLog,
+    logIdentity,
+    updateLog,
+    resultMetadata,
+  }) {
     const reserved = amount(reservedAmount, '冻结额度');
-    const charge = amount(chargeAmount, '扣费金额');
+    const requestedCharge = amount(chargeAmount, '扣费金额');
+    const charge = quantizeAmount(Math.min(requestedCharge, reserved));
+    const platformAbsorbed = quantizeAmount(Math.max(0, requestedCharge - charge));
     const stableRequestId = requireRequestId(requestId);
     return this.repository.transaction(async tx => {
       const reservation = await tx.lockReservation(stableRequestId);
@@ -123,36 +171,19 @@ class UsageSettlement {
       if (reservation.status === 'settled') {
         return { ...(reservation.result || {}), idempotent: true };
       }
-      if (reservation.status !== 'reserved') throw new Error(`冻结记录状态不可结算: ${reservation.status}`);
+      if (reservation.status !== expectedStatus) throw new Error(`冻结记录状态不可结算: ${reservation.status}`);
       const current = balances(await tx.lockWallet(userId));
       if (current.frozen + 1e-9 < reserved) throw new Error('冻结额度异常');
       const otherFrozen = quantizeAmount(Math.max(0, current.frozen - reserved));
       const billableFunds = quantizeAmount(Math.max(0, current.quota + current.gift - otherFrozen));
       if (charge > billableFunds + 1e-9) {
-        const shortfall = quantizeAmount(charge - billableFunds);
-        const result = { pending: reserved, requiredCharge: charge, shortfall };
-        if (successLog) await tx.appendRequestLog({
-          ...successLog,
-          status: 'settlement_pending',
-          total_cost: 0,
-          error_type: 'insufficient_settlement_balance',
-          error_message: '实际费用超出可结算余额，已保留冻结等待核对',
-          pending_reserved_amount: reserved,
-          billing_snapshot: {
-            ...(successLog.billing_snapshot || {}),
-            settlement: { required_charge: charge, billable_funds: billableFunds, shortfall },
-          },
-          request_id: successLog.request_id || stableRequestId,
-        });
-        await tx.updateReservation(stableRequestId, { status: 'pending_review', result });
-        return result;
+        throw new Error('冻结记录对应的可结算余额不足');
       }
       const giftCharged = quantizeAmount(Math.min(current.gift, charge));
       const quotaCharged = quantizeAmount(charge - giftCharged);
       const nextGift = quantizeAmount(current.gift - giftCharged);
       const nextQuota = quantizeAmount(current.quota - quotaCharged);
       const nextFrozen = quantizeAmount(Math.max(0, current.frozen - reserved));
-      const debtCreated = quantizeAmount(Math.max(0, charge - reserved));
       await tx.updateWallet(userId, {
         quota_balance: nextQuota,
         gift_quota: nextGift,
@@ -169,7 +200,7 @@ class UsageSettlement {
         await tx.appendWalletTransaction(ledger({
           userId, requestId: stableRequestId, type: 'consume', balanceType: 'quota', value: -quotaCharged,
           before: current.quota, after: nextQuota,
-          remark: debtCreated > 0 ? 'API 调用超额结算（已形成欠费）' : 'API 调用扣费',
+          remark: 'API 调用扣费',
         }));
       }
       await tx.appendWalletTransaction(ledger({
@@ -177,11 +208,40 @@ class UsageSettlement {
         before: current.frozen, after: nextFrozen,
         remark: charge > 0 ? 'API 调用结算，释放冻结额度' : 'API 调用无费用，释放冻结额度',
       }));
-      const result = { charged: charge, giftCharged, quotaCharged, released: reserved, debtCreated };
-      if (successLog) await tx.appendRequestLog({
-        ...successLog,
+      const result = {
+        charged: charge,
+        giftCharged,
+        quotaCharged,
+        released: reserved,
+        debtCreated: 0,
+        ...(platformAbsorbed > 0 ? { requestedCharge, platformAbsorbed } : {}),
+        ...resultMetadata,
+      };
+      const settlementSnapshot = {
+        ...resultMetadata,
+        requested_charge: requestedCharge,
+        charged_amount: charge,
+        platform_absorbed: platformAbsorbed,
+      };
+      if (appendLog) await tx.appendRequestLog({
+        ...appendLog,
         total_cost: charge,
-        request_id: successLog.request_id || stableRequestId,
+        ...(platformAbsorbed > 0 || Object.keys(resultMetadata).length > 0 ? {
+          billing_snapshot: {
+            ...(appendLog.billing_snapshot || {}),
+            settlement: settlementSnapshot,
+          },
+        } : {}),
+        request_id: appendLog.request_id || stableRequestId,
+      });
+      if (updateLog) await tx.updateRequestLog(logIdentity || stableRequestId, {
+        ...updateLog,
+        total_cost: charge,
+        pending_reserved_amount: 0,
+        billing_snapshot: {
+          ...(updateLog.billing_snapshot || {}),
+          settlement: settlementSnapshot,
+        },
       });
       await tx.updateReservation(stableRequestId, {
         status: 'settled',

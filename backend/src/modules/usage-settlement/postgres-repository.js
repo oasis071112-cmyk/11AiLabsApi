@@ -22,6 +22,7 @@ class PostgresSettlementRepository {
       updateWallet: (userId, values) => this.updateWallet(client, userId, values),
       appendWalletTransaction: value => this.appendWalletTransaction(client, value),
       appendRequestLog: value => this.appendRequestLog(client, value),
+      updateRequestLog: (identity, value) => this.updateRequestLog(client, identity, value),
       getOrCreateReservation: value => this.getOrCreateReservation(client, value),
       lockReservation: requestId => this.lockReservation(client, requestId),
       updateReservation: (requestId, values) => this.updateReservation(client, requestId, values),
@@ -90,6 +91,25 @@ class PostgresSettlementRepository {
     const values = [...Object.values(known), JSON.stringify(metadata)];
     const parameters = values.map((_, index) => `$${index + 1}${index === values.length - 1 ? '::jsonb' : ''}`);
     return client.query(`INSERT INTO api_request_logs (${columns.join(',')}) VALUES (${parameters.join(',')})`, values);
+  }
+
+  updateRequestLog(client, identity, value) {
+    const known = Object.fromEntries(Object.entries(value).filter(([key]) => LOG_FIELDS.has(key)));
+    const entries = Object.entries(known);
+    if (entries.length === 0) return Promise.resolve();
+    const exactIdentity = identity && typeof identity === 'object'
+      && identity.id !== undefined && identity.createdAt;
+    const whereValues = exactIdentity
+      ? [identity.id, identity.createdAt]
+      : [String(identity?.requestId || identity)];
+    const assignments = entries.map(([key], index) => key === 'billing_snapshot'
+      ? `billing_snapshot=COALESCE(billing_snapshot,'{}'::jsonb) || $${index + whereValues.length + 1}::jsonb`
+      : `${key}=$${index + whereValues.length + 1}`);
+    return client.query(`UPDATE api_request_logs SET ${assignments.join(',')}
+      WHERE ${exactIdentity ? 'id=$1 AND created_at=$2::timestamptz' : 'request_id=$1'}`, [
+      ...whereValues,
+      ...entries.map(([key, item]) => key === 'billing_snapshot' ? JSON.stringify(item) : item),
+    ]);
   }
 }
 

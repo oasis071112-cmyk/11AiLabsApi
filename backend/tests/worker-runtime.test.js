@@ -57,6 +57,8 @@ describe('PostgreSQL worker startup safety', () => {
     const sql = pg.instances[0].queries.map(query => query.sql).join('\n');
     expect(sql.indexOf('FROM schema_migrations')).toBeLessThan(sql.indexOf('ensure_api_request_logs_partition'));
     expect(runtime.heartbeat).toBeTruthy();
+    expect(runtime.reconciliationWorker.tasks.map(task => task.name)).toEqual(['pending-reconciliation']);
+    expect(runtime.worker.tasks.map(task => task.name)).not.toContain('pending-reconciliation');
     expect(redis.client.set).not.toHaveBeenCalled();
     await runtime.close();
   });

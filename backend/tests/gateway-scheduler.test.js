@@ -53,6 +53,19 @@ class BehaviorRedis {
       const [leasesKey, leaseId] = args;
       return this.leases.get(leasesKey)?.delete(String(leaseId)) ? 1 : 0;
     }
+    if (script.includes('gateway:scheduler:renew:v1')) {
+      const [leasesKey, nowValue, leaseTtlValue, leaseId] = args;
+      const leases = this.leases.get(leasesKey);
+      if (!leases?.has(String(leaseId))) return [0, 0];
+      const now = Number(nowValue);
+      if (leases.get(String(leaseId)) <= now) {
+        leases.delete(String(leaseId));
+        return [0, 0];
+      }
+      const expiresAt = now + Number(leaseTtlValue);
+      leases.set(String(leaseId), expiresAt);
+      return [1, expiresAt];
+    }
     if (script.includes('gateway:scheduler:cooldown:v1')) {
       const [cooldownKey, durationValue, metadata] = args;
       const durationMs = Number(durationValue);
@@ -276,6 +289,48 @@ describe('GatewayScheduler', () => {
     await expect(scheduler.release(lease)).resolves.toBe(true);
     await expect(scheduler.release(lease)).resolves.toBe(false);
     await expect(scheduler.acquire(request)).resolves.toMatchObject({ account: { id: 'account-1' } });
+  });
+
+  it('renews only a live concurrency lease and never revives expired or released leases', async () => {
+    const redis = new BehaviorRedis();
+    redis.now = 5_000;
+    const scheduler = createGatewayScheduler({
+      accountRepository: {
+        async listCandidates() { return [schedulerAccount({ rpmLimit: 0, tpmLimit: 0 })]; },
+        async getFallbackGroupId() { return null; },
+      },
+      redis,
+      now: () => redis.now,
+      leaseTtlMs: 180_000,
+      idFactory: () => 'renewable-lease',
+    });
+    const selection = await scheduler.acquire({
+      groupId: 'primary', model: 'public-model', protocol: 'openai_compatible',
+      capability: 'chat_completions', estimatedTokens: 10,
+    });
+
+    redis.now = 35_000;
+    await expect(scheduler.renewLease(selection.lease)).resolves.toMatchObject({
+      renewed: true,
+      expiresAt: 215_000,
+    });
+    await expect(scheduler.renewLease(selection.lease)).resolves.toEqual({
+      renewed: true,
+      expiresAt: 215_000,
+    });
+    redis.now = 215_001;
+    await expect(scheduler.renewLease(selection.lease)).resolves.toEqual({
+      renewed: false,
+      expiresAt: 0,
+    });
+    await expect(scheduler.release(selection.lease)).resolves.toBe(false);
+
+    const replacement = await scheduler.acquire({
+      groupId: 'primary', model: 'public-model', protocol: 'openai_compatible',
+      capability: 'chat_completions', estimatedTokens: 10,
+    });
+    await expect(scheduler.release(replacement.lease)).resolves.toBe(true);
+    await expect(scheduler.renewLease(replacement.lease)).resolves.toEqual({ renewed: false, expiresAt: 0 });
   });
 
   it('skips a concurrency-limited account and leases the next eligible account', async () => {
