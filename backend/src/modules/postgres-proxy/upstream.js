@@ -69,7 +69,13 @@ function authorizationHeaders(selection, secretBox, requestHeaders = {}) {
       ...(requestHeaders['anthropic-beta'] ? { 'anthropic-beta': String(requestHeaders['anthropic-beta']) } : {}),
     };
   }
-  return { Authorization: `Bearer ${apiKey}` };
+  const actorAuthorization = String(requestHeaders['x-openai-actor-authorization'] || '').trim();
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    ...(actorAuthorization === 'local-image-extension'
+      ? { 'x-openai-actor-authorization': 'local-image-extension' }
+      : {}),
+  };
 }
 
 function safeResponseHeaders(response) {

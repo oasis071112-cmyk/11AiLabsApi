@@ -1120,6 +1120,64 @@ describe('PostgreSQL public proxy bridge', () => {
     })]);
   });
 
+  it('forwards the Codex image actor marker while replacing client Bearer authorization', async () => {
+    let upstreamHeaders;
+    const snapshot = await executeJsonUpstream({
+      fetchImpl: async (_url, options) => {
+        upstreamHeaders = options.headers;
+        return new Response(JSON.stringify({ data: [{ b64_json: 'image-data' }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+      selection: {
+        account: {
+          accountKey: 'image-upstream', baseUrl: 'https://image.test/v1', protocol: 'openai_compatible',
+          credentialEnvelope: 'image.envelope',
+        },
+        upstreamModel: 'vendor-image',
+      },
+      secretBox: { open: () => 'upstream-secret' },
+      path: 'images/generations', body: { model: 'public-image', prompt: 'test' },
+      requestHeaders: {
+        authorization: 'Bearer client-secret',
+        'x-openai-actor-authorization': 'local-image-extension',
+      },
+      timeoutMs: 2_000,
+    });
+
+    expect(snapshot.status).toBe(200);
+    expect(upstreamHeaders).toMatchObject({
+      Authorization: 'Bearer upstream-secret',
+      'x-openai-actor-authorization': 'local-image-extension',
+    });
+    expect(JSON.stringify(upstreamHeaders)).not.toContain('client-secret');
+  });
+
+  it('does not forward unknown actor authorization values', async () => {
+    let upstreamHeaders;
+    await executeJsonUpstream({
+      fetchImpl: async (_url, options) => {
+        upstreamHeaders = options.headers;
+        return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+      },
+      selection: {
+        account: {
+          accountKey: 'image-upstream', baseUrl: 'https://image.test/v1', protocol: 'openai_compatible',
+          credentialEnvelope: 'image.envelope',
+        },
+        upstreamModel: 'vendor-image',
+      },
+      secretBox: { open: () => 'upstream-secret' },
+      path: 'images/generations', body: { model: 'public-image', prompt: 'test' },
+      requestHeaders: { 'x-openai-actor-authorization': 'unexpected-actor' },
+      timeoutMs: 2_000,
+    });
+
+    expect(upstreamHeaders).toMatchObject({ Authorization: 'Bearer upstream-secret' });
+    expect(upstreamHeaders).not.toHaveProperty('x-openai-actor-authorization');
+  });
+
   it('treats an OpenAI error event as failed even when the stream also sends DONE', async () => {
     await expect(executeJsonUpstream({
       fetchImpl: async () => new Response([

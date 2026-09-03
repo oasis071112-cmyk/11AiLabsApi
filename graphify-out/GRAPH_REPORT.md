@@ -1,7 +1,7 @@
 # Graph Report - ai-api-proxy  (2026-09-03)
 
 ## Corpus Check
-- 244 files · ~160,001 words
+- 244 files · ~160,204 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `460cefb7`
+- Built from commit: `b126b765`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -162,7 +162,7 @@
 - echarts
 - operationsParams
 - gsap
-- postgres-payment-integration.test.js
+- axios
 - 性能与压测验证
 - multiplierText
 - worker-runtime.test.js
@@ -235,7 +235,7 @@ Nodes (32): activeCode, activeTab, channelLoading, channels, copiedKeyId, copyin
 
 ### Community 5 - "dependencies"
 Cohesion: 0.12
-Nodes (17): dependencies, bcryptjs, dotenv, express, form-data, helmet, jsonwebtoken, pg (+9 more)
+Nodes (17): dependencies, cors, dotenv, express, form-data, helmet, jsonwebtoken, pg (+9 more)
 
 ### Community 6 - "admin/Models.vue"
 Cohesion: 0.08
@@ -694,10 +694,6 @@ Nodes (9): apiKeyAad(), bcryptjs, createPostgresIdentity(), desensitizeKey(), jw
 Cohesion: 0.17
 Nodes (20): abortablePromise(), abortableRead(), appendMultipartValue(), authorizationHeaders(), createSseJsonParser(), executeJsonUpstream(), executeMultipartUpstream(), jsonEventsFromSnapshot() (+12 more)
 
-### Community 142 - "logger.js"
-Cohesion: 0.38
-Nodes (3): isoDate(), LegacyDashboardRepository, legacyWhere()
-
 ### Community 145 - "channel-docs.js"
 Cohesion: 0.36
 Nodes (7): buildChannelProtocolDocs(), CHANNEL_PROTOCOL_MAP, generateDocs(), generateImageDocs(), getConfiguredProtocol(), getProtocol(), PROTOCOLS
@@ -741,6 +737,10 @@ Nodes (5): desktopRanking, logs, mobileDetails, mobileRanking, formatUsdDeductio
 ### Community 156 - "operationsParams"
 Cohesion: 0.22
 Nodes (10): applyAdvanced(), baseParams(), beijingInputToIso(), currentRange(), detailParams(), fetchDetails(), openAllDetails(), openRankDetails() (+2 more)
+
+### Community 157 - "gsap"
+Cohesion: 0.38
+Nodes (3): isoDate(), LegacyDashboardRepository, legacyWhere()
 
 ### Community 159 - "性能与压测验证"
 Cohesion: 0.33

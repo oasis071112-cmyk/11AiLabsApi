@@ -915,8 +915,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-proxy.test.js": {
-    "mtime": 1788400869.2617304,
-    "ast_hash": "5e3af7b5a262dc59cb053da9a6f86a2f",
+    "mtime": 1788402355.222119,
+    "ast_hash": "7dc13677f34a74231ddca26b6532aa68",
     "semantic_hash": ""
   },
   "backend/load/autocannon-scenarios.js": {
@@ -955,8 +955,8 @@
     "semantic_hash": ""
   },
   "backend/src/modules/postgres-proxy/upstream.js": {
-    "mtime": 1786610019.170182,
-    "ast_hash": "7c1dfcd3fae5a5011049790a3bd67c02",
+    "mtime": 1788402355.220118,
+    "ast_hash": "ebd8c4a3e206fd403896e8254339e9e5",
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-public.js": {
