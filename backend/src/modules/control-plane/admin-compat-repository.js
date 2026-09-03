@@ -4,7 +4,11 @@ const { withTransaction } = require('../../infrastructure/postgres');
 const { ACCOUNT_CAPABILITIES, ACCOUNT_PROTOCOLS } = require('./index');
 const { normalizeUpstreamModels, inferModelType } = require('../../utils/model-sync');
 const { inferProvider } = require('../../utils/pricing-sync');
-const { defaultImageDisplayPricing } = require('../../utils/pricing-engine');
+const {
+  canonicalImagePrices,
+  hasCompleteImagePrices,
+  missingImagePriceTiers,
+} = require('../../utils/pricing-engine');
 const { buildBillingDetailFromSnapshot } = require('../../utils/billing-detail');
 const {
   deriveUserDeductionUsd,
@@ -182,7 +186,6 @@ function publicModel(row) {
   if (!row) return row;
   const metadata = asObject(row.metadata);
   const capabilities = asObject(row.capabilities, asObject(metadata.capabilities));
-  const imagePricing = defaultImageDisplayPricing();
   return {
     ...metadata,
     id: row.model_code,
@@ -204,12 +207,10 @@ function publicModel(row) {
     official_cached_input_price: row.official_cached_input_price ?? metadata.official_cached_input_price ?? 0,
     official_unit_tokens: row.official_unit_tokens ?? metadata.official_unit_tokens ?? 1_000_000,
     official_price_updated_at: row.official_price_updated_at ?? metadata.official_price_updated_at ?? null,
-    official_image_prices: metadata.official_image_prices || {},
+    official_image_prices: canonicalImagePrices(metadata.official_image_prices),
     billing_multiplier_input: Number(metadata.billing_multiplier_input ?? metadata.multiplier_input ?? 1),
     billing_multiplier_output: Number(metadata.billing_multiplier_output ?? metadata.multiplier_output ?? 1),
     billing_multiplier_image: Number(metadata.billing_multiplier_image ?? metadata.multiplier_image ?? 1),
-    default_image_unit_price: row.model_type === 'image' ? imagePricing.unitPrice : undefined,
-    default_image_currency: row.model_type === 'image' ? imagePricing.currency : undefined,
     channel_mappings: asArray(row.channel_mappings),
     metadata,
     created_at: row.created_at,
@@ -803,13 +804,27 @@ class PostgresAdminCompatRepository {
     metadata.official_model_id = text(body.official_model_id, metadata.official_model_id || body.model_code || existing.model_code);
     metadata.official_pricing_mode = text(body.official_pricing_mode, metadata.official_pricing_mode || 'auto');
     if (!['auto', 'manual'].includes(metadata.official_pricing_mode)) throw new AdminCompatError(400, 'invalid_pricing_mode', '官方定价方式无效');
-    const imageKeys = {
+    const modelType = text(body.model_type, existing.model_type || 'llm');
+    const modelStatus = body.status === undefined ? (existing.status || 'inactive') : status(body.status);
+    const suppliedImagePrices = body.official_image_prices === undefined
+      ? asObject(metadata.official_image_prices)
+      : asObject(body.official_image_prices);
+    const imagePrices = { ...suppliedImagePrices };
+    for (const [field, tier] of Object.entries({
       official_image_price_1k: '1K', official_image_price_2k: '2K', official_image_price_4k: '4K',
-      official_image_price_square: '1024x1024', official_image_price_landscape: '1536x1024', official_image_price_portrait: '1024x1536',
-    };
-    const imagePrices = { ...asObject(metadata.official_image_prices) };
-    for (const [field, key] of Object.entries(imageKeys)) if (body[field] !== undefined && body[field] !== null && body[field] !== '') imagePrices[key] = optionalNumber(body[field], imagePrices[key]);
-    metadata.official_image_prices = imagePrices;
+    })) {
+      if (body[field] !== undefined) imagePrices[tier] = optionalNumber(body[field], 0);
+    }
+    metadata.official_image_prices = modelType === 'image'
+      ? canonicalImagePrices(imagePrices)
+      : imagePrices;
+    if (modelType === 'image' && modelStatus === 'active' && !hasCompleteImagePrices(metadata.official_image_prices)) {
+      throw new AdminCompatError(
+        409,
+        'image_price_incomplete',
+        `活动图片模型必须完整配置 1K、2K、4K 正数价格；缺少：${missingImagePriceTiers(metadata.official_image_prices).join('、')}`,
+      );
+    }
     metadata.billing_multiplier_input = positiveMultiplier(body.multiplier_input ?? body.billing_multiplier_input, metadata.billing_multiplier_input ?? 1);
     metadata.billing_multiplier_output = positiveMultiplier(body.multiplier_output ?? body.billing_multiplier_output, metadata.billing_multiplier_output ?? 1);
     metadata.billing_multiplier_image = positiveMultiplier(body.multiplier_image ?? body.billing_multiplier_image, metadata.billing_multiplier_image ?? 1);
@@ -818,7 +833,7 @@ class PostgresAdminCompatRepository {
     if (body.is_multimodal !== undefined) capabilities.image_input = Boolean(body.is_multimodal);
     return {
       modelName: text(body.model_name, existing.model_name), provider: text(body.provider, existing.provider),
-      modelType: text(body.model_type, existing.model_type || 'llm'), status: body.status === undefined ? (existing.status || 'inactive') : status(body.status),
+      modelType, status: modelStatus,
       metadata, contextLength: body.context_length === undefined ? (existing.context_length ?? null) : optionalNumber(body.context_length, null),
       sortOrder: Math.trunc(optionalNumber(body.sort_order, existing.sort_order ?? 0)), capabilities,
       officialProvider: text(body.official_provider, existing.official_provider || metadata.official_provider || 'manual'),
@@ -866,6 +881,14 @@ class PostgresAdminCompatRepository {
 
   async setModelStatus(modelCode, nextStatus, actor) {
     return this._transaction('admin.model.status', actor, async client => {
+      const existing = await this._requireRow(client, 'SELECT model_code,model_type,metadata FROM models WHERE model_code=$1 FOR UPDATE', [modelCode], new AdminCompatError(404, 'model_not_found', '模型不存在'));
+      if (status(nextStatus) === 'active' && existing.model_type === 'image' && !hasCompleteImagePrices(asObject(existing.metadata).official_image_prices)) {
+        throw new AdminCompatError(
+          409,
+          'image_price_incomplete',
+          `活动图片模型必须完整配置 1K、2K、4K 正数价格；缺少：${missingImagePriceTiers(asObject(existing.metadata).official_image_prices).join('、')}`,
+        );
+      }
       const row = await this._requireRow(client, `UPDATE models SET status=$2,updated_at=CURRENT_TIMESTAMP WHERE model_code=$1
         RETURNING model_code,model_name,provider,model_type,status,metadata,created_at,updated_at`, [modelCode, status(nextStatus)], new AdminCompatError(404, 'model_not_found', '模型不存在'));
       return { value: publicModel(row), audit: { target_type: 'model', target_id: modelCode, status: row.status } };
@@ -1026,8 +1049,15 @@ class PostgresAdminCompatRepository {
   }
 
   async _validateMappingActivation(client, channelId, modelCode) {
-    await this._requireRow(client, `SELECT ua.id FROM upstream_accounts ua JOIN models m ON m.model_code=$2
+    const row = await this._requireRow(client, `SELECT ua.id,m.model_type,m.metadata FROM upstream_accounts ua JOIN models m ON m.model_code=$2
       WHERE ua.id=$1 FOR UPDATE`, [channelId, modelCode], new AdminCompatError(409, 'mapping_activation_unavailable', '渠道或模型不存在'));
+    if (row.model_type === 'image' && !hasCompleteImagePrices(asObject(row.metadata).official_image_prices)) {
+      throw new AdminCompatError(
+        409,
+        'image_price_incomplete',
+        `图片模型必须完整配置 1K、2K、4K 正数价格；缺少：${missingImagePriceTiers(asObject(row.metadata).official_image_prices).join('、')}`,
+      );
+    }
   }
 
   async _reconcileModelStatus(client, modelCode) {

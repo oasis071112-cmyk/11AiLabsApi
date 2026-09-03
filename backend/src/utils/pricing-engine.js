@@ -245,36 +245,40 @@ function parseImagePrices(serializedPrices) {
   }
 }
 
-function configuredImageUnitPrice(serializedPrices, sizeTier) {
+const IMAGE_PRICE_TIERS = Object.freeze(['1K', '2K', '4K']);
+
+function canonicalImagePrices(serializedPrices) {
   const prices = parseImagePrices(serializedPrices);
-  const tier = String(sizeTier || '2K').trim().toUpperCase();
-  const legacyKeys = {
-    '1K': ['1024x1024'],
-    '2K': ['2048x2048', '2048x1152', '1536x1024', '1024x1536'],
-    '4K': ['3840x2160', '2160x3840'],
-  };
-  for (const key of [tier, ...(legacyKeys[tier] || []), 'default']) {
-    if (!Object.prototype.hasOwnProperty.call(prices, key)) continue;
-    const price = Number(prices[key]);
-    if (Number.isFinite(price) && price >= 0) return price;
-  }
-  return null;
+  return Object.fromEntries(IMAGE_PRICE_TIERS.flatMap(tier => {
+    const price = Number(prices[tier]);
+    return Number.isFinite(price) && price > 0 ? [[tier, price]] : [];
+  }));
 }
 
-const DEFAULT_IMAGE_UNIT_PRICE_USD = 0.031;
+function missingImagePriceTiers(serializedPrices) {
+  const prices = canonicalImagePrices(serializedPrices);
+  return IMAGE_PRICE_TIERS.filter(tier => !Object.prototype.hasOwnProperty.call(prices, tier));
+}
 
-function resolveImageUnitPrice({ serializedPrices, sizeTier = '2K', defaultPrice = DEFAULT_IMAGE_UNIT_PRICE_USD } = {}) {
+function hasCompleteImagePrices(serializedPrices) {
+  return missingImagePriceTiers(serializedPrices).length === 0;
+}
+
+function configuredImageUnitPrice(serializedPrices, sizeTier) {
+  const prices = canonicalImagePrices(serializedPrices);
+  const tier = String(sizeTier || '2K').trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(prices, tier) ? prices[tier] : null;
+}
+
+function resolveImageUnitPrice({ serializedPrices, sizeTier = '2K' } = {}) {
+  const tier = String(sizeTier || '2K').trim().toUpperCase();
   const configured = configuredImageUnitPrice(serializedPrices, sizeTier);
   if (configured !== null) return configured;
-  const basePrice = Math.max(number(defaultPrice, DEFAULT_IMAGE_UNIT_PRICE_USD), 0);
-  const tier = String(sizeTier || '2K').trim().toUpperCase();
-  if (tier === '4K') return basePrice * 2;
-  if (tier === '2K') return basePrice * 1.5;
-  return basePrice;
-}
-
-function defaultImageDisplayPricing() {
-  return { unitPrice: resolveImageUnitPrice({ sizeTier: '2K' }), currency: 'USD' };
+  const error = new Error(`图片模型未配置 ${tier} 档价格`);
+  error.code = 'image_price_unavailable';
+  error.status = 503;
+  error.sizeTier = tier;
+  throw error;
 }
 
 function present(value) {
@@ -396,13 +400,15 @@ function mergeUsage(current = {}, rawUsage = {}, { cacheTokensAreAdditional = fa
 }
 
 module.exports = {
-  DEFAULT_IMAGE_UNIT_PRICE_USD,
+  IMAGE_PRICE_TIERS,
   calculateImagePricing,
   calculatePricing,
+  canonicalImagePrices,
   configuredImageUnitPrice,
-  defaultImageDisplayPricing,
   extractUsage,
+  hasCompleteImagePrices,
   mergeUsage,
+  missingImagePriceTiers,
   normalizeCurrency,
   resolveImageUnitPrice,
   toCny,

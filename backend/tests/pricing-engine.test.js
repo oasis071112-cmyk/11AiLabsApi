@@ -3,8 +3,10 @@ import { createRequire } from 'node:module';
 import {
   calculateImagePricing,
   calculatePricing,
+  hasCompleteImagePrices,
   extractUsage,
   mergeUsage,
+  missingImagePriceTiers,
   resolveImageUnitPrice,
 } from '../src/utils/pricing-engine.js';
 
@@ -55,15 +57,26 @@ describe('官方定价换算与用户扣费', () => {
     });
   });
 
-  it('图片未配置价格时使用 Sub2API 默认价和尺寸倍率', () => {
-    expect(resolveImageUnitPrice({ serializedPrices: '{}', sizeTier: '1K' })).toBeCloseTo(0.031, 8);
-    expect(resolveImageUnitPrice({ serializedPrices: '{}', sizeTier: '2K' })).toBeCloseTo(0.0465, 8);
-    expect(resolveImageUnitPrice({ serializedPrices: '{}', sizeTier: '4K' })).toBeCloseTo(0.062, 8);
+  it('图片缺少请求档位价格时拒绝计费，不再派生默认价', () => {
+    expect(() => resolveImageUnitPrice({ serializedPrices: '{}', sizeTier: '1K' }))
+      .toThrowError(expect.objectContaining({ code: 'image_price_unavailable', status: 503 }));
+    expect(() => resolveImageUnitPrice({ serializedPrices: { '1K': 0.031 }, sizeTier: '2K' }))
+      .toThrowError(expect.objectContaining({ code: 'image_price_unavailable', status: 503 }));
   });
 
-  it('图片显式档位价格优先于 Sub2API 默认价', () => {
-    const prices = JSON.stringify({ '1K': 0.1, '2K': 0.15, '4K': 0.3 });
-    expect(resolveImageUnitPrice({ serializedPrices: prices, sizeTier: '2K' })).toBe(0.15);
+  it('图片仅使用请求档位的显式正数价格', () => {
+    const prices = JSON.stringify({ '1K': 0.031, '2K': 0.0465, '4K': 0.062, default: 9 });
+    expect(resolveImageUnitPrice({ serializedPrices: prices, sizeTier: '1K' })).toBe(0.031);
+    expect(resolveImageUnitPrice({ serializedPrices: prices, sizeTier: '2K' })).toBe(0.0465);
+    expect(resolveImageUnitPrice({ serializedPrices: prices, sizeTier: '4K' })).toBe(0.062);
+    expect(() => resolveImageUnitPrice({ serializedPrices: { '2K': 0 }, sizeTier: '2K' }))
+      .toThrowError(expect.objectContaining({ code: 'image_price_unavailable' }));
+  });
+
+  it('活动图片模型完整性校验要求 1K、2K、4K 都是正数', () => {
+    expect(hasCompleteImagePrices({ '1K': 0.031, '2K': 0.0465, '4K': 0.062 })).toBe(true);
+    expect(missingImagePriceTiers({ '1K': 0.031, '4K': 0.062 })).toEqual(['2K']);
+    expect(missingImagePriceTiers({ '1K': 0.031, '2K': 0, '4K': 0.062 })).toEqual(['2K']);
   });
 
   it('token 计费把普通、缓存和图片 token 拆成互斥桶', () => {

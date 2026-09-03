@@ -128,6 +128,30 @@ describe('渠道模型状态联动', () => {
     expect(db.prepare('SELECT status FROM models WHERE model_code=?').get(modelCode).status).toBe('inactive');
   });
 
+  it('重新启用渠道时拒绝活动映射中的缺价图片模型', async () => {
+    const db = getDatabase();
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const modelCode = `incomplete-image-${suffix}`;
+    db.prepare(`INSERT INTO models
+      (model_code,model_name,model_type,official_image_prices,status)
+      VALUES (?,?,'image',?,'inactive')`).run(
+      modelCode, modelCode, JSON.stringify({ '1K': 0.031, '2K': 0.0465 }),
+    );
+    const channelId = createChannel(db, suffix);
+    db.prepare("UPDATE upstream_channels SET status='inactive' WHERE id=?").run(channelId);
+    db.prepare(`INSERT INTO channel_models
+      (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
+      .run(channelId, modelCode, modelCode);
+
+    const response = await request(`/api/admin/channels/${channelId}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status: 'active' }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'image_price_incomplete' });
+    expect(db.prepare('SELECT status FROM upstream_channels WHERE id=?').get(channelId).status).toBe('inactive');
+  });
+
   it('同一路由分组不允许同一模型同时启用两个渠道映射', async () => {
     const db = getDatabase();
     const suffix = `${Date.now()}-${Math.random()}`;

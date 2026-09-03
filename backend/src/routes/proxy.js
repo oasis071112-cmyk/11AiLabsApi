@@ -9,7 +9,6 @@ const { apiKeyCanUseModel, listModelsForApiKey } = require('../utils/routing-gro
 const {
   calculateImagePricing,
   calculatePricing,
-  configuredImageUnitPrice,
   extractUsage,
   mergeUsage,
   resolveImageUnitPrice,
@@ -121,15 +120,11 @@ function buildPricing(db, model, usage, multipliers, { channel = null, serviceTi
 
 function buildImagePricing(db, model, { imageCount, size, multiplier }) {
   const usdCnyRate = getUsdCnyRate(db);
-  // 生图模型始终采用平台默认兜底价格。历史官方图片价仅为旧账单留存，
-  // 不再参与新的结算；渠道显式价格仍由 buildChannelImagePricing 单独处理。
-  const useDefaultImagePrice = model.model_type === 'image';
-  const configuredPrice = useDefaultImagePrice ? null : configuredImageUnitPrice(model.official_image_prices, size);
   const unitPrice = resolveImageUnitPrice({
-    serializedPrices: useDefaultImagePrice ? '{}' : model.official_image_prices,
+    serializedPrices: model.official_image_prices,
     sizeTier: size,
   });
-  const currency = configuredPrice === null ? 'USD' : model.official_currency;
+  const currency = model.official_currency || 'USD';
   const prices = calculateImagePricing({
     imageCount,
     unitPrice,
@@ -1360,11 +1355,20 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
   }
   billingChannel = channelBillingForModel(db, channel, intent.billingModel);
   const reservationPricingModel = pricingModelForChannel(db, pricingModel, billingChannel);
-  const reservationPricing = buildChannelImagePricing(db, reservationPricingModel, billingChannel, {
-    imageCount: intent.requestedCount,
-    size: resolvedImageSize.billingSize,
-    multiplier: imageMultiplier,
-  });
+  let reservationPricing;
+  try {
+    reservationPricing = buildChannelImagePricing(db, reservationPricingModel, billingChannel, {
+      imageCount: intent.requestedCount,
+      size: resolvedImageSize.billingSize,
+      multiplier: imageMultiplier,
+    });
+  } catch (error) {
+    if (error.code !== 'image_price_unavailable') throw error;
+    return res.status(error.status || 503).json({ error: {
+      message: error.message,
+      type: 'image_price_unavailable',
+    } });
+  }
 
   try {
     const available = availableWalletBalance(db, req.userId);
@@ -1470,6 +1474,19 @@ async function handleImageBilledRequest(req, res, { endpoint, endpointCapability
     if (error.upstreamChannel) channel = error.upstreamChannel;
     tokenMultipliers = requestMultipliers(db, pricingModel, req.userId, req.apiKey.routing_group_id);
     imageMultiplier = tokenMultipliers.image;
+    if (error.code === 'image_price_unavailable') {
+      if (reservedAmount > 0) {
+        try { releaseWalletReservation(db, req.userId, reservedAmount, requestId, '图片档位价格缺失，释放冻结额度'); } catch (releaseError) { console.error('[释放图片冻结额度失败]', releaseError); }
+        reservedAmount = 0;
+      }
+      insertUpstreamFailureLog(db, {
+        requestId, userId: req.userId, apiKeyId: req.apiKey.id, modelCode, channelId: channel?.id,
+        requestIp: req.ip, latencyMs: Date.now() - startTime, error: error.message, billingMode: 'image',
+        imageOperation, imageInputCount: imageMetadata.inputCount,
+        imageOutputFormat: imageMetadata.outputFormat, imageOutputCompression: imageMetadata.outputCompression,
+      });
+      return res.status(error.status || 503).json({ error: { message: error.message, type: 'image_price_unavailable' } });
+    }
     if (reservedAmount > 0 && !upstreamConfirmed && error.response) {
       try { releaseWalletReservation(db, req.userId, reservedAmount, requestId); reservedAmount = 0; } catch (releaseError) { console.error('[释放图片冻结额度失败]', releaseError); }
     }

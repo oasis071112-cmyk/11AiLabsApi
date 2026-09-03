@@ -233,7 +233,7 @@ class PostgresProxyBillingPolicy {
         cacheCreation5m: price(metadata.official_cache_creation_5m_price, rule.official_cache_creation_5m_price),
         cacheCreation1h: price(metadata.official_cache_creation_1h_price, rule.official_cache_creation_1h_price),
       },
-      imagePrices: metadata.official_image_prices || rule.official_image_prices || rule.image_prices || {},
+      imagePrices: metadata.official_image_prices || {},
       perRequestPrice: price(rule.per_request_price),
       candidateConfigurations: Array.isArray(row.candidate_configurations) ? row.candidate_configurations : [],
       multipliers: {
@@ -286,10 +286,9 @@ class PostgresProxyBillingPolicy {
         mapped[`image_price_${tier.toLowerCase()}`],
         mapped[`image_price_${tier.replace('K', 'k')}`],
       );
-      let unitPrice = channelPrice > 0
+      const unitPrice = channelPrice > 0
         ? channelPrice
         : resolveImageUnitPrice({ serializedPrices: policy.imagePrices, sizeTier: tier });
-      if (!(unitPrice > 0)) unitPrice = resolveImageUnitPrice({ serializedPrices: {}, sizeTier: tier });
       const currency = channelPrice > 0 ? 'USD' : policy.currency;
       const result = calculateImagePricing({
         imageCount: count,
@@ -323,8 +322,15 @@ class PostgresProxyBillingPolicy {
   }
 
   reservationImageQuote(policy, context, imageCount) {
-    const quotes = [this.imageQuote(policy, context, imageCount)];
-    const size = quotes[0].snapshot.size;
+    const quotes = [];
+    let modelPriceError = null;
+    try {
+      quotes.push(this.imageQuote(policy, context, imageCount));
+    } catch (error) {
+      if (error.code !== 'image_price_unavailable') throw error;
+      modelPriceError = error;
+    }
+    const size = resolveImageBillingSize({ inputSize: context.request?.size }).billingSize;
     for (const configuration of policy.candidateConfigurations) {
       const mapped = jsonObject(configuration);
       const unitPrice = price(
@@ -345,6 +351,7 @@ class PostgresProxyBillingPolicy {
         snapshot: { mode: 'image', size, image_count: imageCount, unit_price: unitPrice, currency: 'USD', multiplier: policy.multipliers.image, usd_cny_rate: policy.usdCnyRate },
       });
     }
+    if (!quotes.length) throw modelPriceError || resolveImageUnitPrice({ serializedPrices: policy.imagePrices, sizeTier: size });
     return quotes.reduce((maximum, quote) => quote.amount > maximum.amount ? quote : maximum);
   }
 

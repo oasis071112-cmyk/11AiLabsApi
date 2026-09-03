@@ -11,7 +11,7 @@ const { encrypt, desensitize } = require('../utils/crypto');
 const { normalizedBaseUrl, supportedPaymentMethods } = require('../utils/easypay');
 const { grantQuotaOrder } = require('../utils/quota-orders');
 const { positiveMultiplier } = require('../utils/multiplier-policy');
-const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
+const { canonicalImagePrices, hasCompleteImagePrices, missingImagePriceTiers } = require('../utils/pricing-engine');
 const {
   deriveUserDeductionUsd,
   sqliteUserDeductionUsdSql,
@@ -102,42 +102,46 @@ function channelModelPayload(item = {}) {
   };
 }
 
-function imagePricesPayload(body) {
+function imagePricesPayload(body, { canonicalOnly = false } = {}) {
   let supplied = {};
   if (body.official_image_prices && typeof body.official_image_prices === 'object') {
     supplied = body.official_image_prices;
   } else if (typeof body.official_image_prices === 'string' && body.official_image_prices.trim()) {
     try { supplied = JSON.parse(body.official_image_prices); } catch (error) { return { error: '图片价格配置必须是有效 JSON' }; }
   }
-  const values = { ...supplied };
+  const values = canonicalOnly ? { ...canonicalImagePrices(supplied) } : { ...supplied };
   const priceInputs = {
-    default: body.official_image_price_square,
-    '1024x1024': body.official_image_price_square,
-    '1536x1024': body.official_image_price_landscape,
-    '1024x1536': body.official_image_price_portrait,
+    ...(canonicalOnly ? {} : {
+      default: body.official_image_price_square,
+      '1024x1024': body.official_image_price_square,
+      '1536x1024': body.official_image_price_landscape,
+      '1024x1536': body.official_image_price_portrait,
+    }),
     '1K': body.official_image_price_1k,
     '2K': body.official_image_price_2k,
     '4K': body.official_image_price_4k,
   };
   for (const [size, value] of Object.entries(priceInputs)) {
-    if (value === undefined || value === null || value === '') continue;
+    if (value === undefined) continue;
+    if (canonicalOnly && (value === null || value === '')) {
+      delete values[size];
+      continue;
+    }
+    if (value === null || value === '') continue;
     const price = nonNegativePrice(value);
     if (price === null) return { error: `${size} 图片价格必须是大于等于 0 的数字` };
     values[size] = price;
   }
-  const squarePrice = values['1024x1024'] ?? values.default;
-  if (squarePrice !== undefined) {
-    values.default = squarePrice;
-    values['1024x1024'] = squarePrice;
-    values['1536x1024'] = values['1536x1024'] ?? values.default;
-    values['1024x1536'] = values['1024x1536'] ?? values.default;
+  if (!canonicalOnly) {
+    for (const [size, value] of Object.entries(values)) {
+      const price = nonNegativePrice(value);
+      if (price === null) return { error: `${size} 图片价格必须是大于等于 0 的数字` };
+      values[size] = price;
+    }
+    return { values, serialized: JSON.stringify(values), configured: Object.values(values).some(value => value > 0) };
   }
-  for (const [size, value] of Object.entries(values)) {
-    const price = nonNegativePrice(value);
-    if (price === null) return { error: `${size} 图片价格必须是大于等于 0 的数字` };
-    values[size] = price;
-  }
-  return { values, serialized: JSON.stringify(values), configured: Object.values(values).some(value => value > 0) };
+  const canonical = canonicalImagePrices(values);
+  return { values: canonical, serialized: JSON.stringify(canonical), configured: Object.keys(canonical).length > 0 };
 }
 
 function pricingPayload(body, { preserveExistingPricing = null } = {}) {
@@ -151,15 +155,11 @@ function pricingPayload(body, { preserveExistingPricing = null } = {}) {
   const cached = nonNegativePrice(body.official_cached_input_price ?? body.official_input_price ?? 0);
   const output = nonNegativePrice(body.official_output_price ?? 0);
   if (isImageModel) {
-    const preserved = preserveExistingPricing || {};
+    const imagePrices = imagePricesPayload(body, { canonicalOnly: true });
+    if (imagePrices.error) return imagePrices;
     return {
-      mode: preserved.official_pricing_mode || 'auto', provider,
-      currency: preserved.official_currency || currency,
-      input: preserved.official_input_price ?? 0,
-      cached: preserved.official_cached_input_price ?? 0,
-      output: preserved.official_output_price ?? 0,
-      imagePrices: preserved.official_image_prices ?? '{}',
-      unitTokens: preserved.official_unit_tokens ?? 1_000_000,
+      mode, provider, currency, input: 0, cached: 0, output: 0,
+      imagePrices: imagePrices.serialized, unitTokens: 1_000_000,
     };
   }
   const imagePrices = imagePricesPayload(body);
@@ -394,9 +394,9 @@ router.get('/models', authenticate, requireAdmin('admin','operator'), (req, res)
     GROUP BY cm.id
     ORDER BY uc.channel_name ASC`).all();
   res.json({ data: models.map(model => {
-    const imageDisplayPricing = model.model_type === 'image' ? defaultImageDisplayPricing() : null;
     return {
       ...model,
+      official_image_prices: canonicalImagePrices(model.official_image_prices),
       is_multimodal: Number(model.is_multimodal) === 1,
       channel_mappings: mappingRows
         .filter(mapping => mapping.model_code === model.model_code)
@@ -409,10 +409,6 @@ router.get('/models', authenticate, requireAdmin('admin','operator'), (req, res)
             ? mapping.routing_group_names.split(',')
             : [],
         })),
-      ...(imageDisplayPricing ? {
-        default_image_unit_price: imageDisplayPricing.unitPrice,
-        default_image_currency: imageDisplayPricing.currency,
-      } : {}),
     };
   }) });
 });
@@ -426,6 +422,9 @@ router.post('/models', authenticate, requireAdmin('admin'), (req, res) => {
   const pricing = pricingPayload(req.body);
   if (!model_code || !model_name) return res.status(400).json({ error: '模型编码和名称不能为空' });
   if (pricing.error) return res.status(400).json({ error: pricing.error });
+  if ((model_type || 'llm') === 'image' && req.body.status === 'active' && !hasCompleteImagePrices(pricing.imagePrices)) {
+    return res.status(400).json({ error: '活动图片模型必须完整配置 1K、2K、4K 正数价格', code: 'image_price_incomplete' });
+  }
   if (!inputMultiplier || !outputMultiplier || !imageMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
   db.prepare(`INSERT INTO models (
     model_code,model_name,upstream_model_name,model_type,context_length,is_multimodal,description,
@@ -460,6 +459,12 @@ router.put('/models/:id', authenticate, requireAdmin('admin'), (req, res) => {
     official_image_prices: req.body.official_image_prices ?? existingModel.official_image_prices,
   }, { preserveExistingPricing: existingModel });
   if (pricing.error) return res.status(400).json({ error: pricing.error });
+  if (effectiveModelType === 'image' && existingModel.status === 'active' && !hasCompleteImagePrices(pricing.imagePrices)) {
+    return res.status(409).json({
+      error: `活动图片模型必须完整配置 1K、2K、4K 正数价格；缺少：${missingImagePriceTiers(pricing.imagePrices).join('、')}`,
+      code: 'image_price_incomplete',
+    });
+  }
   if (!inputMultiplier || !outputMultiplier || !imageMultiplier) return res.status(400).json({ error: '用户扣费倍率必须大于 0' });
   try {
     db.transaction(() => {
@@ -806,7 +811,7 @@ router.patch('/channels/:id/models/:modelCode/status', authenticate, requireAdmi
     res.json({ message: '渠道模型状态已更新', model_status: result.modelStatus });
   } catch (error) {
     const policyResult = error.policyResult;
-    if (policyResult) return res.status(policyResult.status).json({ error: policyResult.error });
+    if (policyResult) return res.status(policyResult.status).json({ error: policyResult.error, ...(policyResult.code ? { code: policyResult.code } : {}) });
     throw error;
   }
 });
@@ -866,7 +871,7 @@ router.put('/channels/:id/models', authenticate, requireAdmin('admin'), (req, re
     res.json({ message: '渠道模型已更新' });
   } catch (error) {
     const policyResult = error.policyResult;
-    if (policyResult) return res.status(policyResult.status).json({ error: policyResult.error });
+    if (policyResult) return res.status(policyResult.status).json({ error: policyResult.error, ...(policyResult.code ? { code: policyResult.code } : {}) });
     throw error;
   }
 });
@@ -1133,6 +1138,12 @@ router.patch('/channels/:id/status', authenticate, requireAdmin('admin'), (req, 
       db.prepare('UPDATE upstream_channels SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
         .run(req.body.status, req.params.id);
       if (req.body.status === 'active') {
+        const activeMappings = db.prepare(`SELECT model_code FROM channel_models
+          WHERE channel_id=? AND status='active'`).all(req.params.id);
+        for (const mapping of activeMappings) {
+          const mappingPolicy = validateMappingActivation(db, Number(req.params.id), mapping.model_code);
+          if (mappingPolicy) throw Object.assign(new Error(mappingPolicy.error), { policyResult: mappingPolicy });
+        }
         const policyResult = validateActiveRoutingPolicies(
           db, routedModelCodesForChannels(db, [req.params.id]),
         );
@@ -1141,7 +1152,10 @@ router.patch('/channels/:id/status', authenticate, requireAdmin('admin'), (req, 
     });
     res.json({ message: '状态已更新' });
   } catch (error) {
-    if (error.policyResult) return res.status(error.policyResult.status).json({ error: error.policyResult.error });
+    if (error.policyResult) return res.status(error.policyResult.status).json({
+      error: error.policyResult.error,
+      ...(error.policyResult.code ? { code: error.policyResult.code } : {}),
+    });
     throw error;
   }
 });

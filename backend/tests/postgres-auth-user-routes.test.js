@@ -16,6 +16,7 @@ class MemoryUserPool {
     this.transactions = [];
     this.nextUserId = 1;
     this.nextKeyId = 1;
+    this.imageModelMode = false;
     this.queries = [];
     this.config = new Map([
       ['registration_enabled', true],
@@ -121,6 +122,16 @@ class MemoryUserPool {
     }
     if (compact.startsWith('SELECT COUNT(*) AS count FROM wallet_transactions')) return { rows: [{ count: '1' }] };
     if (compact.includes('BOOL_OR(am.supports_image_input)')) {
+      if (this.imageModelMode) {
+        return { rows: [{
+          key_id: 1, routing_group_id: 7, permission_mode: 'group_dynamic', group_name: '测试分组', description: '',
+          billing_multiplier_input: '1', billing_multiplier_output: '1', billing_multiplier_image: '1',
+          model_code: 'gpt-image-2', model_name: 'GPT Image 2', model_type: 'image', sort_order: 1,
+          official_provider: 'openai', official_currency: 'USD',
+          official_image_prices: { '1K': 0.031, '2K': 0.0465, '4K': 0.062 },
+          supports_image_input: true, protocol_types: ['openai_compatible'],
+        }] };
+      }
       return { rows: [{ key_id: 1, routing_group_id: 7, permission_mode: 'group_dynamic', group_name: '测试分组', description: '', billing_multiplier_input: '1', billing_multiplier_output: '1', billing_multiplier_image: '1', model_code: 'model-a', model_name: 'Model A', model_type: 'llm', sort_order: 1, supports_image_input: true, protocol_types: ['openai_compatible'] }] };
     }
     if (compact.startsWith('SELECT EXISTS(SELECT 1 FROM api_keys')) return { rows: [{ has_api_keys: true }] };
@@ -301,6 +312,26 @@ describe('PostgreSQL 用户面兼容路由', () => {
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: '已撤销的 API Key 不能重新启用' });
     expect(key.status).toBe('revoked');
+  });
+
+  it('PostgreSQL 用户模型接口返回图片三档价且不返回默认兜底字段', async () => {
+    const user = pool.users.find(item => item.username === 'pg-user');
+    pool.imageModelMode = true;
+    try {
+      const response = await fetch(`${baseUrl}/api/user/models`, {
+        headers: { Authorization: `Bearer ${identity.generateToken(user)}` },
+      });
+      expect(response.status).toBe(200);
+      const model = (await response.json()).data.find(item => item.model_code === 'gpt-image-2');
+      expect(model).toMatchObject({
+        official_currency: 'USD',
+        official_image_prices: { '1K': 0.031, '2K': 0.0465, '4K': 0.062 },
+      });
+      expect(model).not.toHaveProperty('default_image_unit_price');
+      expect(model).not.toHaveProperty('default_image_currency');
+    } finally {
+      pool.imageModelMode = false;
+    }
   });
 
   it('只为显式声明的聊天模型生成 Chat 文档，并为图片模型生成 Images 文档', () => {

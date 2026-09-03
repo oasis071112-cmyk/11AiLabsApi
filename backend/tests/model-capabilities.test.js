@@ -187,13 +187,13 @@ describe('模型能力与图片请求边界', () => {
     expect(JSON.parse(saved.official_image_prices)).toMatchObject({ '1K': 0.04, '2K': 0.08, '4K': 0.16 });
   });
 
-  it('图片模型忽略官方和手动图片价格，用户只取得默认兜底单价', async () => {
-    const imageModelCode = `image-default-${Date.now()}-${Math.random()}`;
+  it('图片模型保存完整三档价，缺价映射不能启用，用户接口返回三档价', async () => {
+    const imageModelCode = `image-tiered-${Date.now()}-${Math.random()}`;
     const response = await request('/api/admin/models', {
       method: 'POST',
       headers: { Authorization: `Bearer ${adminToken}` },
       body: JSON.stringify({
-        model_code: imageModelCode, model_name: 'Default image model', upstream_model_name: imageModelCode,
+        model_code: imageModelCode, model_name: 'Tiered image model', upstream_model_name: imageModelCode,
         model_type: 'image', context_length: 0, is_multimodal: false, status: 'active', sort_order: 0,
         official_provider: 'openai', official_model_id: imageModelCode, official_pricing_mode: 'manual',
         official_currency: 'USD', official_input_price: 1, official_cached_input_price: 0.5, official_output_price: 2,
@@ -206,26 +206,28 @@ describe('模型能力与图片请求边界', () => {
     const saved = getDatabase().prepare(`SELECT official_pricing_mode,official_input_price,official_output_price,official_image_prices
       FROM models WHERE model_code=?`).get(imageModelCode);
     expect(saved).toMatchObject({
-      official_pricing_mode: 'auto', official_input_price: 0, official_output_price: 0, official_image_prices: '{}',
+      official_pricing_mode: 'manual', official_input_price: 0, official_output_price: 0,
     });
+    expect(JSON.parse(saved.official_image_prices)).toEqual({ '1K': 0.04, '2K': 0.08, '4K': 0.16 });
 
     const imageModelId = getDatabase().prepare('SELECT id FROM models WHERE model_code=?').get(imageModelCode).id;
-    getDatabase().prepare("UPDATE models SET official_pricing_mode='manual',official_input_price=9,official_output_price=19,official_image_prices=? WHERE id=?")
-      .run(JSON.stringify({ default: 9.99 }), imageModelId);
     const updateResponse = await request(`/api/admin/models/${imageModelId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${adminToken}` },
       body: JSON.stringify({
-        model_name: 'Renamed default image model', upstream_model_name: imageModelCode,
+        model_name: 'Renamed tiered image model', upstream_model_name: imageModelCode,
         context_length: 0, is_multimodal: false, description: '', status: 'active', sort_order: 0,
         official_provider: 'openai', official_model_id: imageModelCode, official_pricing_mode: 'manual',
         official_currency: 'USD', official_input_price: 10, official_output_price: 20,
-        official_image_price_1k: 30, multiplier_input: 1, multiplier_output: 1, multiplier_image: 1.6,
+        official_image_prices: { default: 9.99, '1024x1024': 9.99 },
+        official_image_price_1k: 0.031, official_image_price_2k: 0.0465, official_image_price_4k: 0.062,
+        multiplier_input: 1, multiplier_output: 1, multiplier_image: 1.6,
       }),
     });
     expect(updateResponse.status).toBe(200);
-    expect(getDatabase().prepare('SELECT official_pricing_mode,official_input_price,official_output_price,official_image_prices FROM models WHERE id=?').get(imageModelId))
-      .toMatchObject({ official_pricing_mode: 'manual', official_input_price: 9, official_output_price: 19, official_image_prices: JSON.stringify({ default: 9.99 }) });
+    const updated = getDatabase().prepare('SELECT official_pricing_mode,official_input_price,official_output_price,official_image_prices FROM models WHERE id=?').get(imageModelId);
+    expect(updated).toMatchObject({ official_pricing_mode: 'manual', official_input_price: 0, official_output_price: 0 });
+    expect(JSON.parse(updated.official_image_prices)).toEqual({ '1K': 0.031, '2K': 0.0465, '4K': 0.062 });
     getDatabase().prepare(`INSERT INTO channel_models
       (channel_id,model_code,upstream_model_name,status) VALUES (?,?,?,'active')`)
       .run(channelId, imageModelCode, imageModelCode);
@@ -236,13 +238,42 @@ describe('模型能力与图片请求边界', () => {
     });
     expect(activateMapping.status).toBe(200);
 
+    const clearActiveTier = await request(`/api/admin/models/${imageModelId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({
+        model_name: 'Renamed tiered image model', upstream_model_name: imageModelCode,
+        model_type: 'image', context_length: 0, is_multimodal: false, description: '', sort_order: 0,
+        official_provider: 'openai', official_model_id: imageModelCode, official_pricing_mode: 'manual',
+        official_currency: 'USD', official_image_price_4k: null,
+        multiplier_input: 1, multiplier_output: 1, multiplier_image: 1.6,
+      }),
+    });
+    expect(clearActiveTier.status).toBe(409);
+    expect(await clearActiveTier.json()).toMatchObject({ code: 'image_price_incomplete' });
+    expect(JSON.parse(getDatabase().prepare('SELECT official_image_prices FROM models WHERE id=?').get(imageModelId).official_image_prices))
+      .toEqual({ '1K': 0.031, '2K': 0.0465, '4K': 0.062 });
+
+    getDatabase().prepare('UPDATE models SET official_image_prices=? WHERE id=?')
+      .run(JSON.stringify({ '1K': 0.031, '2K': 0.0465 }), imageModelId);
+    const rejectIncomplete = await request(`/api/admin/channels/${channelId}/models/${encodeURIComponent(imageModelCode)}/status`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ status: 'active' }),
+    });
+    expect(rejectIncomplete.status).toBe(409);
+    expect(await rejectIncomplete.json()).toMatchObject({ code: 'image_price_incomplete' });
+    getDatabase().prepare('UPDATE models SET official_image_prices=? WHERE id=?')
+      .run(JSON.stringify({ '1K': 0.031, '2K': 0.0465, '4K': 0.062 }), imageModelId);
+
     const userModelsResponse = await request('/api/user/models', { headers: { Authorization: `Bearer ${userToken}` } });
     const userModel = (await userModelsResponse.json()).data.find(model => model.model_code === imageModelCode);
     expect(userModel).toMatchObject({
-      default_image_unit_price: 0.0465,
-      default_image_currency: 'USD',
+      official_image_prices: { '1K': 0.031, '2K': 0.0465, '4K': 0.062 },
+      official_currency: 'USD',
     });
-    expect(userModel).not.toHaveProperty('official_image_prices');
+    expect(userModel).not.toHaveProperty('default_image_unit_price');
+    expect(userModel).not.toHaveProperty('default_image_currency');
     expect(userModel).not.toHaveProperty('official_input_price');
     expect(userModel).not.toHaveProperty('official_output_price');
     expect(userModel).not.toHaveProperty('official_cached_input_price');

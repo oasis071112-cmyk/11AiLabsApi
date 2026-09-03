@@ -128,7 +128,7 @@ describe('图片生成端点计费', () => {
       official_image_prices,billing_multiplier_image,status
     ) VALUES (?,?,?,?,?,?,?,?,?)`).run(
       modelCode, 'Image model', 'upstream-image-model', 'image', 'openai', 'USD',
-      JSON.stringify({ default: 0.04, '1024x1024': 0.04 }), 1.2, 'active',
+      JSON.stringify({ '1K': 0.031, '2K': 0.0465, '4K': 0.062 }), 1.2, 'active',
     );
     channelId = db.prepare(`INSERT INTO upstream_channels
       (channel_name,base_url,api_key,status,protocol_type,capabilities) VALUES (?,?,?,'active','openai_compatible',?)`)
@@ -149,7 +149,7 @@ describe('图片生成端点计费', () => {
       official_image_prices,billing_multiplier_image,status
     ) VALUES (?,?,?,?,?,?,?,?,?)`).run(
       secondaryImageModelCode, 'Secondary image model', 'secondary-upstream-image', 'image',
-      'openai', 'USD', '{}', 1, 'active',
+      'openai', 'USD', JSON.stringify({ '1K': 0.1, '2K': 0.15, '4K': 0.2 }), 1, 'active',
     );
     db.prepare(`INSERT INTO channel_models (
       channel_id,model_code,upstream_model_name,billing_mode,billing_model_source,image_price_1k,status
@@ -244,7 +244,8 @@ describe('图片生成端点计费', () => {
     });
     const userLog = (await logsResponse.json()).data.find(item => item.request_id === log.request_id);
     expect(userLog.billing_detail).toMatchObject({ mode: 'image_snapshot', reconciled: true });
-    expect(userLog).toMatchObject({ default_image_unit_price: 0.0465, default_image_currency: 'USD' });
+    expect(userLog).not.toHaveProperty('default_image_unit_price');
+    expect(userLog).not.toHaveProperty('default_image_currency');
     expect(userLog).not.toHaveProperty('billing_model');
     expect(userLog).not.toHaveProperty('official_image_unit_price');
     expect(userLog.billing_detail.dimensions[0]).not.toHaveProperty('billingModel');
@@ -271,6 +272,27 @@ describe('图片生成端点计费', () => {
       expect(log.total_cost).toBeCloseTo(0.7812, 8);
     } finally {
       db.prepare('UPDATE routing_groups SET billing_multiplier_image=NULL WHERE id=?').run(groupId);
+    }
+  });
+
+  it('SQL.js 渠道零值档位不构成覆盖，回退到模型同档正数价格', async () => {
+    const db = getDatabase();
+    db.prepare("UPDATE channel_models SET billing_mode='image',image_price_1k=0 WHERE channel_id=? AND model_code=?")
+      .run(channelId, modelCode);
+    try {
+      const response = await request('/v1/images/generations', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: modelCode, prompt: 'zero override', size: '1K', n: 1 }),
+      });
+
+      expect(response.status).toBe(200);
+      const log = db.prepare("SELECT official_image_unit_price FROM api_request_logs WHERE api_key_id=? AND billing_mode='image' AND status='success' ORDER BY id DESC")
+        .get(apiKeyId);
+      expect(log.official_image_unit_price).toBe(0.031);
+    } finally {
+      db.prepare('UPDATE channel_models SET billing_mode=NULL,image_price_1k=NULL WHERE channel_id=? AND model_code=?')
+        .run(channelId, modelCode);
     }
   });
 
@@ -382,11 +404,11 @@ describe('图片生成端点计费', () => {
     expect(log.total_cost).toBeCloseTo(3.5, 8);
   });
 
-  it('未配置图片价时使用 Sub2API 默认价，并以上游实际尺寸的最高档结算', async () => {
+  it('图片请求档位缺价时拒绝计费且余额与冻结余额不变', async () => {
     const db = getDatabase();
     db.prepare("UPDATE models SET official_image_prices='{}' WHERE model_code=?").run(modelCode);
-    upstreamImageSize = '3840x2160';
-    const before = db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance;
+    lastUpstreamRequest = null;
+    const before = db.prepare('SELECT quota_balance,frozen_balance FROM wallets WHERE user_id=?').get(userId);
 
     const response = await request('/v1/images/generations', {
       method: 'POST',
@@ -394,25 +416,12 @@ describe('图片生成端点计费', () => {
       body: JSON.stringify({ model: modelCode, prompt: 'draw 4k', size: '1024x1024', n: 2 }),
     });
 
-    expect(response.status).toBe(200);
-    const log = db.prepare("SELECT * FROM api_request_logs WHERE api_key_id=? AND status='success' ORDER BY id DESC").get(apiKeyId);
-    expect(log).toMatchObject({
-      billing_mode: 'image',
-      image_count: 2,
-      image_size: '4K',
-      image_input_size: '1K',
-      image_output_size: '4K',
-      image_size_source: 'output',
-      official_image_unit_price: 0.062,
-    });
-    expect(JSON.parse(log.image_size_breakdown)).toEqual(['4K', '4K']);
-    expect(log.total_cost).toBeCloseTo(1.0416, 8);
-    expect(db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance)
-      .toBeCloseTo(before - 1.0416, 8);
-
-    upstreamImageSize = null;
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: { type: 'image_price_unavailable' } });
+    expect(lastUpstreamRequest).toBeNull();
+    expect(db.prepare('SELECT quota_balance,frozen_balance FROM wallets WHERE user_id=?').get(userId)).toEqual(before);
     db.prepare('UPDATE models SET official_image_prices=? WHERE model_code=?')
-      .run(JSON.stringify({ default: 0.04, '1024x1024': 0.04 }), modelCode);
+      .run(JSON.stringify({ '1K': 0.031, '2K': 0.0465, '4K': 0.062 }), modelCode);
   });
 
   it('图片渠道即使配置 Token 单价仍按图片张数结算且只扣一次', async () => {

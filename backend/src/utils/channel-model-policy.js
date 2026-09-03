@@ -1,3 +1,5 @@
+const { hasCompleteImagePrices, missingImagePriceTiers } = require('./pricing-engine');
+
 function reconcileModelStatus(db, modelCode) {
   const active = db.prepare(`SELECT 1 FROM channel_models
     WHERE model_code=? AND status='active' LIMIT 1`).get(modelCode);
@@ -44,8 +46,16 @@ function validateActiveRoutingPolicies(db, modelCodes) {
 }
 
 function validateMappingActivation(db, channelId, modelCode) {
-  const model = db.prepare('SELECT id FROM models WHERE model_code=?').get(modelCode);
+  const model = db.prepare('SELECT id,model_type,official_image_prices FROM models WHERE model_code=?').get(modelCode);
   if (!model) return { error: '模型不存在', status: 404 };
+  if (model.model_type === 'image' && !hasCompleteImagePrices(model.official_image_prices)) {
+    const missing = missingImagePriceTiers(model.official_image_prices).join('、');
+    return {
+      code: 'image_price_incomplete',
+      error: `图片模型必须完整配置 1K、2K、4K 正数价格；缺少：${missing}`,
+      status: 409,
+    };
+  }
   const channel = db.prepare("SELECT * FROM upstream_channels WHERE id=? AND status='active'")
     .get(channelId);
   if (!channel) return { error: '渠道不存在或未启用', status: 404 };

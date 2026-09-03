@@ -14,7 +14,7 @@ const {
   mergeAvailableModel,
 } = require('../utils/routing-group-models');
 const { buildEasyPayRequest, supportedPaymentMethods } = require('../utils/easypay');
-const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
+const { canonicalImagePrices } = require('../utils/pricing-engine');
 
 router.get('/wallet', authenticate, (req, res) => {
   const db = getDatabase();
@@ -121,7 +121,7 @@ router.get('/models', authenticate, (req, res) => {
   const db = getDatabase();
   const catalog = db.prepare(`SELECT model_code,model_name,model_type,context_length,
     official_provider,official_currency,official_input_price,official_output_price,
-    official_cached_input_price,official_unit_tokens,official_price_updated_at,sort_order
+    official_cached_input_price,official_image_prices,official_unit_tokens,official_price_updated_at,sort_order
     FROM models WHERE status='active' ORDER BY sort_order ASC,model_code ASC`).all();
   const catalogByCode = new Map(catalog.map(model => [model.model_code, model]));
   const apiKeys = db.prepare(`SELECT
@@ -174,11 +174,10 @@ router.get('/models', authenticate, (req, res) => {
           official_price_updated_at,
           ...publicImageModel
         } = model;
-        const imageDisplayPricing = defaultImageDisplayPricing();
         return {
           ...publicImageModel,
-          default_image_unit_price: imageDisplayPricing.unitPrice,
-          default_image_currency: imageDisplayPricing.currency,
+          official_currency: model.official_currency || 'USD',
+          official_image_prices: canonicalImagePrices(model.official_image_prices),
         };
       });
     return {
@@ -450,15 +449,12 @@ router.get('/logs', authenticate, (req, res) => {
     const { official_currency, official_input_price, official_output_price, official_cached_input_price,
       official_cache_creation_price, official_image_input_price, official_image_output_price,
       official_unit_tokens, official_image_unit_price, ...publicImageLog } = row;
-    const imageDisplayPricing = defaultImageDisplayPricing();
     return {
       ...publicImageLog,
-      default_image_unit_price: imageDisplayPricing.unitPrice,
-      default_image_currency: imageDisplayPricing.currency,
       billing_detail: {
         ...billingDetail,
         dimensions: billingDetail.dimensions.map(({ unitPrice, ...dimension }) => dimension),
-        notice: '当前默认图片单价已在模型页展示；历史账单仅保留实际扣费金额，不展示旧单价。',
+        notice: '图片模型页展示 1K、2K、4K 三档基准价；历史账单仅保留实际扣费金额，不展示旧单价。',
       },
     };
   });

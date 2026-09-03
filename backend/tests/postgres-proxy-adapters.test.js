@@ -545,4 +545,64 @@ describe('PostgreSQL public proxy adapters', () => {
     expect(reservation.amount).toBeCloseTo(4.2, 10);
     expect(reservation.snapshot).toMatchObject({ unit_price: 0.2, size: '1K', image_count: 2, multiplier: 1.5 });
   });
+
+  it('rejects an image reservation when neither mapping nor model has the requested tier', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({ rows: [{
+        model_code: 'unpriced-image', model_type: 'image', metadata: { official_image_prices: { '1K': 0.031 } },
+        official_currency: 'USD', input_multiplier: 1, output_multiplier: 1, image_multiplier: 1,
+        billing_mode: 'image', rule: {}, usd_cny_rate: 7, candidate_configurations: [],
+      }] }),
+    };
+    const policy = new PostgresProxyBillingPolicy(pool);
+
+    await expect(policy.quoteReservation({
+      identity: { routingGroupId: 9 }, operation: 'image_generations', model: 'unpriced-image',
+      request: { size: '2K', n: 1 },
+    })).rejects.toMatchObject({ code: 'image_price_unavailable', status: 503 });
+  });
+
+  it('does not use a legacy pricing-rule image price as a model-tier fallback', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({ rows: [{
+        model_code: 'legacy-rule-image', model_type: 'image', metadata: {},
+        official_currency: 'USD', input_multiplier: 1, output_multiplier: 1, image_multiplier: 1,
+        billing_mode: 'image', platform_rule: { official_image_prices: { '2K': 0.5 } },
+        user_rule: {}, usd_cny_rate: 7, candidate_configurations: [],
+      }] }),
+    };
+    const policy = new PostgresProxyBillingPolicy(pool);
+
+    await expect(policy.quoteReservation({
+      identity: { routingGroupId: 9 }, operation: 'image_generations', model: 'legacy-rule-image',
+      request: { size: '2K', n: 1 },
+    })).rejects.toMatchObject({ code: 'image_price_unavailable', status: 503 });
+  });
+
+  it('uses a channel override only for its exact tier and otherwise uses the model tier', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({ rows: [{
+        model_code: 'tiered-image', model_type: 'image',
+        metadata: { official_image_prices: { '1K': 0.031, '2K': 0.0465, '4K': 0.062 } },
+        official_currency: 'USD', input_multiplier: 1, output_multiplier: 1, image_multiplier: 1,
+        billing_mode: 'image', rule: {}, usd_cny_rate: 7, candidate_configurations: [],
+      }] }),
+    };
+    const policy = new PostgresProxyBillingPolicy(pool);
+    const selection = { routingGroupId: 9, account: { modelMappings: [{
+      model: 'tiered-image', configuration: { image_price_2k: 0.2 },
+    }] } };
+
+    const overridden = await policy.quoteCharge({
+      identity: { routingGroupId: 9 }, selection, operation: 'image_generations', model: 'tiered-image',
+      request: { size: '2K' }, imageCount: 1,
+    });
+    const inherited = await policy.quoteCharge({
+      identity: { routingGroupId: 9 }, selection, operation: 'image_generations', model: 'tiered-image',
+      request: { size: '4K' }, imageCount: 1,
+    });
+
+    expect(overridden.snapshot).toMatchObject({ size: '2K', unit_price: 0.2, currency: 'USD' });
+    expect(inherited.snapshot).toMatchObject({ size: '4K', unit_price: 0.062, currency: 'USD' });
+  });
 });

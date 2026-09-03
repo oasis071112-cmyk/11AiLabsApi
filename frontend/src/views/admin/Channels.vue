@@ -77,7 +77,7 @@
   </el-dialog>
 
   <el-dialog v-model="mappingDialog" :title="`${mappingChannel?.channel_name||''} · 模型映射与计费`" width="960px">
-    <el-alert title="计费模式与 Sub2API 一致：留空时对话按 Token、生图按图片；可显式切换 Token、每请求或图片分档。所有价格均为美元，钱包仍按原点数逻辑扣费。" type="info" :closable="false" style="margin-bottom:12px"/>
+    <el-alert title="计费模式与 Sub2API 一致：留空时对话按 Token、生图按图片；图片 1K、2K、4K 覆盖价留空时使用模型同档价格。所有价格均为美元，钱包仍按原点数逻辑扣费。" type="info" :closable="false" style="margin-bottom:12px"/>
     <el-input v-model="mappingSearch" clearable placeholder="搜索模型" style="margin-bottom:12px"/>
     <el-table :data="filteredMappings" height="430" v-loading="mappingLoading">
       <el-table-column type="expand" width="44"><template #default="{row}"><div class="billing-editor">
@@ -96,7 +96,7 @@
           <label>1K 图片<el-input-number v-model="row.image_price_1k" :min="0" :precision="8" :controls="false"/></label>
           <label>2K 图片<el-input-number v-model="row.image_price_2k" :min="0" :precision="8" :controls="false"/></label>
           <label>4K 图片<el-input-number v-model="row.image_price_4k" :min="0" :precision="8" :controls="false"/></label>
-          <label>图片通用价<el-input-number v-model="row.per_request_price" :min="0" :precision="8" :controls="false"/></label>
+          <label>每请求价格<el-input-number v-model="row.per_request_price" :min="0" :precision="8" :controls="false"/></label>
         </template>
       </div></template></el-table-column>
       <el-table-column label="启用" width="70"><template #default="{row}"><el-switch v-model="row.selected"/></template></el-table-column>

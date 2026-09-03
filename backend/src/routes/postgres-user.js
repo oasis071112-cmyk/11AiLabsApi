@@ -3,7 +3,7 @@ const express = require('express');
 const { withTransaction } = require('../infrastructure/postgres');
 const { createPostgresIdentity } = require('../modules/identity');
 const { createPostgresPaymentService } = require('../modules/postgres-payment');
-const { defaultImageDisplayPricing } = require('../utils/pricing-engine');
+const { canonicalImagePrices } = require('../utils/pricing-engine');
 const { generateDocs, generateImageDocs } = require('../utils/channel-docs');
 const { buildBillingDetailFromSnapshot } = require('../utils/billing-detail');
 
@@ -249,7 +249,8 @@ function createPostgresUserRouter(options = {}) {
         rg.group_name,rg.description,rg.billing_multiplier_input,rg.billing_multiplier_output,rg.billing_multiplier_image,
         m.model_code,m.model_name,m.model_type,m.context_length,m.sort_order,m.capabilities,
         m.official_provider,m.official_currency,m.official_input_price,m.official_output_price,
-        m.official_cached_input_price,m.official_unit_tokens,m.official_price_updated_at,
+        m.official_cached_input_price,m.metadata->'official_image_prices' AS official_image_prices,
+        m.official_unit_tokens,m.official_price_updated_at,
         BOOL_OR(am.supports_image_input) AS supports_image_input,
         jsonb_agg(DISTINCT ua.protocol_type) AS protocol_types
         FROM api_keys ak
@@ -270,12 +271,11 @@ function createPostgresUserRouter(options = {}) {
           rg.billing_multiplier_input,rg.billing_multiplier_output,rg.billing_multiplier_image,
           m.model_code,m.model_name,m.model_type,m.context_length,m.sort_order,m.capabilities,
           m.official_provider,m.official_currency,m.official_input_price,m.official_output_price,
-          m.official_cached_input_price,m.official_unit_tokens,m.official_price_updated_at
+          m.official_cached_input_price,m.metadata->'official_image_prices',m.official_unit_tokens,m.official_price_updated_at
         ORDER BY ak.routing_group_id ASC,m.sort_order ASC,m.model_code ASC`, [req.user.id]),
         pool.query(`SELECT EXISTS(SELECT 1 FROM api_keys WHERE user_id=$1 AND status='active'
           AND (expired_at IS NULL OR expired_at>=CURRENT_TIMESTAMP)) AS has_api_keys`, [req.user.id]),
       ]);
-      const imagePricing = defaultImageDisplayPricing();
       const groupsById = new Map();
       for (const rawRow of modelResult.rows) {
         const row = numberValues(rawRow);
@@ -299,8 +299,7 @@ function createPostgresUserRouter(options = {}) {
           supports_image_input: Boolean(row.supports_image_input), is_multimodal: Boolean(row.supports_image_input),
           protocol_types: row.protocol_types || [],
           ...(row.model_type === 'image' ? {
-            default_image_unit_price: imagePricing.unitPrice,
-            default_image_currency: imagePricing.currency,
+            official_image_prices: canonicalImagePrices(row.official_image_prices),
           } : {}),
         };
         const previous = group.modelsByCode.get(model.model_code);

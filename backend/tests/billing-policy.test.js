@@ -110,6 +110,7 @@ describe('Sub2API 请求计费策略', () => {
   it('每请求模式使用渠道固定美元价，图片模式按档位取价', () => {
     expect(resolveFixedUnitPrice({ billing_mode: 'per_request', per_request_price: 0.12 }, '4K')).toBe(0.12);
     expect(resolveFixedUnitPrice({ billing_mode: 'image', image_price_4k: 0.28 }, '4K')).toBe(0.28);
-    expect(resolveFixedUnitPrice({ billing_mode: 'image', per_request_price: 0.1 }, '2K')).toBe(0.1);
+    expect(resolveFixedUnitPrice({ billing_mode: 'image', per_request_price: 0.1 }, '2K')).toBeNull();
+    expect(resolveFixedUnitPrice({ billing_mode: 'image', image_price_2k: 0 }, '2K')).toBeNull();
   });
 });

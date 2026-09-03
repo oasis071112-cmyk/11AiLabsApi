@@ -114,14 +114,16 @@ function resolveBillingModel(source, {
 
 function resolveFixedUnitPrice(channel = {}, sizeTier = '2K') {
   if (String(channel.billing_mode || '').trim().toLowerCase() === 'per_request') {
-    return finitePrice(channel.per_request_price);
+    const unitPrice = finitePrice(channel.per_request_price);
+    return unitPrice > 0 ? unitPrice : null;
   }
   const tierField = {
     '1K': 'image_price_1k',
     '2K': 'image_price_2k',
     '4K': 'image_price_4k',
   }[String(sizeTier || '2K').toUpperCase()];
-  return finitePrice(channel[tierField]) ?? finitePrice(channel.per_request_price);
+  const unitPrice = finitePrice(channel[tierField]);
+  return unitPrice > 0 ? unitPrice : null;
 }
 
 module.exports = {

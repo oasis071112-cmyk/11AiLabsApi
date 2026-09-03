@@ -33,8 +33,8 @@
             <span><small>图片输入</small>{{ model.supports_image_input ? '可用' : '不可用' }}</span>
           </div>
           <div v-if="model.model_type==='image'" class="price-box">
-            <div class="price-title">默认图片价格 <span>/ 单张（2K）</span></div>
-            <div class="price-row"><span>默认</span><strong>{{ price(model.default_image_unit_price, model.default_image_currency) }}</strong></div>
+            <div class="price-title">图片三档价格 <span>/ 单张</span></div>
+            <div v-for="tier in imageTiers" :key="tier" class="price-row"><span>{{ tier }}</span><strong>{{ imagePrice(model,tier) }}</strong></div>
           </div>
           <div v-else class="price-box">
             <div class="price-title">官方价格 <span>/ 每 1M Token</span></div>
@@ -75,6 +75,7 @@ import { coldStartKeys, takeColdStartRequest } from '@/utils/cold-start-prefetch
 
 const router=useRouter()
 const groups=ref([]),loading=ref(false),hasApiKeys=ref(false)
+const imageTiers=['1K','2K','4K']
 const modelCount=computed(()=>groups.value.reduce((total,group)=>total+(group.models?.length||0),0))
 
 onMounted(async()=>{
@@ -92,6 +93,7 @@ function multiplierLabel(value){return value===null||value===undefined||value===
 function modelTypeLabel(modelType){return modelType==='image'?'生图':'LLM'}
 function contextLabel(value){if(!value)return '—';return value>=1e6?`${(value/1e6).toFixed(1)}M`:value>=1000?`${Math.round(value/1000)}K`:value}
 function price(value,currency){if(!Number(value))return '待同步';return `${currency==='USD'?'$':'¥'}${Number(value).toFixed(4)}`}
+function imagePrice(model,tier){const value=Number(model.official_image_prices?.[tier]);return value>0?`${model.official_currency==='USD'?'$':'¥'}${value.toFixed(6)}`:'未配置'}
 </script>
 
 <style scoped>

@@ -664,8 +664,8 @@ describe('PostgreSQL management compatibility router', () => {
       async query(sql, values = []) {
         calls.push({ sql, values });
         if (sql.includes('SELECT model_code,status FROM account_models')) return { rows: [{ model_code: 'shared-model', status: 'active' }] };
-        if (sql.includes('SELECT ua.id FROM upstream_accounts')) {
-          return sql.includes("ua.status='active'") ? { rows: [] } : { rows: [{ id: 7 }] };
+        if (sql.includes('FROM upstream_accounts ua JOIN models')) {
+          return sql.includes("ua.status='active'") ? { rows: [] } : { rows: [{ id: 7, model_type: 'llm', metadata: {} }] };
         }
         if (sql.includes('UPDATE upstream_accounts SET status')) {
           return { rows: [{ id: 7, account_key: 'pool-a', display_name: 'Pool A', base_url: 'https://upstream.example/v1', protocol_type: 'openai_compatible', capabilities: [], status: 'active' }] };
@@ -710,5 +710,30 @@ describe('PostgreSQL management compatibility router', () => {
     await expect(data.updateKeyPermissions(4, ['model-a'], { staffId: 77 }))
       .rejects.toMatchObject({ status: 409, code: 'dynamic_key_permissions' });
     expect(calls.some(call => call.sql.includes('DELETE FROM api_key_permissions'))).toBe(false);
+  });
+
+  it('requires complete explicit tiers before a PostgreSQL image model becomes active', () => {
+    const data = new PostgresAdminCompatRepository({
+      pool: { query: vi.fn(), connect: vi.fn() },
+      secretBox: { activeVersion: 'v1', seal: () => 'unused' },
+    });
+
+    const inactive = data._modelPayload({
+      model_code: 'image-inactive', model_type: 'image', status: 'inactive',
+      official_image_prices: { default: 9, '1K': 0.031 },
+    });
+    expect(inactive.metadata.official_image_prices).toEqual({ '1K': 0.031 });
+
+    expect(() => data._modelPayload({
+      model_code: 'image-incomplete', model_type: 'image', status: 'active',
+      official_image_price_1k: 0.031, official_image_price_2k: 0.0465,
+    })).toThrowError(expect.objectContaining({ code: 'image_price_incomplete', status: 409 }));
+
+    const active = data._modelPayload({
+      model_code: 'image-complete', model_type: 'image', status: 'active',
+      official_image_prices: { default: 9, '1024x1024': 9 },
+      official_image_price_1k: 0.031, official_image_price_2k: 0.0465, official_image_price_4k: 0.062,
+    });
+    expect(active.metadata.official_image_prices).toEqual({ '1K': 0.031, '2K': 0.0465, '4K': 0.062 });
   });
 });
