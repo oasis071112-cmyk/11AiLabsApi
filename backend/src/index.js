@@ -14,6 +14,7 @@ const { createPostgresAdminRouter } = require('./routes/postgres-admin');
 const { createPostgresPublicRouter } = require('./routes/postgres-public');
 const { createPostgresPaymentRouter } = require('./routes/postgres-payment');
 const { createPostgresProxyRouter } = require('./routes/postgres-proxy');
+const { createCodexCompatibilityRouter } = require('./routes/codex-compat');
 const { createPostgresPaymentService } = require('./modules/postgres-payment');
 const { authenticate, requireAdmin } = require('./middleware/auth');
 const logger = require('./utils/logger');
@@ -66,6 +67,7 @@ if (isProduction) {
 
 app.use(helmet());
 app.use(cors());
+app.use(['/v1/images/edits', '/images/edits'], express.json({ limit: '70mb' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -99,7 +101,9 @@ app.use('/api/user', createRuntimeRouter({ legacyRouter: userRoutes, getPostgres
 app.use('/api/admin', createRuntimeRouter({ legacyRouter: adminRoutes, getPostgresRouter: () => postgresRouters.admin }));
 app.use('/api/public', createRuntimeRouter({ legacyRouter: publicRoutes, getPostgresRouter: () => postgresRouters.public }));
 app.use('/api/payment', createRuntimeRouter({ legacyRouter: paymentRoutes, getPostgresRouter: () => postgresRouters.payment }));
-app.use('/v1', createRuntimeRouter({ legacyRouter: proxyRoutes, getPostgresRouter: () => postgresRouters.proxy }));
+const publicProxyRouter = createRuntimeRouter({ legacyRouter: proxyRoutes, getPostgresRouter: () => postgresRouters.proxy });
+app.use('/v1', publicProxyRouter);
+app.use(createCodexCompatibilityRouter({ proxyRouter: publicProxyRouter }));
 
 // ========== 健康检查（优化版） ==========
 async function healthResponse(req, res) {

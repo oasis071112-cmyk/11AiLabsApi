@@ -261,7 +261,7 @@ function configuredImageUnitPrice(serializedPrices, sizeTier) {
   return null;
 }
 
-const DEFAULT_IMAGE_UNIT_PRICE_USD = 0.134;
+const DEFAULT_IMAGE_UNIT_PRICE_USD = 0.031;
 
 function resolveImageUnitPrice({ serializedPrices, sizeTier = '2K', defaultPrice = DEFAULT_IMAGE_UNIT_PRICE_USD } = {}) {
   const configured = configuredImageUnitPrice(serializedPrices, sizeTier);

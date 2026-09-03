@@ -169,6 +169,10 @@ function createPostgresProxyRouter({
 
   const router = express.Router();
   const imageUpload = createImageUploadMiddleware();
+  const imageEditUpload = (req, res, next) => {
+    if (req.is('application/json')) return next();
+    return imageUpload(req, res, next);
+  };
   const imageRequestPreparer = new ImageRequestExecutor({
     postWithSafeFailover: async () => { throw new Error('prepare-only image executor'); },
   });
@@ -730,12 +734,13 @@ function createPostgresProxyRouter({
     { route: '/images/variations', endpoint: 'images/variations', operation: 'image_variations', capability: 'image_variations' },
     { route: '/images/transformations', endpoint: 'images/transformations', operation: 'image_transformations', capability: 'image_transformations' },
   ]) {
-    router.post(operation.route, imageUpload, handleJsonOperation({
+    const parseImageRequest = operation.endpoint === 'images/edits' ? imageEditUpload : imageUpload;
+    router.post(operation.route, parseImageRequest, handleJsonOperation({
       ...operation,
       protocol: 'openai_compatible',
       upstreamPath: operation.endpoint,
       prepareRequest(req) {
-        const files = imageFilesFromRequest(req);
+        const files = req.is('application/json') ? undefined : imageFilesFromRequest(req);
         const prepared = imageRequestPreparer.prepare({
           endpoint: operation.endpoint,
           body: req.body,
@@ -743,19 +748,19 @@ function createPostgresProxyRouter({
         });
         const billingRequest = {
           ...req.body,
-          input_image_count: files.images.length,
-          has_mask: Boolean(files.mask),
+          input_image_count: prepared.metadata.inputCount,
+          has_mask: Boolean(files?.mask),
         };
         return {
           model: req.body.model,
           billingRequest,
           execute(selection) {
-            if (prepared.endpoint === 'responses') {
+            if (!prepared.files) {
               return executeJsonUpstream({
                 fetchImpl,
                 selection,
                 secretBox: runtime.secretBox,
-                path: 'responses',
+                path: prepared.endpoint,
                 body: prepared.body,
                 requestHeaders: req.headers,
                 timeoutMs: upstreamTimeoutMs,

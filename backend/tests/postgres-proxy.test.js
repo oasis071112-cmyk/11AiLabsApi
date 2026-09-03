@@ -525,7 +525,7 @@ describe('PostgreSQL public proxy bridge', () => {
           usage: { input_tokens: 5, output_tokens: 2 },
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
-      if (url.endsWith('/images/generations')) {
+      if (url.endsWith('/images/generations') || url.endsWith('/images/edits')) {
         return new Response(JSON.stringify({ created: 1, data: [{ b64_json: 'aW1hZ2U=' }] }), {
           status: 200, headers: { 'content-type': 'application/json' },
         });
@@ -551,6 +551,7 @@ describe('PostgreSQL public proxy bridge', () => {
       { route: '/messages', model: 'public-chat', capability: 'anthropic_messages', protocol: 'anthropic' },
       { route: '/messages/count_tokens', model: 'public-chat', capability: 'anthropic_count_tokens', protocol: 'anthropic' },
       { route: '/images/generations', model: 'public-image', capability: 'image_generations', protocol: 'openai_compatible' },
+      { route: '/images/edits', model: 'public-image', capability: 'image_edits', protocol: 'openai_compatible' },
     ];
 
     for (const entry of cases) {
@@ -563,8 +564,20 @@ describe('PostgreSQL public proxy bridge', () => {
         },
         body: JSON.stringify({
           model: entry.model,
-          ...(entry.route === '/images/generations'
+          ...(entry.route === '/responses'
+            ? {
+              input: 'hello',
+              tools: [{ type: 'function', name: 'image_gen/imagegen', parameters: { type: 'object' } }],
+            }
+            : entry.route === '/images/generations'
             ? { prompt: 'draw a safe test image', n: 1, size: '1024x1024', output_format: 'webp', output_compression: 55 }
+            : entry.route === '/images/edits'
+              ? {
+                prompt: 'edit a safe test image',
+                images: [{ image_url: 'https://example.test/reference.png' }],
+                size: '1024x1024',
+                output_format: 'webp',
+              }
             : { input: 'hello', messages: [{ role: 'user', content: 'hello' }] }),
         }),
       });
@@ -581,13 +594,17 @@ describe('PostgreSQL public proxy bridge', () => {
       'x-api-key': 'secret-for-anthropic.envelope',
       'anthropic-version': '2023-06-01',
     });
-    expect(chargeQuotes.at(-1)).toMatchObject({ operation: 'image_generations', imageCount: 1 });
+    expect(upstreamCalls[0].body.tools).toEqual([
+      { type: 'function', name: 'image_gen/imagegen', parameters: { type: 'object' } },
+    ]);
+    expect(chargeQuotes[0]).toMatchObject({ operation: 'responses', imageCount: 0 });
+    expect(chargeQuotes.at(-1)).toMatchObject({ operation: 'image_edits', imageCount: 1 });
     expect(settlements).toHaveLength(cases.length);
     expect(settlements.at(-1)).toMatchObject({
       chargeAmount: 3,
       successLog: {
-        endpoint: 'images/generations', operation: 'image_generations', output_items: 1,
-        final_size: '1024x1024', output_format: 'webp', output_compression: 55,
+        endpoint: 'images/edits', operation: 'image_edits', output_items: 1,
+        final_size: '1024x1024', output_format: 'webp', output_compression: null,
         billing_mode: 'image', total_cost: 3,
       },
     });

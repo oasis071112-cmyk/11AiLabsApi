@@ -5,18 +5,18 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { createPostgresPool, withTransaction } = require('../src/infrastructure/postgres');
 
-const RELEASE_OVERRIDE_PROFILE = 'image2-flat-020-v1';
-const APPLY_CONFIRMATION = 'apply-image2-flat-020';
+const RELEASE_OVERRIDE_PROFILE = 'gpt-image-2-tiered-031-v1';
+const APPLY_CONFIRMATION = 'apply-gpt-image-2-tiered-031';
 
 function releaseOverridePlan() {
   return {
     profile: RELEASE_OVERRIDE_PROFILE,
-    accountKey: 'Uozi-image2',
+    accountKey: 'Uozi-openai',
     modelCode: 'gpt-image-2',
-    capabilities: ['image_generations', 'image_edits'],
+    requiredCapabilities: ['image_edits'],
     supportsImageInput: true,
     currency: 'USD',
-    imagePricesUsd: { '1K': 0.2, '2K': 0.2, '4K': 0.2 },
+    imagePricesUsd: { '1K': 0.031, '2K': 0.0465, '4K': 0.062 },
   };
 }
 
@@ -41,12 +41,12 @@ async function readTarget(client, plan, { lock = false } = {}) {
   return rows[0];
 }
 
-function assertVerified(row, plan) {
-  if (!sameJson(row.capabilities, plan.capabilities)) throw new Error('发布覆盖核对失败: capabilities');
+function assertVerified(row, plan, expectedCapabilities) {
+  if (!sameJson(row.capabilities, expectedCapabilities)) throw new Error('发布覆盖核对失败: capabilities');
   if (row.supports_image_input !== true) throw new Error('发布覆盖核对失败: supports_image_input');
-  for (const [tier, expected] of Object.entries(plan.imagePricesUsd)) {
-    if (Number(row.mapping_image_prices?.[tier]) !== expected) {
-      throw new Error(`发布覆盖核对失败: account_models.image_price_${tier.toLowerCase()}`);
+  for (const tier of Object.keys(plan.imagePricesUsd)) {
+    if (row.mapping_image_prices?.[tier] !== null && row.mapping_image_prices?.[tier] !== undefined) {
+      throw new Error(`发布覆盖核对失败: account_models.image_price_${tier.toLowerCase()} 应保持未覆盖`);
     }
   }
   if (String(row.official_currency || '').toUpperCase() !== 'USD') throw new Error('发布覆盖核对失败: official_currency');
@@ -56,7 +56,11 @@ function assertVerified(row, plan) {
 async function applyReleaseControlPlaneOverrides(client, { actor = 'production-release' } = {}) {
   const plan = releaseOverridePlan();
   const before = await readTarget(client, plan, { lock: true });
-  const capabilities = JSON.stringify(plan.capabilities);
+  const expectedCapabilities = [...new Set([
+    ...(Array.isArray(before.capabilities) ? before.capabilities : []),
+    ...plan.requiredCapabilities,
+  ])];
+  const capabilities = JSON.stringify(expectedCapabilities);
   const imagePrices = JSON.stringify(plan.imagePricesUsd);
 
   const accountUpdate = await client.query(`UPDATE upstream_accounts
@@ -64,9 +68,8 @@ async function applyReleaseControlPlaneOverrides(client, { actor = 'production-r
     WHERE account_key=$1`, [plan.accountKey, capabilities]);
   const mappingUpdate = await client.query(`UPDATE account_models am
     SET supports_image_input=TRUE,
-      configuration=jsonb_set(jsonb_set(jsonb_set(COALESCE(am.configuration,'{}'::jsonb),
-        '{image_price_1k}','0.2'::jsonb,TRUE),'{image_price_2k}','0.2'::jsonb,TRUE),
-        '{image_price_4k}','0.2'::jsonb,TRUE)
+      configuration=((COALESCE(am.configuration,'{}'::jsonb) - 'image_price_1k')
+        - 'image_price_2k') - 'image_price_4k'
     FROM upstream_accounts ua
     WHERE am.account_id=ua.id AND ua.account_key=$1 AND am.model_code=$2`, [plan.accountKey, plan.modelCode]);
   const modelUpdate = await client.query(`UPDATE models
@@ -80,7 +83,7 @@ async function applyReleaseControlPlaneOverrides(client, { actor = 'production-r
   }
 
   const after = await readTarget(client, plan);
-  assertVerified(after, plan);
+  assertVerified(after, plan, expectedCapabilities);
   await client.query(`INSERT INTO audit_logs (audit_key,action,payload)
     VALUES ($1,$2,$3::jsonb)`, [
     randomUUID(),

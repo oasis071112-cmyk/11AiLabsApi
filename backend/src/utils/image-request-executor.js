@@ -7,6 +7,10 @@ const IMAGE_MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const OUTPUT_FORMATS = new Set(['png', 'jpeg', 'webp']);
 const INPUT_FIDELITIES = new Set(['low', 'high']);
+const JSON_IMAGE_EDIT_FIELDS = new Set([
+  'model', 'prompt', 'images', 'n', 'size', 'quality', 'response_format', 'background',
+  'output_format', 'output_compression', 'moderation', 'input_fidelity', 'user',
+]);
 
 const MULTIPART_FIELDS = Object.freeze({
   'images/edits': Object.freeze([
@@ -143,6 +147,78 @@ function assertSupportedFields(endpoint, body) {
   if (unsupported) throw requestError(`不支持图片参数 ${unsupported}`, 'unsupported_image_parameter');
 }
 
+function decodeImageDataUrl(imageUrl) {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]*={0,2})$/.exec(imageUrl);
+  if (!match || match[2].length % 4 === 1) {
+    throw requestError('JSON 图片仅支持有效的 PNG、JPEG 或 WebP Data URL', 'invalid_image_reference');
+  }
+  const buffer = Buffer.from(match[2], 'base64');
+  const normalizedInput = match[2].replace(/=+$/, '');
+  const normalizedOutput = buffer.toString('base64').replace(/=+$/, '');
+  if (normalizedInput !== normalizedOutput || detectedImageMimeType(buffer) !== match[1]) {
+    throw requestError('JSON 图片内容与声明格式不一致', 'image_content_type_mismatch');
+  }
+  if (buffer.length > IMAGE_MAX_FILE_BYTES) {
+    throw requestError('单张图片超过 25MB 限制', 'image_upload_too_large');
+  }
+  return buffer.length;
+}
+
+function validateJsonImageReferences(images) {
+  if (!Array.isArray(images) || images.length === 0) {
+    throw requestError('图片编辑请求必须提供至少一张 JSON 图片', 'image_input_required');
+  }
+  if (images.length > IMAGE_MAX_FILES) {
+    throw requestError(`最多提供 ${IMAGE_MAX_FILES} 张输入图片`, 'too_many_image_inputs');
+  }
+  let totalBytes = 0;
+  for (const image of images) {
+    const imageUrl = typeof image === 'object' && image !== null ? image.image_url : null;
+    if (typeof imageUrl !== 'string' || !imageUrl) {
+      throw requestError('每张 JSON 图片都必须提供 image_url', 'invalid_image_reference');
+    }
+    if (imageUrl.startsWith('data:')) totalBytes += decodeImageDataUrl(imageUrl);
+    else {
+      let parsed;
+      try { parsed = new URL(imageUrl); } catch (_error) { /* handled below */ }
+      if (!parsed || parsed.protocol !== 'https:') {
+        throw requestError('JSON 图片引用仅支持 HTTPS URL 或图片 Data URL', 'invalid_image_reference');
+      }
+    }
+  }
+  if (totalBytes > IMAGE_MAX_TOTAL_BYTES) {
+    throw requestError('图片上传总大小超过 50MB 限制', 'image_upload_too_large');
+  }
+  return images;
+}
+
+function validateJsonImageEditRequest(body = {}) {
+  const unsupported = Object.keys(body).find(field => !JSON_IMAGE_EDIT_FIELDS.has(field));
+  if (unsupported) throw requestError(`不支持图片参数 ${unsupported}`, 'unsupported_image_parameter');
+  const { images, ...fields } = body;
+  const normalized = compactBody(fields);
+  if (!String(normalized.model || '').trim()) throw requestError('图片请求必须指定模型', 'missing_model');
+  if (!String(normalized.prompt || '').trim()) throw requestError('图片编辑请求必须提供 prompt', 'prompt_required');
+  const validatedImages = validateJsonImageReferences(images);
+  const format = String(normalized.output_format || '').toLowerCase();
+  if (format && !OUTPUT_FORMATS.has(format)) {
+    throw requestError('output_format 仅支持 png、jpeg 或 webp', 'invalid_image_parameter');
+  }
+  const fidelity = String(normalized.input_fidelity || '').toLowerCase();
+  if (fidelity && !INPUT_FIDELITIES.has(fidelity)) {
+    throw requestError('input_fidelity 仅支持 low 或 high', 'invalid_image_parameter');
+  }
+  const compression = parseCompression(normalized.output_compression);
+  return {
+    ...normalized,
+    images: validatedImages,
+    n: parsePositiveInteger(normalized.n, 'n'),
+    ...(format ? { output_format: format } : {}),
+    ...(fidelity ? { input_fidelity: fidelity } : {}),
+    ...(compression !== undefined ? { output_compression: compression } : {}),
+  };
+}
+
 function validateImageRequest({ endpoint, body = {}, files }) {
   const normalized = compactBody(body);
   if (!String(normalized.model || '').trim()) throw requestError('图片请求必须指定模型', 'missing_model');
@@ -267,6 +343,19 @@ class ImageRequestExecutor {
   }
 
   prepare({ endpoint, body, files }) {
+    if (endpoint === 'images/edits' && files === undefined) {
+      const validatedBody = validateJsonImageEditRequest(body);
+      return {
+        endpoint,
+        operation: 'edit',
+        body: validatedBody,
+        metadata: {
+          inputCount: validatedBody.images.length,
+          outputFormat: validatedBody.output_format || '',
+          outputCompression: validatedBody.output_compression ?? null,
+        },
+      };
+    }
     const validatedBody = validateImageRequest({ endpoint, body, files });
     const operation = imageOperationForEndpoint(endpoint);
     if (endpoint === 'images/transformations') {

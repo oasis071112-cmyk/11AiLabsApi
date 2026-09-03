@@ -106,8 +106,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_load_k6_scenarios",
-      "community": 120,
-      "community_name": "k6-scenarios.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "k6-scenarios.js"
     },
     {
@@ -117,8 +117,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_load_k6_scenarios_target",
-      "community": 120,
-      "community_name": "k6-scenarios.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "target"
     },
     {
@@ -128,8 +128,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_load_k6_scenarios_islocaltarget",
-      "community": 120,
-      "community_name": "k6-scenarios.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "islocaltarget"
     },
     {
@@ -139,8 +139,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "backend_load_k6_scenarios_options",
-      "community": 120,
-      "community_name": "k6-scenarios.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "options"
     },
     {
@@ -150,8 +150,8 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "backend_load_k6_scenarios_params",
-      "community": 120,
-      "community_name": "k6-scenarios.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "params()"
     },
     {
@@ -161,8 +161,8 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "backend_load_k6_scenarios_post",
-      "community": 120,
-      "community_name": "k6-scenarios.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "post()"
     },
     {
@@ -172,8 +172,8 @@
       "source_location": "L45",
       "_origin": "ast",
       "id": "backend_load_k6_scenarios_chat",
-      "community": 120,
-      "community_name": "k6-scenarios.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "chat()"
     },
     {
@@ -183,8 +183,8 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "backend_load_k6_scenarios_capacity",
-      "community": 120,
-      "community_name": "k6-scenarios.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "capacity()"
     },
     {
@@ -194,8 +194,8 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "backend_load_k6_scenarios_ratelimitfailover",
-      "community": 120,
-      "community_name": "k6-scenarios.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "ratelimitfailover()"
     },
     {
@@ -205,8 +205,8 @@
       "source_location": "L48",
       "_origin": "ast",
       "id": "backend_load_k6_scenarios_upstreamfailurefailover",
-      "community": 120,
-      "community_name": "k6-scenarios.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "upstreamfailurefailover()"
     },
     {
@@ -1107,8 +1107,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_scripts_apply_release_control_plane_overrides",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "apply-release-control-plane-overrides.js"
     },
     {
@@ -1118,8 +1118,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_scripts_apply_release_control_plane_overrides_randomuuid",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "{ randomuuid }"
     },
     {
@@ -1129,8 +1129,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_scripts_apply_release_control_plane_overrides_path",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "path"
     },
     {
@@ -1140,8 +1140,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_scripts_apply_release_control_plane_overrides_createpostgrespool_withtransaction",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "{ createpostgrespool, withtransaction }"
     },
     {
@@ -1151,8 +1151,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_scripts_apply_release_control_plane_overrides_releaseoverrideplan",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "releaseoverrideplan()"
     },
     {
@@ -1162,8 +1162,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "backend_scripts_apply_release_control_plane_overrides_samejson",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "samejson()"
     },
     {
@@ -1173,8 +1173,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "backend_scripts_apply_release_control_plane_overrides_readtarget",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "readtarget()"
     },
     {
@@ -1184,8 +1184,8 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "backend_scripts_apply_release_control_plane_overrides_assertverified",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "assertverified()"
     },
     {
@@ -1195,19 +1195,19 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "backend_scripts_apply_release_control_plane_overrides_applyreleasecontrolplaneoverrides",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "applyreleasecontrolplaneoverrides()"
     },
     {
       "label": "main()",
       "file_type": "code",
       "source_file": "backend/scripts/apply-release-control-plane-overrides.js",
-      "source_location": "L96",
+      "source_location": "L93",
       "_origin": "ast",
       "id": "backend_scripts_apply_release_control_plane_overrides_main",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "main()"
     },
     {
@@ -1800,8 +1800,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_database_init_migrateroutinggroups",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "migrateroutinggroups()"
     },
     {
@@ -1855,8 +1855,8 @@
       "source_location": "L264",
       "_origin": "ast",
       "id": "backend_src_database_init_getdatabase",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "getdatabase()"
     },
     {
@@ -1932,8 +1932,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_database_seed_viewer",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "seed-viewer.js"
     },
     {
@@ -1943,8 +1943,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_database_seed_viewer_initdatabase_getdatabase_savedatabase",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "{ initdatabase, getdatabase, savedatabase }"
     },
     {
@@ -1954,8 +1954,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_database_seed_viewer_bcrypt",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "bcrypt"
     },
     {
@@ -1965,8 +1965,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_src_database_seed_viewer_models",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "models"
     },
     {
@@ -1976,8 +1976,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_database_seed_viewer_channels",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "channels"
     },
     {
@@ -1987,8 +1987,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_src_database_seed_viewer_seed",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "seed()"
     },
     {
@@ -1998,8 +1998,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_database_seed",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "seed.js"
     },
     {
@@ -2009,8 +2009,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_database_seed_getdatabase_initdatabase_migrateroutinggroups",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "{ getdatabase, initdatabase, migrateroutinggroups }"
     },
     {
@@ -2020,8 +2020,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_database_seed_bcrypt",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "bcrypt"
     },
     {
@@ -2031,8 +2031,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_database_seed_seed",
-      "community": 33,
-      "community_name": "getDatabase",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "seed()"
     },
     {
@@ -2212,21 +2212,10 @@
       "norm_label": "{ createpostgresproxyrouter }"
     },
     {
-      "label": "{ createCodexCompatibilityRouter }",
-      "file_type": "code",
-      "source_file": "backend/src/index.js",
-      "source_location": "L17",
-      "_origin": "ast",
-      "id": "backend_src_index_createcodexcompatibilityrouter",
-      "community": 14,
-      "community_name": "src/index.js",
-      "norm_label": "{ createcodexcompatibilityrouter }"
-    },
-    {
       "label": "{ createPostgresPaymentService }",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L18",
+      "source_location": "L17",
       "_origin": "ast",
       "id": "backend_src_index_createpostgrespaymentservice",
       "community": 14,
@@ -2237,7 +2226,7 @@
       "label": "{ authenticate, requireAdmin }",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L19",
+      "source_location": "L18",
       "_origin": "ast",
       "id": "backend_src_index_authenticate_requireadmin",
       "community": 14,
@@ -2248,7 +2237,7 @@
       "label": "logger",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L20",
+      "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_index_logger",
       "community": 14,
@@ -2259,7 +2248,7 @@
       "label": "os",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L21",
+      "source_location": "L20",
       "_origin": "ast",
       "id": "backend_src_index_os",
       "community": 14,
@@ -2270,7 +2259,7 @@
       "label": "authRoutes",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L23",
+      "source_location": "L22",
       "_origin": "ast",
       "id": "backend_src_index_authroutes",
       "community": 14,
@@ -2281,7 +2270,7 @@
       "label": "userRoutes",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L24",
+      "source_location": "L23",
       "_origin": "ast",
       "id": "backend_src_index_userroutes",
       "community": 14,
@@ -2292,7 +2281,7 @@
       "label": "adminRoutes",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L25",
+      "source_location": "L24",
       "_origin": "ast",
       "id": "backend_src_index_adminroutes",
       "community": 14,
@@ -2303,7 +2292,7 @@
       "label": "proxyRoutes",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L26",
+      "source_location": "L25",
       "_origin": "ast",
       "id": "backend_src_index_proxyroutes",
       "community": 14,
@@ -2314,7 +2303,7 @@
       "label": "publicRoutes",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L27",
+      "source_location": "L26",
       "_origin": "ast",
       "id": "backend_src_index_publicroutes",
       "community": 14,
@@ -2325,7 +2314,7 @@
       "label": "paymentRoutes",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L28",
+      "source_location": "L27",
       "_origin": "ast",
       "id": "backend_src_index_paymentroutes",
       "community": 14,
@@ -2336,7 +2325,7 @@
       "label": "{ shouldSkipAccessLog }",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L29",
+      "source_location": "L28",
       "_origin": "ast",
       "id": "backend_src_index_shouldskipaccesslog",
       "community": 14,
@@ -2347,7 +2336,7 @@
       "label": "app",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L31",
+      "source_location": "L30",
       "_origin": "ast",
       "id": "backend_src_index_app",
       "community": 14,
@@ -2358,7 +2347,7 @@
       "label": "startTime",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L34",
+      "source_location": "L33",
       "_origin": "ast",
       "id": "backend_src_index_starttime",
       "community": 14,
@@ -2369,7 +2358,7 @@
       "label": "postgresRouters",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L37",
+      "source_location": "L36",
       "_origin": "ast",
       "id": "backend_src_index_postgresrouters",
       "community": 14,
@@ -2380,7 +2369,7 @@
       "label": "runtimeService()",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L46",
+      "source_location": "L45",
       "_origin": "ast",
       "id": "backend_src_index_runtimeservice",
       "community": 14,
@@ -2391,7 +2380,7 @@
       "label": "globalLimiter",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L80",
+      "source_location": "L78",
       "_origin": "ast",
       "id": "backend_src_index_globallimiter",
       "community": 14,
@@ -2402,7 +2391,7 @@
       "label": "bootstrapAuthenticate",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L83",
+      "source_location": "L81",
       "_origin": "ast",
       "id": "backend_src_index_bootstrapauthenticate",
       "community": 14,
@@ -2410,21 +2399,10 @@
       "norm_label": "bootstrapauthenticate"
     },
     {
-      "label": "publicProxyRouter",
-      "file_type": "code",
-      "source_file": "backend/src/index.js",
-      "source_location": "L104",
-      "_origin": "ast",
-      "id": "backend_src_index_publicproxyrouter",
-      "community": 14,
-      "community_name": "src/index.js",
-      "norm_label": "publicproxyrouter"
-    },
-    {
       "label": "healthResponse()",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L109",
+      "source_location": "L105",
       "_origin": "ast",
       "id": "backend_src_index_healthresponse",
       "community": 14,
@@ -2435,7 +2413,7 @@
       "label": "start()",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L166",
+      "source_location": "L162",
       "_origin": "ast",
       "id": "backend_src_index_start",
       "community": 138,
@@ -2446,7 +2424,7 @@
       "label": "{ saveDatabase }",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L242",
+      "source_location": "L238",
       "_origin": "ast",
       "id": "backend_src_index_savedatabase",
       "community": 14,
@@ -2457,7 +2435,7 @@
       "label": "shutdown()",
       "file_type": "code",
       "source_file": "backend/src/index.js",
-      "source_location": "L244",
+      "source_location": "L240",
       "_origin": "ast",
       "id": "backend_src_index_shutdown",
       "community": 33,
@@ -2526,8 +2504,8 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "backend_src_infrastructure_postgres_resolvedatabaseurl",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 11,
+      "community_name": "routing-group-models.js",
       "norm_label": "resolvedatabaseurl()"
     },
     {
@@ -2570,8 +2548,8 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "backend_src_infrastructure_postgres_assertpostgresschemacurrent",
-      "community": 11,
-      "community_name": "routing-group-models.js",
+      "community": 161,
+      "community_name": "worker-runtime.test.js",
       "norm_label": "assertpostgresschemacurrent()"
     },
     {
@@ -2581,8 +2559,8 @@
       "source_location": "L83",
       "_origin": "ast",
       "id": "backend_src_infrastructure_postgres_ensureapirequestlogpartitions",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 11,
+      "community_name": "routing-group-models.js",
       "norm_label": "ensureapirequestlogpartitions()"
     },
     {
@@ -2614,8 +2592,8 @@
       "source_location": "L140",
       "_origin": "ast",
       "id": "backend_src_infrastructure_postgres_withtransaction",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "withtransaction()"
     },
     {
@@ -2625,8 +2603,8 @@
       "source_location": "L157",
       "_origin": "ast",
       "id": "backend_src_infrastructure_postgres_checkpostgres",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "checkpostgres()"
     },
     {
@@ -2636,8 +2614,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_infrastructure_redis",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "redis.js"
     },
     {
@@ -2647,8 +2625,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_infrastructure_redis_resolveredis",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "resolveredis()"
     },
     {
@@ -2658,8 +2636,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_infrastructure_redis_createredisclient",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "createredisclient()"
     },
     {
@@ -2669,8 +2647,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "backend_src_infrastructure_redis_checkredis",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "checkredis()"
     },
     {
@@ -3219,8 +3197,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_authenticate",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": "authenticate()"
     },
     {
@@ -3252,8 +3230,8 @@
       "source_location": "L68",
       "_origin": "ast",
       "id": "backend_src_middleware_auth_generatetoken",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 80,
+      "community_name": "user-model-multipliers.test.js",
       "norm_label": "generatetoken()"
     },
     {
@@ -4935,8 +4913,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_control_plane_postgres_repository",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "control-plane/postgres-repository.js"
     },
     {
@@ -4946,8 +4924,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_control_plane_postgres_repository_randomuuid",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "{ randomuuid }"
     },
     {
@@ -4957,8 +4935,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_modules_control_plane_postgres_repository_withtransaction",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "{ withtransaction }"
     },
     {
@@ -4968,8 +4946,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_modules_control_plane_postgres_repository_accountkey",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "accountkey()"
     },
     {
@@ -4979,8 +4957,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_src_modules_control_plane_postgres_repository_postgrescontrolplanerepository",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "postgrescontrolplanerepository"
     },
     {
@@ -4990,8 +4968,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_src_modules_control_plane_postgres_repository_postgrescontrolplanerepository_constructor",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": ".constructor()"
     },
     {
@@ -5001,8 +4979,8 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "backend_src_modules_control_plane_postgres_repository_postgrescontrolplanerepository_getbootstrap",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": ".getbootstrap()"
     },
     {
@@ -5012,8 +4990,8 @@
       "source_location": "L48",
       "_origin": "ast",
       "id": "backend_src_modules_control_plane_postgres_repository_postgrescontrolplanerepository_transaction",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": ".transaction()"
     },
     {
@@ -5023,8 +5001,8 @@
       "source_location": "L55",
       "_origin": "ast",
       "id": "backend_src_modules_control_plane_postgres_repository_postgrescontrolplanerepository_createaccount",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": ".createaccount()"
     },
     {
@@ -5034,8 +5012,8 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "backend_src_modules_control_plane_postgres_repository_postgrescontrolplanerepository_appendaudit",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": ".appendaudit()"
     },
     {
@@ -5529,8 +5507,8 @@
       "source_location": "L106",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_asstring",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "asstring()"
     },
     {
@@ -5540,8 +5518,8 @@
       "source_location": "L110",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_normalizerediskeyprefix",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "normalizerediskeyprefix()"
     },
     {
@@ -5551,8 +5529,8 @@
       "source_location": "L118",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisaccountkey",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "redisaccountkey()"
     },
     {
@@ -5562,8 +5540,8 @@
       "source_location": "L126",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_extendrediscooldown",
-      "community": 12,
-      "community_name": "pricing-sync.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "extendrediscooldown()"
     },
     {
@@ -5639,8 +5617,8 @@
       "source_location": "L204",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "redisleasestore"
     },
     {
@@ -5650,8 +5628,8 @@
       "source_location": "L205",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore_constructor",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".constructor()"
     },
     {
@@ -5661,8 +5639,8 @@
       "source_location": "L217",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore_acquire",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".acquire()"
     },
     {
@@ -5672,8 +5650,8 @@
       "source_location": "L257",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore_release",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".release()"
     },
     {
@@ -5683,8 +5661,8 @@
       "source_location": "L277",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore_renew",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".renew()"
     },
     {
@@ -5694,8 +5672,8 @@
       "source_location": "L300",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore_setcooldown",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".setcooldown()"
     },
     {
@@ -5782,8 +5760,8 @@
       "source_location": "L554",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_creategatewayscheduler",
-      "community": 11,
-      "community_name": "routing-group-models.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "creategatewayscheduler()"
     },
     {
@@ -5793,8 +5771,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "postgres-account-repository.js"
     },
     {
@@ -5804,8 +5782,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_parsejson",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "parsejson()"
     },
     {
@@ -5815,8 +5793,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_numbervalue",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "numbervalue()"
     },
     {
@@ -5826,8 +5804,8 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_mapaccountrows",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "mapaccountrows()"
     },
     {
@@ -5837,8 +5815,8 @@
       "source_location": "L61",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "postgresaccountrepository"
     },
     {
@@ -5848,8 +5826,8 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository_constructor",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".constructor()"
     },
     {
@@ -5859,8 +5837,8 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository_listcandidates",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".listcandidates()"
     },
     {
@@ -5870,8 +5848,8 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository_getfallbackgroupid",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".getfallbackgroupid()"
     },
     {
@@ -5881,8 +5859,8 @@
       "source_location": "L123",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository_reporthealth",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".reporthealth()"
     },
     {
@@ -5892,8 +5870,8 @@
       "source_location": "L135",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository_markcooldown",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".markcooldown()"
     },
     {
@@ -6145,8 +6123,8 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "backend_src_modules_postgres_payment_index_firstsetting",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "firstsetting()"
     },
     {
@@ -6233,8 +6211,8 @@
       "source_location": "L132",
       "_origin": "ast",
       "id": "backend_src_modules_postgres_payment_index_createpostgrespaymentservice",
-      "community": 158,
-      "community_name": "postgres-payment-integration.test.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "createpostgrespaymentservice()"
     },
     {
@@ -6904,8 +6882,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "usage-settlement/index.js"
     },
     {
@@ -6915,8 +6893,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_quantizeamount",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "quantizeamount()"
     },
     {
@@ -6926,8 +6904,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_amount",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "amount()"
     },
     {
@@ -6937,8 +6915,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_balances",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "balances()"
     },
     {
@@ -6948,8 +6926,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_ledger",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "ledger()"
     },
     {
@@ -6959,8 +6937,8 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_requirerequestid",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "requirerequestid()"
     },
     {
@@ -6970,8 +6948,8 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_reservationamount",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "reservationamount()"
     },
     {
@@ -6981,8 +6959,8 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_assertreservation",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "assertreservation()"
     },
     {
@@ -6992,8 +6970,8 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "usagesettlement"
     },
     {
@@ -7003,8 +6981,8 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_constructor",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": ".constructor()"
     },
     {
@@ -7014,8 +6992,8 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_reserve",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": ".reserve()"
     },
     {
@@ -7025,8 +7003,8 @@
       "source_location": "L91",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_release",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": ".release()"
     },
     {
@@ -7036,8 +7014,8 @@
       "source_location": "L116",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_settle",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": ".settle()"
     },
     {
@@ -7047,8 +7025,8 @@
       "source_location": "L128",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_resolvepending",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": ".resolvepending()"
     },
     {
@@ -7058,8 +7036,8 @@
       "source_location": "L152",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_settlereservation",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": ".settlereservation()"
     },
     {
@@ -7069,8 +7047,8 @@
       "source_location": "L255",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_markpending",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": ".markpending()"
     },
     {
@@ -7487,8 +7465,8 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "backend_src_routes_admin_routinggroupmultiplierpayload",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "routinggroupmultiplierpayload()"
     },
     {
@@ -7663,8 +7641,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_auth",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": "routes/auth.js"
     },
     {
@@ -7674,8 +7652,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_auth_express",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": "express"
     },
     {
@@ -7685,8 +7663,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_routes_auth_bcrypt",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": "bcrypt"
     },
     {
@@ -7696,8 +7674,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_routes_auth_router",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": "router"
     },
     {
@@ -7707,8 +7685,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_routes_auth_getdatabase",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": "{ getdatabase }"
     },
     {
@@ -7718,8 +7696,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_routes_auth_authenticate_generatetoken",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": "{ authenticate, generatetoken }"
     },
     {
@@ -7776,50 +7754,6 @@
       "community": 95,
       "community_name": "model-sync.js",
       "norm_label": "createbootstraprouter()"
-    },
-    {
-      "label": "codex-compat.js",
-      "file_type": "code",
-      "source_file": "backend/src/routes/codex-compat.js",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "backend_src_routes_codex_compat",
-      "community": 130,
-      "community_name": "dashboard-read-model/legacy-repository.js",
-      "norm_label": "codex-compat.js"
-    },
-    {
-      "label": "express",
-      "file_type": "code",
-      "source_file": "backend/src/routes/codex-compat.js",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "backend_src_routes_codex_compat_express",
-      "community": 130,
-      "community_name": "dashboard-read-model/legacy-repository.js",
-      "norm_label": "express"
-    },
-    {
-      "label": "CODEX_ROOT_POST_PATHS",
-      "file_type": "code",
-      "source_file": "backend/src/routes/codex-compat.js",
-      "source_location": "L3",
-      "_origin": "ast",
-      "id": "backend_src_routes_codex_compat_codex_root_post_paths",
-      "community": 130,
-      "community_name": "dashboard-read-model/legacy-repository.js",
-      "norm_label": "codex_root_post_paths"
-    },
-    {
-      "label": "createCodexCompatibilityRouter()",
-      "file_type": "code",
-      "source_file": "backend/src/routes/codex-compat.js",
-      "source_location": "L9",
-      "_origin": "ast",
-      "id": "backend_src_routes_codex_compat_createcodexcompatibilityrouter",
-      "community": 130,
-      "community_name": "dashboard-read-model/legacy-repository.js",
-      "norm_label": "createcodexcompatibilityrouter()"
     },
     {
       "label": "payment.js",
@@ -8081,8 +8015,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 148,
+      "community_name": "withTransaction",
       "norm_label": "postgres-auth.js"
     },
     {
@@ -8092,8 +8026,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_express",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 148,
+      "community_name": "withTransaction",
       "norm_label": "express"
     },
     {
@@ -8103,8 +8037,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_withtransaction",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 148,
+      "community_name": "withTransaction",
       "norm_label": "{ withtransaction }"
     },
     {
@@ -8114,8 +8048,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_createpostgresidentity",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 148,
+      "community_name": "withTransaction",
       "norm_label": "{ createpostgresidentity }"
     },
     {
@@ -8125,8 +8059,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_jsonconfigvalue",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 148,
+      "community_name": "withTransaction",
       "norm_label": "jsonconfigvalue()"
     },
     {
@@ -8136,8 +8070,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_compatibleemail",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 148,
+      "community_name": "withTransaction",
       "norm_label": "compatibleemail()"
     },
     {
@@ -8147,8 +8081,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_publicemail",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 148,
+      "community_name": "withTransaction",
       "norm_label": "publicemail()"
     },
     {
@@ -8158,8 +8092,8 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_createpostgresauthrouter",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 148,
+      "community_name": "withTransaction",
       "norm_label": "createpostgresauthrouter()"
     },
     {
@@ -8169,8 +8103,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_payment",
-      "community": 173,
-      "community_name": "postgres-payment.js",
+      "community": 152,
+      "community_name": "mock-upstream.js",
       "norm_label": "postgres-payment.js"
     },
     {
@@ -8180,8 +8114,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_payment_express",
-      "community": 173,
-      "community_name": "postgres-payment.js",
+      "community": 152,
+      "community_name": "mock-upstream.js",
       "norm_label": "express"
     },
     {
@@ -8191,8 +8125,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_payment_createpostgrespaymentrouter",
-      "community": 173,
-      "community_name": "postgres-payment.js",
+      "community": 152,
+      "community_name": "mock-upstream.js",
       "norm_label": "createpostgrespaymentrouter()"
     },
     {
@@ -8565,8 +8499,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_user_buildchannelprotocoldocs",
-      "community": 145,
-      "community_name": "channel-docs.js",
+      "community": 113,
+      "community_name": "withTransaction",
       "norm_label": "buildchannelprotocoldocs()"
     },
     {
@@ -8862,8 +8796,8 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_requestmultipliers",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "requestmultipliers()"
     },
     {
@@ -8873,8 +8807,8 @@
       "source_location": "L61",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_getusdcnyrate",
-      "community": 92,
-      "community_name": "billing-detail.js",
+      "community": 15,
+      "community_name": "init.js",
       "norm_label": "getusdcnyrate()"
     },
     {
@@ -8895,8 +8829,8 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_channelbillingformodel",
-      "community": 77,
-      "community_name": "billing.test.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "channelbillingformodel()"
     },
     {
@@ -8961,8 +8895,8 @@
       "source_location": "L190",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_setlogprotocols",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "setlogprotocols()"
     },
     {
@@ -8972,8 +8906,8 @@
       "source_location": "L195",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_setlogbillingaudit",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "setlogbillingaudit()"
     },
     {
@@ -8994,8 +8928,8 @@
       "source_location": "L277",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_insertsettlementfailurelog",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "insertsettlementfailurelog()"
     },
     {
@@ -9005,8 +8939,8 @@
       "source_location": "L296",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_insertupstreamfailurelog",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "insertupstreamfailurelog()"
     },
     {
@@ -9016,8 +8950,8 @@
       "source_location": "L315",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_insertimagesuccesslog",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "insertimagesuccesslog()"
     },
     {
@@ -9027,8 +8961,8 @@
       "source_location": "L361",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_insertimagesettlementfailurelog",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "insertimagesettlementfailurelog()"
     },
     {
@@ -9038,8 +8972,8 @@
       "source_location": "L385",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_listmodels",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 117,
+      "community_name": "runtime-services.test.js",
       "norm_label": "listmodels()"
     },
     {
@@ -9148,8 +9082,8 @@
       "source_location": "L548",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_requestcontainsimage",
-      "community": 77,
-      "community_name": "billing.test.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "requestcontainsimage()"
     },
     {
@@ -9181,8 +9115,8 @@
       "source_location": "L587",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_hasbillableusage",
-      "community": 92,
-      "community_name": "billing-detail.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "hasbillableusage()"
     },
     {
@@ -9236,8 +9170,8 @@
       "source_location": "L674",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_availablewalletbalance",
-      "community": 77,
-      "community_name": "billing.test.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "availablewalletbalance()"
     },
     {
@@ -9247,8 +9181,8 @@
       "source_location": "L681",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_safe_failover_statuses",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 108,
+      "community_name": "channel-selector.js",
       "norm_label": "safe_failover_statuses"
     },
     {
@@ -9258,8 +9192,8 @@
       "source_location": "L683",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_postwithsafefailover",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 108,
+      "community_name": "channel-selector.js",
       "norm_label": "postwithsafefailover()"
     },
     {
@@ -9269,8 +9203,8 @@
       "source_location": "L724",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_upstreamerrormessage",
-      "community": 77,
-      "community_name": "billing.test.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "upstreamerrormessage()"
     },
     {
@@ -9368,8 +9302,8 @@
       "source_location": "L816",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_extractanthropicusage",
-      "community": 92,
-      "community_name": "billing-detail.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "extractanthropicusage()"
     },
     {
@@ -9379,8 +9313,8 @@
       "source_location": "L820",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_mergeanthropicstreamusage",
-      "community": 92,
-      "community_name": "billing-detail.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "mergeanthropicstreamusage()"
     },
     {
@@ -9417,48 +9351,26 @@
       "norm_label": "parseimagemultipart"
     },
     {
-      "label": "parseImageEditRequest()",
-      "file_type": "code",
-      "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1284",
-      "_origin": "ast",
-      "id": "backend_src_routes_proxy_parseimageeditrequest",
-      "community": 0,
-      "community_name": "proxy.js",
-      "norm_label": "parseimageeditrequest()"
-    },
-    {
       "label": "handleImageBilledRequest()",
       "file_type": "code",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1289",
+      "source_location": "L1285",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_handleimagebilledrequest",
-      "community": 77,
-      "community_name": "billing.test.js",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "handleimagebilledrequest()"
     },
     {
       "label": "handleMultipartImageRequest()",
       "file_type": "code",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1507",
+      "source_location": "L1503",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_handlemultipartimagerequest",
-      "community": 77,
-      "community_name": "billing.test.js",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "handlemultipartimagerequest()"
-    },
-    {
-      "label": "handleImageEditRequest()",
-      "file_type": "code",
-      "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1520",
-      "_origin": "ast",
-      "id": "backend_src_routes_proxy_handleimageeditrequest",
-      "community": 77,
-      "community_name": "billing.test.js",
-      "norm_label": "handleimageeditrequest()"
     },
     {
       "label": "public.js",
@@ -10446,8 +10358,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs",
-      "community": 145,
-      "community_name": "channel-docs.js",
+      "community": 113,
+      "community_name": "withTransaction",
       "norm_label": "channel-docs.js"
     },
     {
@@ -10457,8 +10369,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_protocols",
-      "community": 145,
-      "community_name": "channel-docs.js",
+      "community": 113,
+      "community_name": "withTransaction",
       "norm_label": "protocols"
     },
     {
@@ -10468,8 +10380,8 @@
       "source_location": "L248",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_channel_protocol_map",
-      "community": 145,
-      "community_name": "channel-docs.js",
+      "community": 113,
+      "community_name": "withTransaction",
       "norm_label": "channel_protocol_map"
     },
     {
@@ -10479,8 +10391,8 @@
       "source_location": "L269",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_getprotocol",
-      "community": 145,
-      "community_name": "channel-docs.js",
+      "community": 113,
+      "community_name": "withTransaction",
       "norm_label": "getprotocol()"
     },
     {
@@ -10490,8 +10402,8 @@
       "source_location": "L275",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_getconfiguredprotocol",
-      "community": 145,
-      "community_name": "channel-docs.js",
+      "community": 113,
+      "community_name": "withTransaction",
       "norm_label": "getconfiguredprotocol()"
     },
     {
@@ -10501,8 +10413,8 @@
       "source_location": "L284",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_generatedocs",
-      "community": 145,
-      "community_name": "channel-docs.js",
+      "community": 113,
+      "community_name": "withTransaction",
       "norm_label": "generatedocs()"
     },
     {
@@ -10512,8 +10424,8 @@
       "source_location": "L323",
       "_origin": "ast",
       "id": "backend_src_utils_channel_docs_generateimagedocs",
-      "community": 145,
-      "community_name": "channel-docs.js",
+      "community": 113,
+      "community_name": "withTransaction",
       "norm_label": "generateimagedocs()"
     },
     {
@@ -10732,8 +10644,8 @@
       "source_location": "L192",
       "_origin": "ast",
       "id": "backend_src_utils_channel_selector_reportresult",
-      "community": 0,
-      "community_name": "proxy.js",
+      "community": 108,
+      "community_name": "channel-selector.js",
       "norm_label": "reportresult()"
     },
     {
@@ -10754,8 +10666,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 100,
+      "community_name": "vue-router",
       "norm_label": "crypto.js"
     },
     {
@@ -10765,8 +10677,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_crypto",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 100,
+      "community_name": "vue-router",
       "norm_label": "crypto"
     },
     {
@@ -10776,8 +10688,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_getkey",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 100,
+      "community_name": "vue-router",
       "norm_label": "getkey()"
     },
     {
@@ -10787,8 +10699,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_encrypt",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 100,
+      "community_name": "vue-router",
       "norm_label": "encrypt()"
     },
     {
@@ -10809,8 +10721,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_desensitize",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 100,
+      "community_name": "vue-router",
       "norm_label": "desensitize()"
     },
     {
@@ -11117,8 +11029,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_multer",
-      "community": 146,
-      "community_name": "postgres-proxy.js",
+      "community": 114,
+      "community_name": "multiplier-policy.js",
       "norm_label": "multer"
     },
     {
@@ -11166,21 +11078,10 @@
       "norm_label": "input_fidelities"
     },
     {
-      "label": "JSON_IMAGE_EDIT_FIELDS",
-      "file_type": "code",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L10",
-      "_origin": "ast",
-      "id": "backend_src_utils_image_request_executor_json_image_edit_fields",
-      "community": 83,
-      "community_name": "init.js",
-      "norm_label": "json_image_edit_fields"
-    },
-    {
       "label": "MULTIPART_FIELDS",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L15",
+      "source_location": "L11",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_multipart_fields",
       "community": 83,
@@ -11191,7 +11092,7 @@
       "label": "requestError()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L27",
+      "source_location": "L23",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_requesterror",
       "community": 83,
@@ -11202,18 +11103,18 @@
       "label": "imageOperationForEndpoint()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L34",
+      "source_location": "L30",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_imageoperationforendpoint",
-      "community": 114,
-      "community_name": "multiplier-policy.js",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "imageoperationforendpoint()"
     },
     {
       "label": "arrayValue()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L41",
+      "source_location": "L37",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_arrayvalue",
       "community": 83,
@@ -11224,7 +11125,7 @@
       "label": "compactBody()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L45",
+      "source_location": "L41",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_compactbody",
       "community": 83,
@@ -11235,7 +11136,7 @@
       "label": "detectedImageMimeType()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L51",
+      "source_location": "L47",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_detectedimagemimetype",
       "community": 83,
@@ -11246,7 +11147,7 @@
       "label": "imageFilesFromRequest()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L66",
+      "source_location": "L62",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_imagefilesfromrequest",
       "community": 83,
@@ -11257,18 +11158,18 @@
       "label": "cappedMemoryStorage()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L88",
+      "source_location": "L84",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_cappedmemorystorage",
-      "community": 146,
-      "community_name": "postgres-proxy.js",
+      "community": 114,
+      "community_name": "multiplier-policy.js",
       "norm_label": "cappedmemorystorage()"
     },
     {
       "label": "parsePositiveInteger()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L125",
+      "source_location": "L121",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_parsepositiveinteger",
       "community": 83,
@@ -11279,7 +11180,7 @@
       "label": "parseCompression()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L134",
+      "source_location": "L130",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_parsecompression",
       "community": 83,
@@ -11290,7 +11191,7 @@
       "label": "assertSupportedFields()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L143",
+      "source_location": "L139",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_assertsupportedfields",
       "community": 83,
@@ -11298,43 +11199,10 @@
       "norm_label": "assertsupportedfields()"
     },
     {
-      "label": "decodeImageDataUrl()",
-      "file_type": "code",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L150",
-      "_origin": "ast",
-      "id": "backend_src_utils_image_request_executor_decodeimagedataurl",
-      "community": 83,
-      "community_name": "init.js",
-      "norm_label": "decodeimagedataurl()"
-    },
-    {
-      "label": "validateJsonImageReferences()",
-      "file_type": "code",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L167",
-      "_origin": "ast",
-      "id": "backend_src_utils_image_request_executor_validatejsonimagereferences",
-      "community": 83,
-      "community_name": "init.js",
-      "norm_label": "validatejsonimagereferences()"
-    },
-    {
-      "label": "validateJsonImageEditRequest()",
-      "file_type": "code",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L195",
-      "_origin": "ast",
-      "id": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "community": 83,
-      "community_name": "init.js",
-      "norm_label": "validatejsonimageeditrequest()"
-    },
-    {
       "label": "validateImageRequest()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L222",
+      "source_location": "L146",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_validateimagerequest",
       "community": 83,
@@ -11345,7 +11213,7 @@
       "label": "appendFields()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L257",
+      "source_location": "L181",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_appendfields",
       "community": 83,
@@ -11356,7 +11224,7 @@
       "label": "appendFile()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L265",
+      "source_location": "L189",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_appendfile",
       "community": 83,
@@ -11367,7 +11235,7 @@
       "label": "createMultipartPayload()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L273",
+      "source_location": "L197",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_createmultipartpayload",
       "community": 83,
@@ -11378,77 +11246,77 @@
       "label": "dataUrl()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L281",
+      "source_location": "L205",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_dataurl",
-      "community": 114,
-      "community_name": "multiplier-policy.js",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "dataurl()"
     },
     {
       "label": "createTransformationBody()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L285",
+      "source_location": "L209",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_createtransformationbody",
-      "community": 114,
-      "community_name": "multiplier-policy.js",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "createtransformationbody()"
     },
     {
       "label": "createImageUploadMiddleware()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L310",
+      "source_location": "L234",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_createimageuploadmiddleware",
-      "community": 146,
-      "community_name": "postgres-proxy.js",
+      "community": 114,
+      "community_name": "multiplier-policy.js",
       "norm_label": "createimageuploadmiddleware()"
     },
     {
       "label": "ImageRequestExecutor",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L340",
+      "source_location": "L264",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_imagerequestexecutor",
-      "community": 114,
-      "community_name": "multiplier-policy.js",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": "imagerequestexecutor"
     },
     {
       "label": ".constructor()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L341",
+      "source_location": "L265",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_imagerequestexecutor_constructor",
-      "community": 114,
-      "community_name": "multiplier-policy.js",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": ".constructor()"
     },
     {
       "label": ".prepare()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L345",
+      "source_location": "L269",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_imagerequestexecutor_prepare",
-      "community": 114,
-      "community_name": "multiplier-policy.js",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": ".prepare()"
     },
     {
       "label": ".execute()",
       "file_type": "code",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L386",
+      "source_location": "L297",
       "_origin": "ast",
       "id": "backend_src_utils_image_request_executor_imagerequestexecutor_execute",
-      "community": 114,
-      "community_name": "multiplier-policy.js",
+      "community": 83,
+      "community_name": "init.js",
       "norm_label": ".execute()"
     },
     {
@@ -11458,8 +11326,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_logger",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "logger.js"
     },
     {
@@ -11469,8 +11337,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_logger_winston",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "winston"
     },
     {
@@ -11480,8 +11348,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_utils_logger_path",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "path"
     },
     {
@@ -11491,8 +11359,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_utils_logger_fs",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "fs"
     },
     {
@@ -11502,8 +11370,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_logger_logdir",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "logdir"
     },
     {
@@ -11513,8 +11381,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "backend_src_utils_logger_logger",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "logger"
     },
     {
@@ -11557,8 +11425,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "multiplier-policy.js"
     },
     {
@@ -11568,8 +11436,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_positivemultiplier",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "positivemultiplier()"
     },
     {
@@ -11579,8 +11447,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_multiplierfields",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "multiplierfields"
     },
     {
@@ -11590,8 +11458,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_resolveeffectivemultiplierpolicy",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "resolveeffectivemultiplierpolicy()"
     },
     {
@@ -11601,8 +11469,8 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_activerule",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "activerule()"
     },
     {
@@ -11612,8 +11480,8 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_multiplierpolicycontext",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "multiplierpolicycontext()"
     },
     {
@@ -11623,8 +11491,8 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "backend_src_utils_multiplier_policy_resolvemodelmultiplierpolicy",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "resolvemodelmultiplierpolicy()"
     },
     {
@@ -12118,8 +11986,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits",
-      "community": 172,
-      "community_name": "request-limits.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "request-limits.js"
     },
     {
@@ -12129,8 +11997,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits_provider_output_limits",
-      "community": 172,
-      "community_name": "request-limits.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "provider_output_limits"
     },
     {
@@ -12140,8 +12008,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits_positiveinteger",
-      "community": 172,
-      "community_name": "request-limits.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "positiveinteger()"
     },
     {
@@ -12151,8 +12019,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_src_utils_request_limits_resolvechatoutputlimit",
-      "community": 172,
-      "community_name": "request-limits.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "resolvechatoutputlimit()"
     },
     {
@@ -12437,8 +12305,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_worker",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "worker.js"
     },
     {
@@ -12448,8 +12316,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_worker_path",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "path"
     },
     {
@@ -12459,8 +12327,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_worker_assertpostgresschemacurrent_checkpostgres_createpostgrespool_ensureapirequestlogpartitions_resolvedatabaseurl",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "{\r\n  assertpostgresschemacurrent,\r\n  checkpostgres,\r\n  createpostgrespool,\r\n  ensureapirequestlogpartitions,\r\n  resolvedatabaseurl,\r\n}"
     },
     {
@@ -12470,8 +12338,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_src_worker_createredisclient_checkredis",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "{ createredisclient, checkredis }"
     },
     {
@@ -12481,8 +12349,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_src_worker_secretboxfromenvironment",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "{ secretboxfromenvironment }"
     },
     {
@@ -12492,8 +12360,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "backend_src_worker_backgroundworker",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "{ backgroundworker }"
     },
     {
@@ -12503,8 +12371,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "backend_src_worker_workerheartbeat",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "{ workerheartbeat }"
     },
     {
@@ -12514,8 +12382,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "backend_src_worker_createpostgresworkertasks_validateretentiondays",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "{ createpostgresworkertasks, validateretentiondays }"
     },
     {
@@ -12525,8 +12393,8 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "backend_src_worker_logger",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "logger"
     },
     {
@@ -12536,8 +12404,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "backend_src_worker_createworkerruntime",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "createworkerruntime()"
     },
     {
@@ -12547,8 +12415,8 @@
       "source_location": "L109",
       "_origin": "ast",
       "id": "backend_src_worker_main",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 43,
+      "community_name": "pricing-engine.js",
       "norm_label": "main()"
     },
     {
@@ -12591,8 +12459,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_admin_finance_test",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 130,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "admin-finance.test.js"
     },
     {
@@ -12602,8 +12470,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_admin_finance_test_require",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 130,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "require"
     },
     {
@@ -12613,8 +12481,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_admin_finance_test_initdatabase_getdatabase",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 130,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "{ initdatabase, getdatabase }"
     },
     {
@@ -12624,8 +12492,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_admin_finance_test_generatetoken",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 130,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "{ generatetoken }"
     },
     {
@@ -12635,8 +12503,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_admin_finance_test_adminroutes",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 130,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "adminroutes"
     },
     {
@@ -12646,8 +12514,8 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "backend_tests_admin_finance_test_request",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 130,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "request()"
     },
     {
@@ -12657,8 +12525,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "backend_tests_admin_finance_test_createorder",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 130,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "createorder()"
     },
     {
@@ -12789,8 +12657,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_auth_test",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 33,
+      "community_name": "getDatabase",
       "norm_label": "auth.test.js"
     },
     {
@@ -13064,8 +12932,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_channel_model_sync_test",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 80,
+      "community_name": "user-model-multipliers.test.js",
       "norm_label": "channel-model-sync.test.js"
     },
     {
@@ -13075,8 +12943,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_channel_model_sync_test_require",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 80,
+      "community_name": "user-model-multipliers.test.js",
       "norm_label": "require"
     },
     {
@@ -13086,8 +12954,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_channel_model_sync_test_initdatabase_getdatabase",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 80,
+      "community_name": "user-model-multipliers.test.js",
       "norm_label": "{ initdatabase, getdatabase }"
     },
     {
@@ -13097,8 +12965,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_channel_model_sync_test_generatetoken",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 80,
+      "community_name": "user-model-multipliers.test.js",
       "norm_label": "{ generatetoken }"
     },
     {
@@ -13108,64 +12976,9 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_tests_channel_model_sync_test_adminroutes",
-      "community": 171,
-      "community_name": "middleware/auth.js",
+      "community": 80,
+      "community_name": "user-model-multipliers.test.js",
       "norm_label": "adminroutes"
-    },
-    {
-      "label": "codex-compat.test.js",
-      "file_type": "code",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "backend_tests_codex_compat_test",
-      "community": 130,
-      "community_name": "dashboard-read-model/legacy-repository.js",
-      "norm_label": "codex-compat.test.js"
-    },
-    {
-      "label": "require",
-      "file_type": "code",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L5",
-      "_origin": "ast",
-      "id": "backend_tests_codex_compat_test_require",
-      "community": 130,
-      "community_name": "dashboard-read-model/legacy-repository.js",
-      "norm_label": "require"
-    },
-    {
-      "label": "{ createCodexCompatibilityRouter }",
-      "file_type": "code",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L6",
-      "_origin": "ast",
-      "id": "backend_tests_codex_compat_test_createcodexcompatibilityrouter",
-      "community": 130,
-      "community_name": "dashboard-read-model/legacy-repository.js",
-      "norm_label": "{ createcodexcompatibilityrouter }"
-    },
-    {
-      "label": "servers",
-      "file_type": "code",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L7",
-      "_origin": "ast",
-      "id": "backend_tests_codex_compat_test_servers",
-      "community": 130,
-      "community_name": "dashboard-read-model/legacy-repository.js",
-      "norm_label": "servers"
-    },
-    {
-      "label": "serve()",
-      "file_type": "code",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L13",
-      "_origin": "ast",
-      "id": "backend_tests_codex_compat_test_serve",
-      "community": 130,
-      "community_name": "dashboard-read-model/legacy-repository.js",
-      "norm_label": "serve()"
     },
     {
       "label": "control-plane.test.js",
@@ -13339,8 +13152,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "gateway-scheduler.test.js"
     },
     {
@@ -13350,8 +13163,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_behaviorredis",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "behaviorredis"
     },
     {
@@ -13361,8 +13174,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_behaviorredis_constructor",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".constructor()"
     },
     {
@@ -13372,8 +13185,8 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_behaviorredis_eval",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".eval()"
     },
     {
@@ -13383,8 +13196,8 @@
       "source_location": "L91",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_behaviorredis_set",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".set()"
     },
     {
@@ -13394,8 +13207,8 @@
       "source_location": "L104",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_scheduleraccount",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "scheduleraccount()"
     },
     {
@@ -13405,8 +13218,8 @@
       "source_location": "L146",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_listcandidates",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "listcandidates()"
     },
     {
@@ -13416,8 +13229,8 @@
       "source_location": "L147",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_getfallbackgroupid",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "getfallbackgroupid()"
     },
     {
@@ -13427,8 +13240,8 @@
       "source_location": "L476",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_reporthealth",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "reporthealth()"
     },
     {
@@ -13438,8 +13251,8 @@
       "source_location": "L477",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_markcooldown",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "markcooldown()"
     },
     {
@@ -13449,8 +13262,8 @@
       "source_location": "L563",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_eval",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "eval()"
     },
     {
@@ -13460,8 +13273,8 @@
       "source_location": "L564",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_set",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "set()"
     },
     {
@@ -13531,21 +13344,10 @@
       "norm_label": "proxyroutes"
     },
     {
-      "label": "{ createCodexCompatibilityRouter }",
-      "file_type": "code",
-      "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L11",
-      "_origin": "ast",
-      "id": "backend_tests_image_generations_test_createcodexcompatibilityrouter",
-      "community": 38,
-      "community_name": "image-generations.test.js",
-      "norm_label": "{ createcodexcompatibilityrouter }"
-    },
-    {
       "label": "TEST_IMAGE_BYTES",
       "file_type": "code",
       "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L13",
+      "source_location": "L12",
       "_origin": "ast",
       "id": "backend_tests_image_generations_test_test_image_bytes",
       "community": 38,
@@ -13556,7 +13358,7 @@
       "label": "testImageBlob()",
       "file_type": "code",
       "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L19",
+      "source_location": "L18",
       "_origin": "ast",
       "id": "backend_tests_image_generations_test_testimageblob",
       "community": 38,
@@ -13567,7 +13369,7 @@
       "label": "request()",
       "file_type": "code",
       "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L181",
+      "source_location": "L179",
       "_origin": "ast",
       "id": "backend_tests_image_generations_test_request",
       "community": 38,
@@ -13578,7 +13380,7 @@
       "label": "multipartRequest()",
       "file_type": "code",
       "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L188",
+      "source_location": "L186",
       "_origin": "ast",
       "id": "backend_tests_image_generations_test_multipartrequest",
       "community": 38,
@@ -13845,8 +13647,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_multiplier_policy_test",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "multiplier-policy.test.js"
     },
     {
@@ -13933,8 +13735,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test",
-      "community": 139,
-      "community_name": ".key",
+      "community": 140,
+      "community_name": "billing-detail.js",
       "norm_label": "postgres-admin-integration.test.js"
     },
     {
@@ -13944,8 +13746,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_require",
-      "community": 139,
-      "community_name": ".key",
+      "community": 140,
+      "community_name": "billing-detail.js",
       "norm_label": "require"
     },
     {
@@ -13955,8 +13757,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_postgresadmincompatrepository",
-      "community": 139,
-      "community_name": ".key",
+      "community": 140,
+      "community_name": "billing-detail.js",
       "norm_label": "{ postgresadmincompatrepository }"
     },
     {
@@ -13966,8 +13768,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_createsecretbox",
-      "community": 139,
-      "community_name": ".key",
+      "community": 140,
+      "community_name": "billing-detail.js",
       "norm_label": "{ createsecretbox }"
     },
     {
@@ -13977,8 +13779,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_createpostgresidentity",
-      "community": 139,
-      "community_name": ".key",
+      "community": 140,
+      "community_name": "billing-detail.js",
       "norm_label": "{ createpostgresidentity }"
     },
     {
@@ -13988,8 +13790,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_createpostgresadminrouter",
-      "community": 139,
-      "community_name": ".key",
+      "community": 140,
+      "community_name": "billing-detail.js",
       "norm_label": "{ createpostgresadminrouter }"
     },
     {
@@ -13999,8 +13801,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_createpostgresuserrouter",
-      "community": 139,
-      "community_name": ".key",
+      "community": 140,
+      "community_name": "billing-detail.js",
       "norm_label": "{ createpostgresuserrouter }"
     },
     {
@@ -14010,8 +13812,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_postgresproxybillingpolicy",
-      "community": 139,
-      "community_name": ".key",
+      "community": 140,
+      "community_name": "billing-detail.js",
       "norm_label": "{ postgresproxybillingpolicy }"
     },
     {
@@ -14021,8 +13823,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_test",
-      "community": 150,
-      "community_name": "postgres-admin.test.js",
+      "community": 138,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "postgres-admin.test.js"
     },
     {
@@ -14032,8 +13834,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_test_require",
-      "community": 150,
-      "community_name": "postgres-admin.test.js",
+      "community": 138,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "require"
     },
     {
@@ -14043,8 +13845,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_test_createpostgresadminrouter",
-      "community": 150,
-      "community_name": "postgres-admin.test.js",
+      "community": 138,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "{ createpostgresadminrouter }"
     },
     {
@@ -14054,8 +13856,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_test_postgresadmincompatrepository",
-      "community": 150,
-      "community_name": "postgres-admin.test.js",
+      "community": 138,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "{ postgresadmincompatrepository }"
     },
     {
@@ -14065,8 +13867,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_test_adminonly",
-      "community": 150,
-      "community_name": "postgres-admin.test.js",
+      "community": 138,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "adminonly()"
     },
     {
@@ -14076,8 +13878,8 @@
       "source_location": "L98",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_test_request",
-      "community": 150,
-      "community_name": "postgres-admin.test.js",
+      "community": 138,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "request()"
     },
     {
@@ -14087,8 +13889,8 @@
       "source_location": "L213",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_test_query",
-      "community": 150,
-      "community_name": "postgres-admin.test.js",
+      "community": 138,
+      "community_name": "dashboard-read-model/legacy-repository.js",
       "norm_label": "query()"
     },
     {
@@ -14351,8 +14153,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_integration_test",
-      "community": 158,
-      "community_name": "postgres-payment-integration.test.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "postgres-payment-integration.test.js"
     },
     {
@@ -14362,8 +14164,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_integration_test_require",
-      "community": 158,
-      "community_name": "postgres-payment-integration.test.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "require"
     },
     {
@@ -14373,8 +14175,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_integration_test_createpostgrespaymentservice_signeasypay",
-      "community": 158,
-      "community_name": "postgres-payment-integration.test.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "{ createpostgrespaymentservice, signeasypay }"
     },
     {
@@ -14384,8 +14186,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_integration_test_createsecretbox",
-      "community": 158,
-      "community_name": "postgres-payment-integration.test.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "{ createsecretbox }"
     },
     {
@@ -14450,8 +14252,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_paymentoptionspool",
-      "community": 152,
-      "community_name": "mock-upstream.js",
+      "community": 124,
+      "community_name": "channel-docs.js",
       "norm_label": "paymentoptionspool"
     },
     {
@@ -14461,8 +14263,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_paymentoptionspool_constructor",
-      "community": 152,
-      "community_name": "mock-upstream.js",
+      "community": 124,
+      "community_name": "channel-docs.js",
       "norm_label": ".constructor()"
     },
     {
@@ -14472,8 +14274,8 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_paymentoptionspool_connect",
-      "community": 152,
-      "community_name": "mock-upstream.js",
+      "community": 124,
+      "community_name": "channel-docs.js",
       "norm_label": ".connect()"
     },
     {
@@ -14483,8 +14285,8 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_paymentoptionspool_query",
-      "community": 152,
-      "community_name": "mock-upstream.js",
+      "community": 124,
+      "community_name": "channel-docs.js",
       "norm_label": ".query()"
     },
     {
@@ -14505,8 +14307,8 @@
       "source_location": "L160",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_sealapikey",
-      "community": 140,
-      "community_name": "billing-detail.js",
+      "community": 152,
+      "community_name": "mock-upstream.js",
       "norm_label": "sealapikey()"
     },
     {
@@ -14516,8 +14318,8 @@
       "source_location": "L161",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_openapikey",
-      "community": 140,
-      "community_name": "billing-detail.js",
+      "community": 152,
+      "community_name": "mock-upstream.js",
       "norm_label": "openapikey()"
     },
     {
@@ -14722,7 +14524,7 @@
       "label": "pull()",
       "file_type": "code",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1005",
+      "source_location": "L988",
       "_origin": "ast",
       "id": "backend_tests_postgres_proxy_test_pull",
       "community": 97,
@@ -14733,7 +14535,7 @@
       "label": "renewLease()",
       "file_type": "code",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1164",
+      "source_location": "L1147",
       "_origin": "ast",
       "id": "backend_tests_postgres_proxy_test_renewlease",
       "community": 97,
@@ -14744,7 +14546,7 @@
       "label": "start()",
       "file_type": "code",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1180",
+      "source_location": "L1163",
       "_origin": "ast",
       "id": "backend_tests_postgres_proxy_test_start",
       "community": 97,
@@ -14755,7 +14557,7 @@
       "label": "cancel()",
       "file_type": "code",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1399",
+      "source_location": "L1382",
       "_origin": "ast",
       "id": "backend_tests_postgres_proxy_test_cancel",
       "community": 97,
@@ -15000,53 +14802,9 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_release_control_plane_overrides_test",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "release-control-plane-overrides.test.js"
-    },
-    {
-      "label": "existingCapabilities",
-      "file_type": "code",
-      "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L8",
-      "_origin": "ast",
-      "id": "backend_tests_release_control_plane_overrides_test_existingcapabilities",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
-      "norm_label": "existingcapabilities"
-    },
-    {
-      "label": "effectiveCapabilities",
-      "file_type": "code",
-      "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L9",
-      "_origin": "ast",
-      "id": "backend_tests_release_control_plane_overrides_test_effectivecapabilities",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
-      "norm_label": "effectivecapabilities"
-    },
-    {
-      "label": "imagePricesUsd",
-      "file_type": "code",
-      "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L10",
-      "_origin": "ast",
-      "id": "backend_tests_release_control_plane_overrides_test_imagepricesusd",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
-      "norm_label": "imagepricesusd"
-    },
-    {
-      "label": "targetRow()",
-      "file_type": "code",
-      "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L12",
-      "_origin": "ast",
-      "id": "backend_tests_release_control_plane_overrides_test_targetrow",
-      "community": 102,
-      "community_name": "apply-release-control-plane-overrides.js",
-      "norm_label": "targetrow()"
     },
     {
       "label": "request-limits.test.js",
@@ -15055,8 +14813,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_request_limits_test",
-      "community": 172,
-      "community_name": "request-limits.js",
+      "community": 0,
+      "community_name": "proxy.js",
       "norm_label": "request-limits.test.js"
     },
     {
@@ -15451,8 +15209,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_usage_settlement_module_test",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "usage-settlement-module.test.js"
     },
     {
@@ -15462,8 +15220,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_tests_usage_settlement_module_test_postgresmoney",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "postgresmoney()"
     },
     {
@@ -15473,8 +15231,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_usage_settlement_module_test_fakesettlementrepository",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 12,
+      "community_name": "pricing-sync.js",
       "norm_label": "fakesettlementrepository()"
     },
     {
@@ -17062,8 +16820,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "frontend_scripts_check_first_paint_budget_source",
-      "community": 117,
-      "community_name": "runtime-services.test.js",
+      "community": 13,
+      "community_name": "middleware/auth.js",
       "norm_label": "source()"
     },
     {
@@ -28010,7 +27768,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/scripts/apply-release-control-plane-overrides.js",
-      "source_location": "L127",
+      "source_location": "L124",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -28022,7 +27780,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/scripts/apply-release-control-plane-overrides.js",
-      "source_location": "L128",
+      "source_location": "L125",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -28045,7 +27803,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/scripts/apply-release-control-plane-overrides.js",
-      "source_location": "L96",
+      "source_location": "L93",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_scripts_apply_release_control_plane_overrides",
@@ -28089,7 +27847,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/scripts/apply-release-control-plane-overrides.js",
-      "source_location": "L129",
+      "source_location": "L126",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -28173,7 +27931,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/scripts/apply-release-control-plane-overrides.js",
-      "source_location": "L98",
+      "source_location": "L95",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_scripts_apply_release_control_plane_overrides_main",
@@ -28221,7 +27979,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/scripts/apply-release-control-plane-overrides.js",
-      "source_location": "L86",
+      "source_location": "L83",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_scripts_apply_release_control_plane_overrides_applyreleasecontrolplaneoverrides",
@@ -28233,7 +27991,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/scripts/apply-release-control-plane-overrides.js",
-      "source_location": "L108",
+      "source_location": "L105",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_scripts_apply_release_control_plane_overrides_main",
@@ -28258,7 +28016,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/scripts/apply-release-control-plane-overrides.js",
-      "source_location": "L106",
+      "source_location": "L103",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_scripts_apply_release_control_plane_overrides_main",
@@ -28270,7 +28028,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/scripts/apply-release-control-plane-overrides.js",
-      "source_location": "L108",
+      "source_location": "L105",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_scripts_apply_release_control_plane_overrides_main",
@@ -29820,7 +29578,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L242",
+      "source_location": "L238",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -30264,7 +30022,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L242",
+      "source_location": "L238",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -30277,7 +30035,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L249",
+      "source_location": "L245",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_shutdown",
@@ -30397,7 +30155,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L171",
+      "source_location": "L167",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -30493,7 +30251,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1290",
+      "source_location": "L1286",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -30841,7 +30599,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L168",
+      "source_location": "L164",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -31152,7 +30910,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L25",
+      "source_location": "L24",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31163,7 +30921,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L31",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31174,7 +30932,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L19",
+      "source_location": "L18",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31185,7 +30943,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L23",
+      "source_location": "L22",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31196,7 +30954,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L83",
+      "source_location": "L81",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31240,17 +30998,6 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L17",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_index",
-      "target": "backend_src_index_createcodexcompatibilityrouter",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/index.js",
       "source_location": "L13",
       "weight": 1.0,
       "_origin": "ast",
@@ -31284,7 +31031,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L18",
+      "source_location": "L17",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31350,7 +31097,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L80",
+      "source_location": "L78",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31361,7 +31108,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L109",
+      "source_location": "L105",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31394,7 +31141,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L20",
+      "source_location": "L19",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31416,7 +31163,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L21",
+      "source_location": "L20",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31427,7 +31174,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L28",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31438,7 +31185,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L37",
+      "source_location": "L36",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31449,7 +31196,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L26",
+      "source_location": "L25",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31460,18 +31207,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L104",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_index",
-      "target": "backend_src_index_publicproxyrouter",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/index.js",
-      "source_location": "L27",
+      "source_location": "L26",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31493,7 +31229,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L46",
+      "source_location": "L45",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31504,7 +31240,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L242",
+      "source_location": "L238",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31515,7 +31251,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L29",
+      "source_location": "L28",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31526,7 +31262,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L244",
+      "source_location": "L240",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31537,7 +31273,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L166",
+      "source_location": "L162",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31548,7 +31284,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L34",
+      "source_location": "L33",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31559,7 +31295,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L24",
+      "source_location": "L23",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31571,7 +31307,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L19",
+      "source_location": "L18",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31583,7 +31319,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L19",
+      "source_location": "L18",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31595,7 +31331,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L19",
+      "source_location": "L18",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31607,7 +31343,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L18",
+      "source_location": "L17",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31619,7 +31355,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L18",
+      "source_location": "L17",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31631,7 +31367,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L25",
+      "source_location": "L24",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31643,7 +31379,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L23",
+      "source_location": "L22",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31691,31 +31427,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L17",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_index",
-      "target": "backend_src_routes_codex_compat",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/index.js",
-      "source_location": "L17",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_index",
-      "target": "backend_src_routes_codex_compat_createcodexcompatibilityrouter",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/index.js",
-      "source_location": "L28",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31871,7 +31583,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L26",
+      "source_location": "L25",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31883,7 +31595,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L27",
+      "source_location": "L26",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31919,7 +31631,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L24",
+      "source_location": "L23",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31955,7 +31667,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L29",
+      "source_location": "L28",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31967,7 +31679,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L29",
+      "source_location": "L28",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31979,7 +31691,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/index.js",
-      "source_location": "L20",
+      "source_location": "L19",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index",
@@ -31992,7 +31704,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "backend/src/index.js",
-      "source_location": "L184",
+      "source_location": "L180",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -32004,7 +31716,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L177",
+      "source_location": "L173",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -32016,7 +31728,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L180",
+      "source_location": "L176",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -32028,7 +31740,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L178",
+      "source_location": "L174",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -32040,7 +31752,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L188",
+      "source_location": "L184",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -32052,7 +31764,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L189",
+      "source_location": "L185",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -32064,7 +31776,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L187",
+      "source_location": "L183",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -32076,7 +31788,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L179",
+      "source_location": "L175",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -32088,7 +31800,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/index.js",
-      "source_location": "L169",
+      "source_location": "L165",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_index_start",
@@ -40940,7 +40652,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L47",
+      "source_location": "L43",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_compactbody",
@@ -46726,112 +46438,6 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/routes/codex-compat.js",
-      "source_location": "L3",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_routes_codex_compat",
-      "target": "backend_src_routes_codex_compat_codex_root_post_paths",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "indirect_call",
-      "confidence": "INFERRED",
-      "source_file": "backend/src/routes/codex-compat.js",
-      "source_location": "L16",
-      "weight": 1.0,
-      "_origin": "ast",
-      "context": "collection",
-      "source": "backend_src_routes_codex_compat",
-      "target": "backend_src_routes_codex_compat_createcodexcompatibilityrouter",
-      "confidence_score": 0.5
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/routes/codex-compat.js",
-      "source_location": "L1",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_routes_codex_compat",
-      "target": "backend_src_routes_codex_compat_express",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L6",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_codex_compat_test",
-      "target": "backend_src_routes_codex_compat",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L11",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_image_generations_test",
-      "target": "backend_src_routes_codex_compat",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L14",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_codex_compat_test_serve",
-      "target": "backend_src_routes_codex_compat_express"
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L6",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_codex_compat_test",
-      "target": "backend_src_routes_codex_compat_createcodexcompatibilityrouter",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L22",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_codex_compat_test_serve",
-      "target": "backend_src_routes_codex_compat_createcodexcompatibilityrouter"
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L11",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_image_generations_test",
-      "target": "backend_src_routes_codex_compat_createcodexcompatibilityrouter",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/routes/payment.js",
@@ -47508,7 +47114,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/routes/postgres-proxy.js",
-      "source_location": "L788",
+      "source_location": "L783",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -47564,7 +47170,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/routes/postgres-proxy.js",
-      "source_location": "L788",
+      "source_location": "L783",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -47809,7 +47415,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/postgres-proxy.js",
-      "source_location": "L703",
+      "source_location": "L699",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_postgres_proxy_createpostgresproxyrouter",
@@ -48983,7 +48589,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1289",
+      "source_location": "L1285",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy",
@@ -48994,18 +48600,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1520",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_routes_proxy",
-      "target": "backend_src_routes_proxy_handleimageeditrequest",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1507",
+      "source_location": "L1503",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy",
@@ -49177,18 +48772,6 @@
       "source": "backend_src_routes_proxy",
       "target": "backend_src_routes_proxy_normalizevisiblechatcontent",
       "confidence_score": 1.0
-    },
-    {
-      "relation": "indirect_call",
-      "confidence": "INFERRED",
-      "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1538",
-      "weight": 1.0,
-      "_origin": "ast",
-      "context": "argument",
-      "source": "backend_src_routes_proxy",
-      "target": "backend_src_routes_proxy_parseimageeditrequest",
-      "confidence_score": 0.5
     },
     {
       "relation": "contains",
@@ -49957,7 +49540,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1349",
+      "source_location": "L1345",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50065,7 +49648,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1361",
+      "source_location": "L1357",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50101,7 +49684,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1362",
+      "source_location": "L1358",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50257,7 +49840,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1363",
+      "source_location": "L1359",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50497,7 +50080,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1421",
+      "source_location": "L1417",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50509,7 +50092,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1449",
+      "source_location": "L1445",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50521,7 +50104,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1482",
+      "source_location": "L1478",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50689,7 +50272,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1354",
+      "source_location": "L1350",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50749,7 +50332,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1370",
+      "source_location": "L1366",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50797,7 +50380,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1496",
+      "source_location": "L1492",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50868,21 +50451,9 @@
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
-      "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1286",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_routes_proxy_parseimageeditrequest",
-      "target": "backend_src_routes_proxy_parseimagemultipart",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1412",
+      "source_location": "L1408",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50894,7 +50465,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1436",
+      "source_location": "L1432",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50906,7 +50477,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1427",
+      "source_location": "L1423",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50918,7 +50489,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1357",
+      "source_location": "L1353",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50930,7 +50501,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1453",
+      "source_location": "L1449",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50942,7 +50513,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1417",
+      "source_location": "L1413",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50954,7 +50525,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1430",
+      "source_location": "L1426",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50966,7 +50537,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1298",
+      "source_location": "L1294",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50978,7 +50549,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1305",
+      "source_location": "L1301",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -50990,7 +50561,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1294",
+      "source_location": "L1290",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -51002,7 +50573,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1432",
+      "source_location": "L1428",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -51014,7 +50585,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1330",
+      "source_location": "L1326",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -51026,7 +50597,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1419",
+      "source_location": "L1415",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -51038,7 +50609,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1372",
+      "source_location": "L1368",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -51050,7 +50621,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1444",
+      "source_location": "L1440",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handleimagebilledrequest",
@@ -51061,19 +50632,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1526",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_routes_proxy_handleimageeditrequest",
-      "target": "backend_src_routes_proxy_handleimagebilledrequest",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1511",
+      "source_location": "L1507",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handlemultipartimagerequest",
@@ -51084,21 +50643,9 @@
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
-      "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1522",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_routes_proxy_handleimageeditrequest",
-      "target": "backend_src_routes_proxy_handlemultipartimagerequest",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/routes/proxy.js",
-      "source_location": "L1509",
+      "source_location": "L1505",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_routes_proxy_handlemultipartimagerequest",
@@ -54449,7 +53996,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L257",
+      "source_location": "L181",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54460,7 +54007,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L265",
+      "source_location": "L189",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54471,7 +54018,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L41",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54482,7 +54029,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L143",
+      "source_location": "L139",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54493,7 +54040,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L407",
+      "source_location": "L318",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -54505,7 +54052,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L45",
+      "source_location": "L41",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54516,7 +54063,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L409",
+      "source_location": "L320",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -54528,7 +54075,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L273",
+      "source_location": "L197",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54539,7 +54086,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L285",
+      "source_location": "L209",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54550,7 +54097,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L281",
+      "source_location": "L205",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54558,21 +54105,10 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L150",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor",
-      "target": "backend_src_utils_image_request_executor_decodeimagedataurl",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L408",
+      "source_location": "L319",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -54595,7 +54131,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L410",
+      "source_location": "L321",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -54607,7 +54143,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L411",
+      "source_location": "L322",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -54619,7 +54155,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L406",
+      "source_location": "L317",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -54642,17 +54178,6 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L10",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor",
-      "target": "backend_src_utils_image_request_executor_json_image_edit_fields",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
       "source_location": "L1",
       "weight": 1.0,
       "_origin": "ast",
@@ -54664,7 +54189,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L15",
+      "source_location": "L11",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54686,7 +54211,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L134",
+      "source_location": "L130",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54697,7 +54222,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L125",
+      "source_location": "L121",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
@@ -54708,7 +54233,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L412",
+      "source_location": "L323",
       "weight": 1.0,
       "_origin": "ast",
       "context": "collection",
@@ -54731,33 +54256,11 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L222",
+      "source_location": "L146",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor",
       "target": "backend_src_utils_image_request_executor_validateimagerequest",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L195",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor",
-      "target": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L167",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor",
-      "target": "backend_src_utils_image_request_executor_validatejsonimagereferences",
       "confidence_score": 1.0
     },
     {
@@ -54777,7 +54280,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L311",
+      "source_location": "L235",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_createimageuploadmiddleware",
@@ -54790,7 +54293,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L78",
+      "source_location": "L74",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_imagefilesfromrequest",
@@ -54802,7 +54305,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L239",
+      "source_location": "L163",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_validateimagerequest",
@@ -54814,54 +54317,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L204",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "target": "backend_src_utils_image_request_executor_output_formats"
-    },
-    {
-      "relation": "references",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L243",
+      "source_location": "L167",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_validateimagerequest",
       "target": "backend_src_utils_image_request_executor_input_fidelities"
-    },
-    {
-      "relation": "references",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L208",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "target": "backend_src_utils_image_request_executor_input_fidelities"
-    },
-    {
-      "relation": "references",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L196",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "target": "backend_src_utils_image_request_executor_json_image_edit_fields"
     },
     {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L147",
+      "source_location": "L143",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_assertsupportedfields",
@@ -54873,19 +54340,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L153",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_decodeimagedataurl",
-      "target": "backend_src_utils_image_request_executor_requesterror",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L70",
+      "source_location": "L66",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_imagefilesfromrequest",
@@ -54897,7 +54352,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L138",
+      "source_location": "L134",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_parsecompression",
@@ -54909,7 +54364,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L129",
+      "source_location": "L125",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_parsepositiveinteger",
@@ -54921,7 +54376,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L224",
+      "source_location": "L148",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_validateimagerequest",
@@ -54933,31 +54388,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L197",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "target": "backend_src_utils_image_request_executor_requesterror",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L169",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_validatejsonimagereferences",
-      "target": "backend_src_utils_image_request_executor_requesterror",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L360",
+      "source_location": "L271",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_imagerequestexecutor_prepare",
@@ -54969,7 +54400,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L47",
+      "source_location": "L43",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_compactbody",
@@ -54981,7 +54412,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L223",
+      "source_location": "L147",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_validateimagerequest",
@@ -54993,31 +54424,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L199",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "target": "backend_src_utils_image_request_executor_compactbody",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L158",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_decodeimagedataurl",
-      "target": "backend_src_utils_image_request_executor_detectedimagemimetype",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L81",
+      "source_location": "L77",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_imagefilesfromrequest",
@@ -55041,7 +54448,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L312",
+      "source_location": "L236",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_createimageuploadmiddleware",
@@ -55065,7 +54472,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L248",
+      "source_location": "L172",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_validateimagerequest",
@@ -55077,19 +54484,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L215",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "target": "backend_src_utils_image_request_executor_parsepositiveinteger",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L251",
+      "source_location": "L175",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_validateimagerequest",
@@ -55101,19 +54496,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L211",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "target": "backend_src_utils_image_request_executor_parsecompression",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L231",
+      "source_location": "L155",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_validateimagerequest",
@@ -55125,43 +54508,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L180",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_validatejsonimagereferences",
-      "target": "backend_src_utils_image_request_executor_decodeimagedataurl",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L202",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "target": "backend_src_utils_image_request_executor_validatejsonimagereferences",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L347",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_src_utils_image_request_executor_imagerequestexecutor_prepare",
-      "target": "backend_src_utils_image_request_executor_validatejsonimageeditrequest",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L359",
+      "source_location": "L270",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_imagerequestexecutor_prepare",
@@ -55173,7 +54520,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L275",
+      "source_location": "L199",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_createmultipartpayload",
@@ -55185,7 +54532,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L276",
+      "source_location": "L200",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_createmultipartpayload",
@@ -55197,7 +54544,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L392",
+      "source_location": "L303",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_imagerequestexecutor_execute",
@@ -55209,7 +54556,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L294",
+      "source_location": "L218",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_createtransformationbody",
@@ -55222,7 +54569,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L301",
+      "source_location": "L225",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_createtransformationbody",
@@ -55233,7 +54580,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L365",
+      "source_location": "L276",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_imagerequestexecutor_prepare",
@@ -55244,7 +54591,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L341",
+      "source_location": "L265",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_imagerequestexecutor",
@@ -55255,7 +54602,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L386",
+      "source_location": "L297",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_imagerequestexecutor",
@@ -55266,7 +54613,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "backend/src/utils/image-request-executor.js",
-      "source_location": "L345",
+      "source_location": "L269",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_src_utils_image_request_executor_imagerequestexecutor",
@@ -58067,50 +57414,6 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L6",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_codex_compat_test",
-      "target": "backend_tests_codex_compat_test_createcodexcompatibilityrouter",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L5",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_codex_compat_test",
-      "target": "backend_tests_codex_compat_test_require",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L13",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_codex_compat_test",
-      "target": "backend_tests_codex_compat_test_serve",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/codex-compat.test.js",
-      "source_location": "L7",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_codex_compat_test",
-      "target": "backend_tests_codex_compat_test_servers",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
       "source_file": "backend/tests/easypay-payment.test.js",
       "source_location": "L64",
       "weight": 1.0,
@@ -58367,17 +57670,6 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L11",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_image_generations_test",
-      "target": "backend_tests_image_generations_test_createcodexcompatibilityrouter",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/image-generations.test.js",
       "source_location": "L8",
       "weight": 1.0,
       "_origin": "ast",
@@ -58389,7 +57681,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L188",
+      "source_location": "L186",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_image_generations_test",
@@ -58411,7 +57703,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L181",
+      "source_location": "L179",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_image_generations_test",
@@ -58433,7 +57725,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L13",
+      "source_location": "L12",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_image_generations_test",
@@ -58444,7 +57736,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/image-generations.test.js",
-      "source_location": "L19",
+      "source_location": "L18",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_image_generations_test",
@@ -59248,7 +58540,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1459",
+      "source_location": "L1442",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59259,7 +58551,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1532",
+      "source_location": "L1515",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59292,7 +58584,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1538",
+      "source_location": "L1521",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59303,7 +58595,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1542",
+      "source_location": "L1525",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59314,7 +58606,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1005",
+      "source_location": "L988",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59336,7 +58628,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1250",
+      "source_location": "L1233",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59347,7 +58639,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1249",
+      "source_location": "L1232",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59358,7 +58650,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1539",
+      "source_location": "L1522",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59369,7 +58661,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1164",
+      "source_location": "L1147",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59380,7 +58672,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1537",
+      "source_location": "L1520",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59402,7 +58694,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1540",
+      "source_location": "L1523",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59413,7 +58705,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/postgres-proxy.test.js",
-      "source_location": "L1456",
+      "source_location": "L1439",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_postgres_proxy_test",
@@ -59595,50 +58887,6 @@
       "_origin": "ast",
       "source": "backend_tests_registration_test",
       "target": "backend_tests_registration_test_require",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L9",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_release_control_plane_overrides_test",
-      "target": "backend_tests_release_control_plane_overrides_test_effectivecapabilities",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L8",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_release_control_plane_overrides_test",
-      "target": "backend_tests_release_control_plane_overrides_test_existingcapabilities",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L10",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_release_control_plane_overrides_test",
-      "target": "backend_tests_release_control_plane_overrides_test_imagepricesusd",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L12",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "backend_tests_release_control_plane_overrides_test",
-      "target": "backend_tests_release_control_plane_overrides_test_targetrow",
       "confidence_score": 1.0
     },
     {
@@ -71992,5 +71240,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "d41b9865db88baac45a44ad978e7e1ecccba6788"
+  "built_at_commit": "697c393f3025fff9c67a1a5bf1a120fe813a036c"
 }

@@ -28,6 +28,60 @@ function file(name, mimetype = 'image/png', content = null) {
 }
 
 describe('ImageRequestExecutor', () => {
+  it('接受 Codex JSON 图片编辑并保留远程引用给上游', () => {
+    const executor = new ImageRequestExecutor({ postWithSafeFailover: options => options });
+    const pngDataUrl = `data:image/png;base64,${imageBytes('image/png').toString('base64')}`;
+    const prepared = executor.prepare({
+      endpoint: 'images/edits',
+      body: {
+        model: 'image-model',
+        prompt: 'change the lighting',
+        images: [
+          { image_url: pngDataUrl },
+          { image_url: 'https://example.test/reference.webp' },
+        ],
+        output_format: 'webp',
+        output_compression: 60,
+      },
+    });
+
+    expect(prepared).toEqual({
+      endpoint: 'images/edits',
+      operation: 'edit',
+      body: {
+        model: 'image-model',
+        prompt: 'change the lighting',
+        images: [
+          { image_url: pngDataUrl },
+          { image_url: 'https://example.test/reference.webp' },
+        ],
+        n: 1,
+        output_format: 'webp',
+        output_compression: 60,
+      },
+      metadata: { inputCount: 2, outputFormat: 'webp', outputCompression: 60 },
+    });
+  });
+
+  it('拒绝无效、非 HTTPS、超量或过大的 Codex JSON 图片引用', () => {
+    const executor = new ImageRequestExecutor({ postWithSafeFailover: options => options });
+    const request = images => ({
+      endpoint: 'images/edits',
+      body: { model: 'image-model', prompt: 'change it', images },
+    });
+    expect(() => executor.prepare(request([{ image_url: 'http://example.test/source.png' }]))).toThrow('HTTPS');
+    expect(() => executor.prepare(request([{ image_url: 'data:image/png;base64,bm90LWEtcG5n' }]))).toThrow('格式不一致');
+    expect(() => executor.prepare(request(Array.from(
+      { length: IMAGE_MAX_FILES + 1 },
+      () => ({ image_url: 'https://example.test/source.png' }),
+    )))).toThrow('最多提供');
+    const oversized = Buffer.concat([imageBytes('image/png'), Buffer.alloc(25 * 1024 * 1024)]);
+    expect(() => executor.prepare(request([{
+      image_url: `data:image/png;base64,${oversized.toString('base64')}`,
+    }]))).toThrow('单张图片超过');
+  });
+
+
   it('将扩展变换转换为非流式 Responses 图片编辑工具', () => {
     const executor = new ImageRequestExecutor({ postWithSafeFailover: options => options });
     const files = { images: [file('source.jpg', 'image/jpeg')], mask: file('mask.png') };

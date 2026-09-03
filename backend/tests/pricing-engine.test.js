@@ -56,9 +56,9 @@ describe('官方定价换算与用户扣费', () => {
   });
 
   it('图片未配置价格时使用 Sub2API 默认价和尺寸倍率', () => {
-    expect(resolveImageUnitPrice({ serializedPrices: '{}', sizeTier: '1K' })).toBeCloseTo(0.134, 8);
-    expect(resolveImageUnitPrice({ serializedPrices: '{}', sizeTier: '2K' })).toBeCloseTo(0.201, 8);
-    expect(resolveImageUnitPrice({ serializedPrices: '{}', sizeTier: '4K' })).toBeCloseTo(0.268, 8);
+    expect(resolveImageUnitPrice({ serializedPrices: '{}', sizeTier: '1K' })).toBeCloseTo(0.031, 8);
+    expect(resolveImageUnitPrice({ serializedPrices: '{}', sizeTier: '2K' })).toBeCloseTo(0.0465, 8);
+    expect(resolveImageUnitPrice({ serializedPrices: '{}', sizeTier: '4K' })).toBeCloseTo(0.062, 8);
   });
 
   it('图片显式档位价格优先于 Sub2API 默认价', () => {

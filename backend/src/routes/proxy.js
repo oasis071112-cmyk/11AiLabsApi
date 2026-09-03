@@ -1281,6 +1281,10 @@ router.get('/models', authenticateApiKey, listModels);
 
 const imageRequestExecutor = new ImageRequestExecutor({ postWithSafeFailover });
 const parseImageMultipart = createImageUploadMiddleware();
+function parseImageEditRequest(req, res, next) {
+  if (req.is('application/json')) return next();
+  return parseImageMultipart(req, res, next);
+}
 
 async function handleImageBilledRequest(req, res, { endpoint, endpointCapability, preparedRequest = null }) {
   const db = getDatabase();
@@ -1513,10 +1517,25 @@ function handleMultipartImageRequest(req, res, { endpoint, endpointCapability })
   }
 }
 
+function handleImageEditRequest(req, res, { endpoint, endpointCapability }) {
+  if (!req.is('application/json')) {
+    return handleMultipartImageRequest(req, res, { endpoint, endpointCapability });
+  }
+  try {
+    const preparedRequest = imageRequestExecutor.prepare({ endpoint, body: req.body || {} });
+    return handleImageBilledRequest(req, res, { endpoint, endpointCapability, preparedRequest });
+  } catch (error) {
+    return res.status(error.status || 400).json({ error: {
+      message: error.message || '图片 JSON 请求无效',
+      type: error.type || 'invalid_image_request',
+    } });
+  }
+}
+
 router.post('/images/generations', authenticateApiKey, (req, res) => handleImageBilledRequest(
   req, res, { endpoint: 'images/generations', endpointCapability: 'image_generations' },
 ));
-router.post('/images/edits', authenticateApiKey, parseImageMultipart, (req, res) => handleMultipartImageRequest(
+router.post('/images/edits', authenticateApiKey, parseImageEditRequest, (req, res) => handleImageEditRequest(
   req, res, { endpoint: 'images/edits', endpointCapability: 'image_edits' },
 ));
 router.post('/images/variations', authenticateApiKey, parseImageMultipart, (req, res) => handleMultipartImageRequest(

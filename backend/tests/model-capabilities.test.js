@@ -239,7 +239,7 @@ describe('模型能力与图片请求边界', () => {
     const userModelsResponse = await request('/api/user/models', { headers: { Authorization: `Bearer ${userToken}` } });
     const userModel = (await userModelsResponse.json()).data.find(model => model.model_code === imageModelCode);
     expect(userModel).toMatchObject({
-      default_image_unit_price: 0.201,
+      default_image_unit_price: 0.0465,
       default_image_currency: 'USD',
     });
     expect(userModel).not.toHaveProperty('official_image_prices');

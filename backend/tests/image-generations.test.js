@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url);
 const { initDatabase, getDatabase } = require('../src/database/init.js');
 const userRoutes = require('../src/routes/user.js');
 const proxyRoutes = require('../src/routes/proxy.js');
+const { createCodexCompatibilityRouter } = require('../src/routes/codex-compat.js');
 
 const TEST_IMAGE_BYTES = {
   'image/png': Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -166,6 +167,7 @@ describe('图片生成端点计费', () => {
     app.use(express.json({ limit: '2mb' }));
     app.use('/api/user', userRoutes);
     app.use('/v1', proxyRoutes);
+    app.use(createCodexCompatibilityRouter({ proxyRouter: proxyRoutes }));
     await new Promise(resolve => { apiServer = app.listen(0, '127.0.0.1', resolve); });
     apiBaseUrl = `http://127.0.0.1:${apiServer.address().port}`;
   });
@@ -191,6 +193,26 @@ describe('图片生成端点计费', () => {
     });
   }
 
+  it('Codex 根路径保留 Bearer 鉴权且 actor header 不能单独授权', async () => {
+    const unauthorized = await request('/images/generations', {
+      method: 'POST',
+      headers: { 'x-openai-actor-authorization': 'local-image-extension' },
+      body: JSON.stringify({ model: modelCode, prompt: 'draw', size: '1024x1024', n: 1 }),
+    });
+    expect(unauthorized.status).toBe(401);
+
+    const authorized = await request('/images/generations', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'x-openai-actor-authorization': 'local-image-extension',
+      },
+      body: JSON.stringify({ model: modelCode, prompt: 'draw', size: '1024x1024', n: 1 }),
+    });
+    expect(authorized.status).toBe(200);
+    getDatabase().prepare('UPDATE wallets SET quota_balance=100,frozen_balance=0 WHERE user_id=?').run(userId);
+  });
+
   it('按上游实际返回张数结算并保存一条图片价格快照', async () => {
     const response = await request('/v1/images/generations', {
       method: 'POST',
@@ -208,19 +230,19 @@ describe('图片生成端点计费', () => {
       billing_model_source: 'requested',
       image_count: 2,
       image_size: '1K',
-      official_image_unit_price: 0.134,
+      official_image_unit_price: 0.031,
       billing_multiplier_image: 1.2,
     });
-    expect(log.total_cost).toBeCloseTo(2.2512, 8);
+    expect(log.total_cost).toBeCloseTo(0.5208, 8);
     expect(db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance)
-      .toBeCloseTo(97.7488, 8);
+      .toBeCloseTo(99.4792, 8);
 
     const logsResponse = await request('/api/user/logs?limit=5', {
       headers: { Authorization: `Bearer ${userToken}` },
     });
     const userLog = (await logsResponse.json()).data.find(item => item.request_id === log.request_id);
     expect(userLog.billing_detail).toMatchObject({ mode: 'image_snapshot', reconciled: true });
-    expect(userLog).toMatchObject({ default_image_unit_price: 0.201, default_image_currency: 'USD' });
+    expect(userLog).toMatchObject({ default_image_unit_price: 0.0465, default_image_currency: 'USD' });
     expect(userLog).not.toHaveProperty('billing_model');
     expect(userLog).not.toHaveProperty('official_image_unit_price');
     expect(userLog.billing_detail.dimensions[0]).not.toHaveProperty('billingModel');
@@ -244,7 +266,7 @@ describe('图片生成端点计费', () => {
         billing_multiplier_source_image: 'routing_group',
         upstream_channel_name: expect.stringContaining('image-channel-'),
       });
-      expect(log.total_cost).toBeCloseTo(3.3768, 8);
+      expect(log.total_cost).toBeCloseTo(0.7812, 8);
     } finally {
       db.prepare('UPDATE routing_groups SET billing_multiplier_image=NULL WHERE id=?').run(groupId);
     }
@@ -304,7 +326,7 @@ describe('图片生成端点计费', () => {
         image_size: '1K',
         billing_multiplier_image: 1.8,
       });
-      expect(log.total_cost).toBeCloseTo(1.6884, 8);
+      expect(log.total_cost).toBeCloseTo(0.3906, 8);
     } finally {
       db.prepare('UPDATE routing_groups SET billing_multiplier_image=NULL WHERE id=?').run(groupId);
     }
@@ -379,12 +401,12 @@ describe('图片生成端点计费', () => {
       image_input_size: '1K',
       image_output_size: '4K',
       image_size_source: 'output',
-      official_image_unit_price: 0.268,
+      official_image_unit_price: 0.062,
     });
     expect(JSON.parse(log.image_size_breakdown)).toEqual(['4K', '4K']);
-    expect(log.total_cost).toBeCloseTo(4.5024, 8);
+    expect(log.total_cost).toBeCloseTo(1.0416, 8);
     expect(db.prepare('SELECT quota_balance FROM wallets WHERE user_id=?').get(userId).quota_balance)
-      .toBeCloseTo(before - 4.5024, 8);
+      .toBeCloseTo(before - 1.0416, 8);
 
     upstreamImageSize = null;
     db.prepare('UPDATE models SET official_image_prices=? WHERE model_code=?')
@@ -508,6 +530,39 @@ describe('图片生成端点计费', () => {
       image_count,billing_mode FROM api_request_logs WHERE api_key_id=? AND status='success' ORDER BY id DESC`).get(apiKeyId);
     expect(log).toMatchObject({
       image_operation: 'edit', image_input_count: 1, image_count: 2, billing_mode: 'image',
+    });
+  });
+
+  it('Codex JSON 图片编辑透传图片引用并按实际输出结算', async () => {
+    const source = `data:image/png;base64,${TEST_IMAGE_BYTES['image/png'].toString('base64')}`;
+    const response = await request('/v1/images/edits', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: modelCode,
+        prompt: 'replace the sky',
+        images: [{ image_url: source }, { image_url: 'https://example.test/reference.webp' }],
+        output_format: 'webp',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(lastUpstreamRequest).toMatchObject({
+      url: '/v1/images/edits',
+      contentType: expect.stringContaining('application/json'),
+      body: {
+        model: 'upstream-image-model',
+        prompt: 'replace the sky',
+        images: [{ image_url: source }, { image_url: 'https://example.test/reference.webp' }],
+        n: 1,
+        output_format: 'webp',
+      },
+    });
+    const log = getDatabase().prepare(`SELECT image_operation,image_input_count,image_output_format,
+      image_count,billing_mode FROM api_request_logs WHERE api_key_id=? AND status='success' ORDER BY id DESC`).get(apiKeyId);
+    expect(log).toMatchObject({
+      image_operation: 'edit', image_input_count: 2, image_output_format: 'webp',
+      image_count: 2, billing_mode: 'image',
     });
   });
 
