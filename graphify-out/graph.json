@@ -623,8 +623,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "backend_package_dependencies_axios",
-      "community": 5,
-      "community_name": "dependencies",
+      "community": 158,
+      "community_name": "postgres-payment-integration.test.js",
       "norm_label": "axios"
     },
     {
@@ -634,8 +634,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "backend_package_json_axios",
-      "community": 5,
-      "community_name": "dependencies",
+      "community": 158,
+      "community_name": "postgres-payment-integration.test.js",
       "norm_label": "axios"
     },
     {
@@ -645,8 +645,8 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "backend_package_dependencies_bcryptjs",
-      "community": 162,
-      "community_name": "axios",
+      "community": 5,
+      "community_name": "dependencies",
       "norm_label": "bcryptjs"
     },
     {
@@ -656,8 +656,8 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "bcryptjs",
-      "community": 162,
-      "community_name": "axios",
+      "community": 5,
+      "community_name": "dependencies",
       "norm_label": "bcryptjs"
     },
     {
@@ -1855,8 +1855,8 @@
       "source_location": "L264",
       "_origin": "ast",
       "id": "backend_src_database_init_getdatabase",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 33,
+      "community_name": "getDatabase",
       "norm_label": "getdatabase()"
     },
     {
@@ -2570,8 +2570,8 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "backend_src_infrastructure_postgres_assertpostgresschemacurrent",
-      "community": 11,
-      "community_name": "routing-group-models.js",
+      "community": 161,
+      "community_name": "worker-runtime.test.js",
       "norm_label": "assertpostgresschemacurrent()"
     },
     {
@@ -2614,8 +2614,8 @@
       "source_location": "L140",
       "_origin": "ast",
       "id": "backend_src_infrastructure_postgres_withtransaction",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 128,
+      "community_name": "PostgresAccountRepository",
       "norm_label": "withtransaction()"
     },
     {
@@ -5188,8 +5188,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_legacy_repository_isodate",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": "isodate()"
     },
     {
@@ -5199,8 +5199,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_legacy_repository_legacywhere",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": "legacywhere()"
     },
     {
@@ -5210,8 +5210,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_legacy_repository_legacydashboardrepository",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": "legacydashboardrepository"
     },
     {
@@ -5221,8 +5221,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_legacy_repository_legacydashboardrepository_constructor",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": ".constructor()"
     },
     {
@@ -5232,8 +5232,8 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_legacy_repository_legacydashboardrepository_getuserdashboardsnapshot",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": ".getuserdashboardsnapshot()"
     },
     {
@@ -5243,8 +5243,8 @@
       "source_location": "L74",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_legacy_repository_legacydashboardrepository_getuserlogsoverview",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": ".getuserlogsoverview()"
     },
     {
@@ -5254,8 +5254,8 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_legacy_repository_legacydashboardrepository_getadmindashboardsnapshot",
-      "community": 136,
-      "community_name": "vue-chartjs",
+      "community": 142,
+      "community_name": "logger.js",
       "norm_label": ".getadmindashboardsnapshot()"
     },
     {
@@ -5375,8 +5375,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_redis_cache",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": "redis-cache.js"
     },
     {
@@ -5386,8 +5386,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_redis_cache_redissnapshotcache",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": "redissnapshotcache"
     },
     {
@@ -5397,8 +5397,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_redis_cache_redissnapshotcache_constructor",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": ".constructor()"
     },
     {
@@ -5408,8 +5408,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_redis_cache_redissnapshotcache_key",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": ".key()"
     },
     {
@@ -5419,8 +5419,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_redis_cache_redissnapshotcache_get",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": ".get()"
     },
     {
@@ -5430,8 +5430,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_redis_cache_redissnapshotcache_set",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": ".set()"
     },
     {
@@ -5441,8 +5441,8 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "backend_src_modules_dashboard_read_model_redis_cache_redissnapshotcache_bumpversion",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": ".bumpversion()"
     },
     {
@@ -5529,8 +5529,8 @@
       "source_location": "L106",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_asstring",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "asstring()"
     },
     {
@@ -5540,8 +5540,8 @@
       "source_location": "L110",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_normalizerediskeyprefix",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "normalizerediskeyprefix()"
     },
     {
@@ -5551,8 +5551,8 @@
       "source_location": "L118",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisaccountkey",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "redisaccountkey()"
     },
     {
@@ -5562,8 +5562,8 @@
       "source_location": "L126",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_extendrediscooldown",
-      "community": 12,
-      "community_name": "pricing-sync.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "extendrediscooldown()"
     },
     {
@@ -5639,8 +5639,8 @@
       "source_location": "L204",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "redisleasestore"
     },
     {
@@ -5650,8 +5650,8 @@
       "source_location": "L205",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore_constructor",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".constructor()"
     },
     {
@@ -5661,8 +5661,8 @@
       "source_location": "L217",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore_acquire",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".acquire()"
     },
     {
@@ -5672,8 +5672,8 @@
       "source_location": "L257",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore_release",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".release()"
     },
     {
@@ -5683,8 +5683,8 @@
       "source_location": "L277",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore_renew",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".renew()"
     },
     {
@@ -5694,8 +5694,8 @@
       "source_location": "L300",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_index_redisleasestore_setcooldown",
-      "community": 129,
-      "community_name": "dotenv",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".setcooldown()"
     },
     {
@@ -5793,8 +5793,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "postgres-account-repository.js"
     },
     {
@@ -5804,8 +5804,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_parsejson",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "parsejson()"
     },
     {
@@ -5815,8 +5815,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_numbervalue",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "numbervalue()"
     },
     {
@@ -5826,8 +5826,8 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_mapaccountrows",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "mapaccountrows()"
     },
     {
@@ -5837,8 +5837,8 @@
       "source_location": "L61",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "postgresaccountrepository"
     },
     {
@@ -5848,8 +5848,8 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository_constructor",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".constructor()"
     },
     {
@@ -5859,8 +5859,8 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository_listcandidates",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".listcandidates()"
     },
     {
@@ -5870,8 +5870,8 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository_getfallbackgroupid",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".getfallbackgroupid()"
     },
     {
@@ -5881,8 +5881,8 @@
       "source_location": "L123",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository_reporthealth",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".reporthealth()"
     },
     {
@@ -5892,8 +5892,8 @@
       "source_location": "L135",
       "_origin": "ast",
       "id": "backend_src_modules_gateway_scheduler_postgres_account_repository_postgresaccountrepository_markcooldown",
-      "community": 128,
-      "community_name": "PostgresAccountRepository",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".markcooldown()"
     },
     {
@@ -6145,8 +6145,8 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "backend_src_modules_postgres_payment_index_firstsetting",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": "firstsetting()"
     },
     {
@@ -6233,8 +6233,8 @@
       "source_location": "L132",
       "_origin": "ast",
       "id": "backend_src_modules_postgres_payment_index_createpostgrespaymentservice",
-      "community": 158,
-      "community_name": "postgres-payment-integration.test.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "createpostgrespaymentservice()"
     },
     {
@@ -6904,8 +6904,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "usage-settlement/index.js"
     },
     {
@@ -6915,8 +6915,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_quantizeamount",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "quantizeamount()"
     },
     {
@@ -6926,8 +6926,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_amount",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "amount()"
     },
     {
@@ -6937,8 +6937,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_balances",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "balances()"
     },
     {
@@ -6948,8 +6948,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_ledger",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "ledger()"
     },
     {
@@ -6959,8 +6959,8 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_requirerequestid",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "requirerequestid()"
     },
     {
@@ -6970,8 +6970,8 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_reservationamount",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "reservationamount()"
     },
     {
@@ -6981,8 +6981,8 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_assertreservation",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "assertreservation()"
     },
     {
@@ -6992,8 +6992,8 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "usagesettlement"
     },
     {
@@ -7003,8 +7003,8 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_constructor",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": ".constructor()"
     },
     {
@@ -7014,8 +7014,8 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_reserve",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": ".reserve()"
     },
     {
@@ -7025,8 +7025,8 @@
       "source_location": "L91",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_release",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": ".release()"
     },
     {
@@ -7036,8 +7036,8 @@
       "source_location": "L116",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_settle",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": ".settle()"
     },
     {
@@ -7047,8 +7047,8 @@
       "source_location": "L128",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_resolvepending",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": ".resolvepending()"
     },
     {
@@ -7058,8 +7058,8 @@
       "source_location": "L152",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_settlereservation",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": ".settlereservation()"
     },
     {
@@ -7069,8 +7069,8 @@
       "source_location": "L255",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_index_usagesettlement_markpending",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": ".markpending()"
     },
     {
@@ -7080,8 +7080,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": "usage-settlement/postgres-repository.js"
     },
     {
@@ -7091,8 +7091,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_randomuuid",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": "{ randomuuid }"
     },
     {
@@ -7102,8 +7102,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_withtransaction",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": "{ withtransaction }"
     },
     {
@@ -7113,8 +7113,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_wallet_fields",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": "wallet_fields"
     },
     {
@@ -7124,8 +7124,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_log_fields",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": "log_fields"
     },
     {
@@ -7135,8 +7135,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": "postgressettlementrepository"
     },
     {
@@ -7146,8 +7146,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository_constructor",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": ".constructor()"
     },
     {
@@ -7157,8 +7157,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository_transaction",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": ".transaction()"
     },
     {
@@ -7168,8 +7168,8 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository_getorcreatereservation",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": ".getorcreatereservation()"
     },
     {
@@ -7179,8 +7179,8 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository_lockreservation",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": ".lockreservation()"
     },
     {
@@ -7190,8 +7190,8 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository_updatereservation",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": ".updatereservation()"
     },
     {
@@ -7201,8 +7201,8 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository_lockwallet",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": ".lockwallet()"
     },
     {
@@ -7212,8 +7212,8 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository_updatewallet",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": ".updatewallet()"
     },
     {
@@ -7223,8 +7223,8 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository_appendwallettransaction",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": ".appendwallettransaction()"
     },
     {
@@ -7234,8 +7234,8 @@
       "source_location": "L87",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository_appendrequestlog",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": ".appendrequestlog()"
     },
     {
@@ -7245,8 +7245,8 @@
       "source_location": "L96",
       "_origin": "ast",
       "id": "backend_src_modules_usage_settlement_postgres_repository_postgressettlementrepository_updaterequestlog",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 76,
+      "community_name": "usage-settlement/index.js",
       "norm_label": ".updaterequestlog()"
     },
     {
@@ -8081,8 +8081,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 128,
+      "community_name": "PostgresAccountRepository",
       "norm_label": "postgres-auth.js"
     },
     {
@@ -8092,8 +8092,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_express",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 128,
+      "community_name": "PostgresAccountRepository",
       "norm_label": "express"
     },
     {
@@ -8103,8 +8103,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_withtransaction",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 128,
+      "community_name": "PostgresAccountRepository",
       "norm_label": "{ withtransaction }"
     },
     {
@@ -8114,8 +8114,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_createpostgresidentity",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 128,
+      "community_name": "PostgresAccountRepository",
       "norm_label": "{ createpostgresidentity }"
     },
     {
@@ -8125,8 +8125,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_jsonconfigvalue",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 128,
+      "community_name": "PostgresAccountRepository",
       "norm_label": "jsonconfigvalue()"
     },
     {
@@ -8136,8 +8136,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_compatibleemail",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 128,
+      "community_name": "PostgresAccountRepository",
       "norm_label": "compatibleemail()"
     },
     {
@@ -8147,8 +8147,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_publicemail",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 128,
+      "community_name": "PostgresAccountRepository",
       "norm_label": "publicemail()"
     },
     {
@@ -8158,8 +8158,8 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "backend_src_routes_postgres_auth_createpostgresauthrouter",
-      "community": 43,
-      "community_name": "pricing-engine.js",
+      "community": 128,
+      "community_name": "PostgresAccountRepository",
       "norm_label": "createpostgresauthrouter()"
     },
     {
@@ -9038,8 +9038,8 @@
       "source_location": "L385",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_listmodels",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 33,
+      "community_name": "getDatabase",
       "norm_label": "listmodels()"
     },
     {
@@ -9126,8 +9126,8 @@
       "source_location": "L515",
       "_origin": "ast",
       "id": "backend_src_routes_proxy_anthropicreservationusage",
-      "community": 124,
-      "community_name": "channel-docs.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": "anthropicreservationusage()"
     },
     {
@@ -10754,8 +10754,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 100,
+      "community_name": "vue-router",
       "norm_label": "crypto.js"
     },
     {
@@ -10765,8 +10765,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_crypto",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 100,
+      "community_name": "vue-router",
       "norm_label": "crypto"
     },
     {
@@ -10776,8 +10776,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_getkey",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 100,
+      "community_name": "vue-router",
       "norm_label": "getkey()"
     },
     {
@@ -10787,8 +10787,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_encrypt",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 100,
+      "community_name": "vue-router",
       "norm_label": "encrypt()"
     },
     {
@@ -10809,8 +10809,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "backend_src_utils_crypto_desensitize",
-      "community": 21,
-      "community_name": "Proposed Changes",
+      "community": 100,
+      "community_name": "vue-router",
       "norm_label": "desensitize()"
     },
     {
@@ -11458,8 +11458,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_logger",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "logger.js"
     },
     {
@@ -11469,8 +11469,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_src_utils_logger_winston",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "winston"
     },
     {
@@ -11480,8 +11480,8 @@
       "source_location": "L2",
       "_origin": "ast",
       "id": "backend_src_utils_logger_path",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "path"
     },
     {
@@ -11491,8 +11491,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "backend_src_utils_logger_fs",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "fs"
     },
     {
@@ -11502,8 +11502,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_src_utils_logger_logdir",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "logdir"
     },
     {
@@ -11513,8 +11513,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "backend_src_utils_logger_logger",
-      "community": 153,
-      "community_name": "logger.js",
+      "community": 81,
+      "community_name": "fetchAll",
       "norm_label": "logger"
     },
     {
@@ -12789,8 +12789,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_auth_test",
-      "community": 35,
-      "community_name": "admin-finance.test.js",
+      "community": 33,
+      "community_name": "getDatabase",
       "norm_label": "auth.test.js"
     },
     {
@@ -13339,8 +13339,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "gateway-scheduler.test.js"
     },
     {
@@ -13350,8 +13350,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_behaviorredis",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "behaviorredis"
     },
     {
@@ -13361,8 +13361,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_behaviorredis_constructor",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".constructor()"
     },
     {
@@ -13372,8 +13372,8 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_behaviorredis_eval",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".eval()"
     },
     {
@@ -13383,8 +13383,8 @@
       "source_location": "L91",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_behaviorredis_set",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": ".set()"
     },
     {
@@ -13394,8 +13394,8 @@
       "source_location": "L104",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_scheduleraccount",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "scheduleraccount()"
     },
     {
@@ -13405,8 +13405,8 @@
       "source_location": "L146",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_listcandidates",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "listcandidates()"
     },
     {
@@ -13416,8 +13416,8 @@
       "source_location": "L147",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_getfallbackgroupid",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "getfallbackgroupid()"
     },
     {
@@ -13427,8 +13427,8 @@
       "source_location": "L476",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_reporthealth",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "reporthealth()"
     },
     {
@@ -13438,8 +13438,8 @@
       "source_location": "L477",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_markcooldown",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "markcooldown()"
     },
     {
@@ -13449,8 +13449,8 @@
       "source_location": "L563",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_eval",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "eval()"
     },
     {
@@ -13460,8 +13460,8 @@
       "source_location": "L564",
       "_origin": "ast",
       "id": "backend_tests_gateway_scheduler_test_set",
-      "community": 112,
-      "community_name": "gateway-scheduler.test.js",
+      "community": 19,
+      "community_name": "easypay-payment.test.js",
       "norm_label": "set()"
     },
     {
@@ -13933,8 +13933,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test",
-      "community": 139,
-      "community_name": ".key",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "postgres-admin-integration.test.js"
     },
     {
@@ -13944,8 +13944,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_require",
-      "community": 139,
-      "community_name": ".key",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "require"
     },
     {
@@ -13955,8 +13955,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_postgresadmincompatrepository",
-      "community": 139,
-      "community_name": ".key",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "{ postgresadmincompatrepository }"
     },
     {
@@ -13966,8 +13966,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_createsecretbox",
-      "community": 139,
-      "community_name": ".key",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "{ createsecretbox }"
     },
     {
@@ -13977,8 +13977,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_createpostgresidentity",
-      "community": 139,
-      "community_name": ".key",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "{ createpostgresidentity }"
     },
     {
@@ -13988,8 +13988,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_createpostgresadminrouter",
-      "community": 139,
-      "community_name": ".key",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "{ createpostgresadminrouter }"
     },
     {
@@ -13999,8 +13999,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_createpostgresuserrouter",
-      "community": 139,
-      "community_name": ".key",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "{ createpostgresuserrouter }"
     },
     {
@@ -14010,8 +14010,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_tests_postgres_admin_integration_test_postgresproxybillingpolicy",
-      "community": 139,
-      "community_name": ".key",
+      "community": 129,
+      "community_name": "dotenv",
       "norm_label": "{ postgresproxybillingpolicy }"
     },
     {
@@ -14351,8 +14351,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_integration_test",
-      "community": 158,
-      "community_name": "postgres-payment-integration.test.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "postgres-payment-integration.test.js"
     },
     {
@@ -14362,8 +14362,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_integration_test_require",
-      "community": 158,
-      "community_name": "postgres-payment-integration.test.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "require"
     },
     {
@@ -14373,8 +14373,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_integration_test_createpostgrespaymentservice_signeasypay",
-      "community": 158,
-      "community_name": "postgres-payment-integration.test.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "{ createpostgrespaymentservice, signeasypay }"
     },
     {
@@ -14384,8 +14384,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_integration_test_createsecretbox",
-      "community": 158,
-      "community_name": "postgres-payment-integration.test.js",
+      "community": 105,
+      "community_name": "dayjs",
       "norm_label": "{ createsecretbox }"
     },
     {
@@ -14450,8 +14450,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_paymentoptionspool",
-      "community": 152,
-      "community_name": "mock-upstream.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": "paymentoptionspool"
     },
     {
@@ -14461,8 +14461,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_paymentoptionspool_constructor",
-      "community": 152,
-      "community_name": "mock-upstream.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": ".constructor()"
     },
     {
@@ -14472,8 +14472,8 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_paymentoptionspool_connect",
-      "community": 152,
-      "community_name": "mock-upstream.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": ".connect()"
     },
     {
@@ -14483,8 +14483,8 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_paymentoptionspool_query",
-      "community": 152,
-      "community_name": "mock-upstream.js",
+      "community": 112,
+      "community_name": "gateway-scheduler.test.js",
       "norm_label": ".query()"
     },
     {
@@ -14505,8 +14505,8 @@
       "source_location": "L160",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_sealapikey",
-      "community": 140,
-      "community_name": "billing-detail.js",
+      "community": 152,
+      "community_name": "mock-upstream.js",
       "norm_label": "sealapikey()"
     },
     {
@@ -14516,8 +14516,8 @@
       "source_location": "L161",
       "_origin": "ast",
       "id": "backend_tests_postgres_payment_routes_test_openapikey",
-      "community": 140,
-      "community_name": "billing-detail.js",
+      "community": 152,
+      "community_name": "mock-upstream.js",
       "norm_label": "openapikey()"
     },
     {
@@ -14956,8 +14956,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_registration_test",
-      "community": 142,
-      "community_name": "logger.js",
+      "community": 33,
+      "community_name": "getDatabase",
       "norm_label": "registration.test.js"
     },
     {
@@ -14967,8 +14967,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "backend_tests_registration_test_require",
-      "community": 142,
-      "community_name": "logger.js",
+      "community": 33,
+      "community_name": "getDatabase",
       "norm_label": "require"
     },
     {
@@ -14978,8 +14978,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_registration_test_getdatabase_initdatabase",
-      "community": 142,
-      "community_name": "logger.js",
+      "community": 33,
+      "community_name": "getDatabase",
       "norm_label": "{ getdatabase, initdatabase }"
     },
     {
@@ -14989,8 +14989,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_registration_test_authroutes",
-      "community": 142,
-      "community_name": "logger.js",
+      "community": 33,
+      "community_name": "getDatabase",
       "norm_label": "authroutes"
     },
     {
@@ -15008,7 +15008,7 @@
       "label": "existingCapabilities",
       "file_type": "code",
       "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L8",
+      "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_release_control_plane_overrides_test_existingcapabilities",
       "community": 102,
@@ -15019,7 +15019,7 @@
       "label": "effectiveCapabilities",
       "file_type": "code",
       "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L9",
+      "source_location": "L10",
       "_origin": "ast",
       "id": "backend_tests_release_control_plane_overrides_test_effectivecapabilities",
       "community": 102,
@@ -15030,7 +15030,7 @@
       "label": "imagePricesUsd",
       "file_type": "code",
       "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L10",
+      "source_location": "L11",
       "_origin": "ast",
       "id": "backend_tests_release_control_plane_overrides_test_imagepricesusd",
       "community": 102,
@@ -15041,7 +15041,7 @@
       "label": "targetRow()",
       "file_type": "code",
       "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L12",
+      "source_location": "L13",
       "_origin": "ast",
       "id": "backend_tests_release_control_plane_overrides_test_targetrow",
       "community": 102,
@@ -15451,8 +15451,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_usage_settlement_module_test",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "usage-settlement-module.test.js"
     },
     {
@@ -15462,8 +15462,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "backend_tests_usage_settlement_module_test_postgresmoney",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "postgresmoney()"
     },
     {
@@ -15473,8 +15473,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_usage_settlement_module_test_fakesettlementrepository",
-      "community": 76,
-      "community_name": "usage-settlement/index.js",
+      "community": 55,
+      "community_name": "stores/auth.js",
       "norm_label": "fakesettlementrepository()"
     },
     {
@@ -15561,8 +15561,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test",
-      "community": 178,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 171,
+      "community_name": "middleware/auth.js",
       "norm_label": "user-model-multipliers.test.js"
     },
     {
@@ -15572,8 +15572,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test_require",
-      "community": 178,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 171,
+      "community_name": "middleware/auth.js",
       "norm_label": "require"
     },
     {
@@ -15583,8 +15583,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test_initdatabase_getdatabase",
-      "community": 178,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 171,
+      "community_name": "middleware/auth.js",
       "norm_label": "{ initdatabase, getdatabase }"
     },
     {
@@ -15594,8 +15594,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test_generatetoken",
-      "community": 178,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 171,
+      "community_name": "middleware/auth.js",
       "norm_label": "{ generatetoken }"
     },
     {
@@ -15605,8 +15605,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test_userroutes",
-      "community": 178,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 171,
+      "community_name": "middleware/auth.js",
       "norm_label": "userroutes"
     },
     {
@@ -15616,8 +15616,8 @@
       "source_location": "L68",
       "_origin": "ast",
       "id": "backend_tests_user_model_multipliers_test_listmodels",
-      "community": 178,
-      "community_name": "user-model-multipliers.test.js",
+      "community": 171,
+      "community_name": "middleware/auth.js",
       "norm_label": "listmodels()"
     },
     {
@@ -15671,8 +15671,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "backend_tests_worker_runtime_test",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 153,
+      "community_name": "logger.js",
       "norm_label": "worker-runtime.test.js"
     },
     {
@@ -15682,8 +15682,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "backend_tests_worker_runtime_test_require",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 153,
+      "community_name": "logger.js",
       "norm_label": "require"
     },
     {
@@ -15693,8 +15693,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "backend_tests_worker_runtime_test_readpostgresmigrationmanifest",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 153,
+      "community_name": "logger.js",
       "norm_label": "{ readpostgresmigrationmanifest }"
     },
     {
@@ -15704,8 +15704,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "backend_tests_worker_runtime_test_migrationdirectory",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 153,
+      "community_name": "logger.js",
       "norm_label": "migrationdirectory"
     },
     {
@@ -15715,8 +15715,8 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "backend_tests_worker_runtime_test_environment",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 153,
+      "community_name": "logger.js",
       "norm_label": "environment()"
     },
     {
@@ -15726,8 +15726,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "backend_tests_worker_runtime_test_postgresdriver",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 153,
+      "community_name": "logger.js",
       "norm_label": "postgresdriver()"
     },
     {
@@ -15737,8 +15737,8 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "backend_tests_worker_runtime_test_redisdriver",
-      "community": 161,
-      "community_name": "worker-runtime.test.js",
+      "community": 153,
+      "community_name": "logger.js",
       "norm_label": "redisdriver()"
     },
     {
@@ -32394,6 +32394,18 @@
       "relation": "imports_from",
       "context": "import",
       "confidence": "EXTRACTED",
+      "source_file": "backend/tests/release-control-plane-overrides.test.js",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_tests_release_control_plane_overrides_test",
+      "target": "backend_src_infrastructure_postgres",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
       "source_file": "backend/tests/worker-runtime.test.js",
       "source_location": "L7",
       "weight": 1.0,
@@ -32951,6 +32963,18 @@
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_infrastructure_clients_test",
+      "target": "backend_src_infrastructure_postgres_withtransaction",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "backend/tests/release-control-plane-overrides.test.js",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "backend_tests_release_control_plane_overrides_test",
       "target": "backend_src_infrastructure_postgres_withtransaction",
       "confidence_score": 1.0
     },
@@ -59601,7 +59625,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L9",
+      "source_location": "L10",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_release_control_plane_overrides_test",
@@ -59612,7 +59636,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L8",
+      "source_location": "L9",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_release_control_plane_overrides_test",
@@ -59623,7 +59647,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L10",
+      "source_location": "L11",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_release_control_plane_overrides_test",
@@ -59634,7 +59658,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "backend/tests/release-control-plane-overrides.test.js",
-      "source_location": "L12",
+      "source_location": "L13",
       "weight": 1.0,
       "_origin": "ast",
       "source": "backend_tests_release_control_plane_overrides_test",
@@ -71992,5 +72016,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "d41b9865db88baac45a44ad978e7e1ecccba6788"
+  "built_at_commit": "460cefb7975178abc4ac8f5fed3dfca3637cb0da"
 }

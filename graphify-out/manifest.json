@@ -200,8 +200,8 @@
     "semantic_hash": "c2189ad1c654399d0226bd71887efb6b"
   },
   "backend/tests/image-generations.test.js": {
-    "mtime": 1788400620.2090857,
-    "ast_hash": "bb5ea3574e1d2f0cca57177cb9cd447c",
+    "mtime": 1788401367.3523548,
+    "ast_hash": "4aa12d6749613438295cfc6b6e71d7f0",
     "semantic_hash": ""
   },
   "backend/tests/manual-pricing.test.js": {
@@ -625,8 +625,8 @@
     "semantic_hash": ""
   },
   "backend/tests/image-request-executor.test.js": {
-    "mtime": 1788400458.1443238,
-    "ast_hash": "0624b049be60c00f71161db76bd79dc9",
+    "mtime": 1788401350.4146717,
+    "ast_hash": "4ccbc7faa7e2a6135ed9c62636df7baa",
     "semantic_hash": ""
   },
   "backend/migrations/postgres/000_bootstrap.sql": {
@@ -1115,8 +1115,8 @@
     "semantic_hash": ""
   },
   "backend/tests/release-control-plane-overrides.test.js": {
-    "mtime": 1788400694.1701653,
-    "ast_hash": "72770b2105f9ba65455775632b255fdd",
+    "mtime": 1788401332.8436937,
+    "ast_hash": "0c92bdcb6577b9e899194293ed0ddd9a",
     "semantic_hash": ""
   },
   "frontend/perf/admin-payment-settings.spec.mjs": {

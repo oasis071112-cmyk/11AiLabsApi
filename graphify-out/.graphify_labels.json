@@ -161,7 +161,6 @@
   "159": "性能与压测验证",
   "160": "multiplierText",
   "161": "worker-runtime.test.js",
-  "162": "axios",
   "163": "billingModeLabel",
   "164": "bcryptjs",
   "165": "express-rate-limit",
@@ -174,6 +173,5 @@
   "172": "request-limits.js",
   "173": "postgres-payment.js",
   "174": "check-nginx-tls-policy.sh",
-  "175": "channel-capabilities.js",
-  "178": "user-model-multipliers.test.js"
+  "175": "channel-capabilities.js"
 }

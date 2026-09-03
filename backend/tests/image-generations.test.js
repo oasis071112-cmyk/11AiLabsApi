@@ -194,12 +194,14 @@ describe('图片生成端点计费', () => {
   }
 
   it('Codex 根路径保留 Bearer 鉴权且 actor header 不能单独授权', async () => {
-    const unauthorized = await request('/images/generations', {
-      method: 'POST',
-      headers: { 'x-openai-actor-authorization': 'local-image-extension' },
-      body: JSON.stringify({ model: modelCode, prompt: 'draw', size: '1024x1024', n: 1 }),
-    });
-    expect(unauthorized.status).toBe(401);
+    for (const path of ['/v1/images/generations', '/images/generations']) {
+      const unauthorized = await request(path, {
+        method: 'POST',
+        headers: { 'x-openai-actor-authorization': 'local-image-extension' },
+        body: JSON.stringify({ model: modelCode, prompt: 'draw', size: '1024x1024', n: 1 }),
+      });
+      expect(unauthorized.status, path).toBe(401);
+    }
 
     const authorized = await request('/images/generations', {
       method: 'POST',

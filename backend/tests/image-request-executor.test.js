@@ -79,6 +79,12 @@ describe('ImageRequestExecutor', () => {
     expect(() => executor.prepare(request([{
       image_url: `data:image/png;base64,${oversized.toString('base64')}`,
     }]))).toThrow('单张图片超过');
+    const shared = Buffer.concat([imageBytes('image/png'), Buffer.alloc(17 * 1024 * 1024)]);
+    const sharedUrl = `data:image/png;base64,${shared.toString('base64')}`;
+    expect(() => executor.prepare(request(Array.from(
+      { length: 3 },
+      () => ({ image_url: sharedUrl }),
+    )))).toThrow('总大小超过 50MB');
   });
 
 

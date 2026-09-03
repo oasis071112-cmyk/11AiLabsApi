@@ -35,8 +35,8 @@
     "semantic_hash": "15711ec438b5d7f32ca686ddcc5596f5"
   },
   "backend/src/index.js": {
-    "mtime": 1786606643.4558249,
-    "ast_hash": "6c08f510832a15d51faa46d9819c2148",
+    "mtime": 1788400767.882872,
+    "ast_hash": "f4f407505d93e816a69448116f333036",
     "semantic_hash": ""
   },
   "backend/src/middleware/auth.js": {
@@ -60,8 +60,8 @@
     "semantic_hash": "84b6ec069e2a06ec97029413d7e9ad29"
   },
   "backend/src/routes/proxy.js": {
-    "mtime": 1785854430.9677591,
-    "ast_hash": "1655317227e59fd93a298332069bac9a",
+    "mtime": 1788400354.4247825,
+    "ast_hash": "a1e09ad755ff2f7e98455ba05c406a21",
     "semantic_hash": ""
   },
   "backend/src/routes/public.js": {
@@ -125,8 +125,8 @@
     "semantic_hash": "b174111a11c7185639ee4aa7edeffb16"
   },
   "backend/src/utils/pricing-engine.js": {
-    "mtime": 1785855104.3663235,
-    "ast_hash": "0d0e3b1d7dca9bcf3ebc7587c31b87c4",
+    "mtime": 1788400607.0699065,
+    "ast_hash": "0ee6750b3007f217bc0fdbbf0b7a0373",
     "semantic_hash": ""
   },
   "backend/src/utils/pricing-sync.js": {
@@ -200,8 +200,8 @@
     "semantic_hash": "c2189ad1c654399d0226bd71887efb6b"
   },
   "backend/tests/image-generations.test.js": {
-    "mtime": 1785568083.43028,
-    "ast_hash": "c14e1417fd7133ab81a66f4cd3fdcf86",
+    "mtime": 1788400620.2090857,
+    "ast_hash": "bb5ea3574e1d2f0cca57177cb9cd447c",
     "semantic_hash": ""
   },
   "backend/tests/manual-pricing.test.js": {
@@ -210,8 +210,8 @@
     "semantic_hash": "f10ca9d48e05e0f4e675a289e46ca6e6"
   },
   "backend/tests/model-capabilities.test.js": {
-    "mtime": 1785516434.5127487,
-    "ast_hash": "6afef00e60d98a7d2c6403440c1b1ca8",
+    "mtime": 1788400594.7422633,
+    "ast_hash": "c7933baae0550a6ea511da808042293e",
     "semantic_hash": ""
   },
   "backend/tests/model-sync.test.js": {
@@ -220,8 +220,8 @@
     "semantic_hash": "f454a492e0a7062fb5503e218a548e82"
   },
   "backend/tests/pricing-engine.test.js": {
-    "mtime": 1785855091.7525148,
-    "ast_hash": "1ccc6b978312c38903a487bd8a7f8d4e",
+    "mtime": 1788400594.738418,
+    "ast_hash": "b5ea4d897e4c7b8f9b2cc17537e37942",
     "semantic_hash": ""
   },
   "backend/tests/pricing-sync.test.js": {
@@ -260,13 +260,13 @@
     "semantic_hash": "f984a076917808535fc9dc56c4ab14d8"
   },
   "frontend/auto-imports.d.ts": {
-    "mtime": 1786609314.777691,
+    "mtime": 1788400917.5144982,
     "ast_hash": "a372321978ef6bbbf415c8f17c83c675",
     "semantic_hash": ""
   },
   "frontend/components.d.ts": {
-    "mtime": 1786610019.2822013,
-    "ast_hash": "fa0d0d7db89f2f46ff2b696d92185221",
+    "mtime": 1788400919.4803524,
+    "ast_hash": "518cb7700a9e735d0b1b466b56f3d0b9",
     "semantic_hash": ""
   },
   "frontend/package.json": {
@@ -620,13 +620,13 @@
     "semantic_hash": ""
   },
   "backend/src/utils/image-request-executor.js": {
-    "mtime": 1785566880.9738467,
-    "ast_hash": "08be89d59d0ee03506d7b82a88883ee7",
+    "mtime": 1788400300.5829492,
+    "ast_hash": "6eeee1df4e91a628c43bfee438a36eb2",
     "semantic_hash": ""
   },
   "backend/tests/image-request-executor.test.js": {
-    "mtime": 1785566653.2909608,
-    "ast_hash": "c9a1ffc473ec413e25caf594c55f0c9f",
+    "mtime": 1788400458.1443238,
+    "ast_hash": "0624b049be60c00f71161db76bd79dc9",
     "semantic_hash": ""
   },
   "backend/migrations/postgres/000_bootstrap.sql": {
@@ -700,8 +700,8 @@
     "semantic_hash": ""
   },
   "backend/tests/infrastructure-static-contract.test.js": {
-    "mtime": 1785553388.087392,
-    "ast_hash": "785ff87be04f982135462a4bde4f3bd2",
+    "mtime": 1788400826.4439046,
+    "ast_hash": "f1d772b75b9526556f1909fd5148c5dd",
     "semantic_hash": ""
   },
   "backend/tests/postgres-migrations.test.js": {
@@ -895,8 +895,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-proxy.js": {
-    "mtime": 1786610019.1717393,
-    "ast_hash": "a7fd9263a87f2db6f7bb96e88009333a",
+    "mtime": 1788400429.3578217,
+    "ast_hash": "2b6d392c143d9390e364cc8fd37093bf",
     "semantic_hash": ""
   },
   "backend/src/routes/postgres-user.js": {
@@ -915,8 +915,8 @@
     "semantic_hash": ""
   },
   "backend/tests/postgres-proxy.test.js": {
-    "mtime": 1786610019.175419,
-    "ast_hash": "c6adf619816ec161315f140e5e2e0931",
+    "mtime": 1788400869.2617304,
+    "ast_hash": "5e3af7b5a262dc59cb053da9a6f86a2f",
     "semantic_hash": ""
   },
   "backend/load/autocannon-scenarios.js": {
@@ -1090,8 +1090,8 @@
     "semantic_hash": ""
   },
   "backend/scripts/apply-release-control-plane-overrides.js": {
-    "mtime": 1785566909.6286528,
-    "ast_hash": "f19149496bac08e415675c78d09736a9",
+    "mtime": 1788400721.4456134,
+    "ast_hash": "9c539f777f9c57666aaffa7e8370ac8a",
     "semantic_hash": ""
   },
   "backend/src/utils/access-log.js": {
@@ -1115,8 +1115,8 @@
     "semantic_hash": ""
   },
   "backend/tests/release-control-plane-overrides.test.js": {
-    "mtime": 1785566662.4562645,
-    "ast_hash": "bc4e90bd3514ec5be5cbc9d8e4463f0b",
+    "mtime": 1788400694.1701653,
+    "ast_hash": "72770b2105f9ba65455775632b255fdd",
     "semantic_hash": ""
   },
   "frontend/perf/admin-payment-settings.spec.mjs": {
@@ -1232,6 +1232,16 @@
   "frontend/perf/admin-logs-drilldown.spec.mjs": {
     "mtime": 1786610019.4655335,
     "ast_hash": "8e5e13227de250d01b184f1b2251d967",
+    "semantic_hash": ""
+  },
+  "backend/src/routes/codex-compat.js": {
+    "mtime": 1788400232.8279712,
+    "ast_hash": "8a1bac3461bdd819f6491744a964b316",
+    "semantic_hash": ""
+  },
+  "backend/tests/codex-compat.test.js": {
+    "mtime": 1788400213.7191305,
+    "ast_hash": "ad7880a43245b99062d1a84a15c60eb0",
     "semantic_hash": ""
   }
 }
